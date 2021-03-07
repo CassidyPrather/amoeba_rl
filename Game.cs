@@ -6,6 +6,8 @@ using System.Threading.Tasks;
 using RogueSharp;
 using RLNET;
 using AmoebaRL.UI;
+using AmoebaRL.Core;
+using AmoebaRL.Systems;
 
 namespace AmoebaRL
 {
@@ -31,18 +33,25 @@ namespace AmoebaRL
         private PlayerConsole _playerConsole;
         #endregion
 
+        public static DungeonMap DMap { get; private set; }
+
+        public static Nucleus Player { get; private set; }
+
+        private static bool _renderRequired = true;
+
+        public static CommandSystem CommandSystem { get; private set; }
+
         public Game()
         {
-            InitConsoles();
+            Start();
             // Set up a handler for RLNET's Update event
             _rootConsole.Update += OnRootConsoleUpdate;
             // Set up a handler for RLNET's Render event
             _rootConsole.Render += OnRootConsoleRender;
-            // Begin RLNET's game loop
-            _rootConsole.Run();
+            
         }
 
-        private void InitConsoles()
+        protected void Start()
         {
             _mapConsole = new MapConsole();
             _playerConsole = new PlayerConsole();
@@ -50,24 +59,73 @@ namespace AmoebaRL
             _rootConsole = new RLRootConsole(_fontFileName, _mapConsole.Width + _playerConsole.Width,
                                              _mapConsole.Height + _infoConsole.Height, _fontWidth, _fontHeight, 1f,
                                              _winTitle);
+            Player = new Nucleus();
+            CommandSystem = new CommandSystem();
+            MapGenerator mapGenerator = new MapGenerator(_mapConsole.Width, _mapConsole.Height);
+            DMap = mapGenerator.CreateMap();
+            DMap.UpdatePlayerFieldOfView();
         }
 
         public void Play() => _rootConsole.Run();
 
         private void OnRootConsoleUpdate(object sender, UpdateEventArgs e)
         {
+            UserInput(sender, e);
             _mapConsole.OnUpdate(sender, e);
             _infoConsole.OnUpdate(sender, e);
             _playerConsole.OnUpdate(sender, e);
         }
 
+        private void UserInput(object sender, UpdateEventArgs e)
+        {
+            bool didPlayerAct = false;
+            RLKeyPress keyPress = _rootConsole.Keyboard.GetKeyPress();
+
+            if (keyPress != null)
+            {
+                if (keyPress.Key == RLKey.Up)
+                {
+                    didPlayerAct = CommandSystem.MovePlayer(Direction.Up);
+                }
+                else if (keyPress.Key == RLKey.Down)
+                {
+                    didPlayerAct = CommandSystem.MovePlayer(Direction.Down);
+                }
+                else if (keyPress.Key == RLKey.Left)
+                {
+                    didPlayerAct = CommandSystem.MovePlayer(Direction.Left);
+                }
+                else if (keyPress.Key == RLKey.Right)
+                {
+                    didPlayerAct = CommandSystem.MovePlayer(Direction.Right);
+                }
+                else if (keyPress.Key == RLKey.Escape)
+                {
+                    _rootConsole.Close();
+                }
+            }
+
+            if (didPlayerAct)
+            {
+                _renderRequired = true;
+            }
+        }
+
         private void OnRootConsoleRender(object sender, UpdateEventArgs e)
         {
-            RLConsole.Blit(_mapConsole, 0, 0, _mapConsole.Width, _mapConsole.Height, _rootConsole, 0, 0);
-            RLConsole.Blit(_infoConsole, 0, 0, _infoConsole.Width, _infoConsole.Height, _rootConsole, 0, _mapConsole.Height);
-            RLConsole.Blit(_playerConsole, 0, 0, _playerConsole.Width, _playerConsole.Height, _rootConsole, _mapConsole.Width, 0);
+            if(_renderRequired)
+            {
+                DMap.Draw(_mapConsole);
+                Player.Draw(_mapConsole, DMap);
 
-            _rootConsole.Draw();
+                RLConsole.Blit(_mapConsole, 0, 0, _mapConsole.Width, _mapConsole.Height, _rootConsole, 0, 0);
+                RLConsole.Blit(_infoConsole, 0, 0, _infoConsole.Width, _infoConsole.Height, _rootConsole, 0, _mapConsole.Height);
+                RLConsole.Blit(_playerConsole, 0, 0, _playerConsole.Width, _playerConsole.Height, _rootConsole, _mapConsole.Width, 0);
+
+                _rootConsole.Draw(); // Must come after "inner draws"
+
+                _renderRequired = false;
+            }
         }
 
     }

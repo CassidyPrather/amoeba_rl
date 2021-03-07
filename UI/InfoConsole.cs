@@ -16,13 +16,13 @@ namespace AmoebaRL.UI
 
         public InfoConsole() : base(INFO_WIDTH, INFO_HEIGHT)
         {
-
+            SetBackColor(0, 0, Width, Height, Palette.PrimaryDarker);
+            Print(1, 1, "Log", Palette.TextHeading);
         }
 
         public void OnUpdate(object sender, UpdateEventArgs e)
         {
-            SetBackColor(0, 0, Width, Height, RLColor.Gray);
-            Print(1, 1, "Log", RLColor.White);
+            
         }
     }
 }

@@ -15,13 +15,13 @@ namespace AmoebaRL.UI
 
         public MapConsole() : base(MAP_WIDTH, MAP_HEIGHT)
         {
-
+            //SetBackColor(0, 0, Width, Height, Palette.FloorBackground);
+            //Print(1, 1, "Map", Palette.TextHeading);
         }
 
         public void OnUpdate(object sender, UpdateEventArgs e)
         {
-            SetBackColor(0, 0, Width, Height, RLColor.Black);
-            Print(1, 1, "Map", RLColor.White);
+            
         }
     }
 }
