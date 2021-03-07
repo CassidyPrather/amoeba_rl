@@ -12,6 +12,13 @@ namespace AmoebaRL.Core
 {
     public class DungeonMap : Map
     {
+        public List<Rectangle> Boulders;
+
+        public DungeonMap()
+        {
+            Boulders = new List<Rectangle>();
+        }
+
         // The Draw method will be called each time the map is updated
         // It will render all of the symbols/colors for each cell to the map sub console
         public void Draw(RLConsole mapConsole)
@@ -105,5 +112,16 @@ namespace AmoebaRL.Core
             ICell cell = GetCell(x, y); // For some reason, this didn't work with the specific type "Cell"
             SetCellProperties(cell.X, cell.Y, cell.IsTransparent, isWalkable, cell.IsExplored);
         }
+
+        // Called by MapGenerator after we generate a new map to add the player to the map
+        public void AddPlayer(Nucleus player)
+        {
+            Game.Player = player;
+            SetIsWalkable(player.X, player.Y, false);
+            UpdatePlayerFieldOfView();
+        }
+
+        // Helpers
+        public static int TaxiDistance(ICell from, ICell to) => Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y);
     }
 }

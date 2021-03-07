@@ -8,6 +8,7 @@ using RLNET;
 using AmoebaRL.UI;
 using AmoebaRL.Core;
 using AmoebaRL.Systems;
+using RogueSharp.Random;
 
 namespace AmoebaRL
 {
@@ -33,9 +34,13 @@ namespace AmoebaRL
         private PlayerConsole _playerConsole;
         #endregion
 
+        public static int seed;
+
+        public static IRandom Rand { get; private set; }
+
         public static DungeonMap DMap { get; private set; }
 
-        public static Nucleus Player { get; private set; }
+        public static Nucleus Player { get; set; }
 
         private static bool _renderRequired = true;
 
@@ -53,15 +58,18 @@ namespace AmoebaRL
 
         protected void Start()
         {
+            seed = (int)DateTime.UtcNow.Ticks; // may save for later?
+            Rand = new DotNetRandom(seed);
+
             _mapConsole = new MapConsole();
             _playerConsole = new PlayerConsole();
             _infoConsole = new InfoConsole();
             _rootConsole = new RLRootConsole(_fontFileName, _mapConsole.Width + _playerConsole.Width,
                                              _mapConsole.Height + _infoConsole.Height, _fontWidth, _fontHeight, 1f,
                                              _winTitle);
-            Player = new Nucleus();
             CommandSystem = new CommandSystem();
-            MapGenerator mapGenerator = new MapGenerator(_mapConsole.Width, _mapConsole.Height);
+            // Fix the numbers in the map generator call later.
+            MapGenerator mapGenerator = new MapGenerator(_mapConsole.Width, _mapConsole.Height, 20, 13, 7);
             DMap = mapGenerator.CreateMap();
             DMap.UpdatePlayerFieldOfView();
         }
@@ -127,6 +135,5 @@ namespace AmoebaRL
                 _renderRequired = false;
             }
         }
-
     }
 }

@@ -3,9 +3,11 @@
 7DRL 2021 submission by Vectis.
 
 # How to Play
-Arrow keys to move.
+Arrow keys: Move.
+Space: Wait
 Z, C: Go to previous/next organelle
-X: Examine mode
+X: Examine mode toggle
+    Arrow keys (Examine mode): Move examine cursor.
 Reach 128 mass to win.
 
 # TODO
