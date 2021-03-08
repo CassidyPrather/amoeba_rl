@@ -60,20 +60,53 @@ namespace AmoebaRL.Systems
                     }
             }
 
+            Actor targetActor = Game.DMap.GetActorAt(x, y);
+            if (targetActor != null )
+            {
+                if(targetActor.Slime == true)
+                { 
+                    // swap
+                    Game.DMap.Swap(Game.Player, targetActor);
+                    return true;
+                }
+                else if (targetActor.Name == "Nutrient") // stupid constant string
+                {
+                    Actor n = new Cytoplasm()
+                    {
+                        X = targetActor.X,
+                        Y = targetActor.Y
+                    };
+                    Game.DMap.RemoveActor(targetActor);
+                    Game.DMap.AddActor(n);
+                    Game.DMap.Swap(Game.Player, n);
+                    return true;
+                }
+            }
+            else
+            {
+                return MoveNucleus(x, y);
+            }
+
+            return false;
+        }
+
+        private static bool MoveNucleus(int x, int y)
+        {
             int counter = 1;
             int max = 0;
             bool done = false;
             SlimePathfind root = new SlimePathfind(Game.Player, null, 0);
             List<SlimePathfind> last = new List<SlimePathfind>() { root };
             List<SlimePathfind> accountedFor = new List<SlimePathfind>() { root };
-            while(!done)
+            while (!done)
             {
                 List<SlimePathfind> frontier = new List<SlimePathfind>();
-                foreach(SlimePathfind l in last)
-                { 
-                    List<Actor> pullIn = Game.DMap.Actors.Where(a => a.AdjacentTo(l.current.X, l.current.Y) 
+                foreach (SlimePathfind l in last)
+                {
+                    List<Actor> pullIn = Game.DMap.Actors.Where(a => a.Slime == true
+                                                                && a.AdjacentTo(l.current.X, l.current.Y)
                                                                 && !accountedFor.Where(t => t.current == a).Any()).ToList();
-                    for(int i = 0; i < pullIn.Count; i++)
+                    for (int i = 0; i < pullIn.Count; i++)
                     {
                         max = counter;
                         SlimePathfind node = new SlimePathfind(pullIn[i], l, counter);
@@ -89,12 +122,12 @@ namespace AmoebaRL.Systems
             }
 
             List<SlimePathfind> best = accountedFor.Where(p => p.dist == max).ToList();
-            
+
             int randSelect = Game.Rand.Next(0, best.Count - 1);
             SlimePathfind selected = best[randSelect];
             List<Actor> path = new List<Actor>();
             bool looping = true; // why can't you come up with better namescl
-            while(looping)
+            while (looping)
             {
                 path.Add(selected.current);
                 selected = selected.dest;
@@ -104,10 +137,10 @@ namespace AmoebaRL.Systems
 
             path.Reverse();
 
-            Point lastPoint = new Point(Game.Player.X,Game.Player.Y);
+            Point lastPoint = new Point(Game.Player.X, Game.Player.Y);
             if (Game.DMap.SetActorPosition(Game.Player, x, y))
             {// Player was moved; cascade vaccume
-                for(int i=1; i < path.Count; i++)
+                for (int i = 1; i < path.Count; i++)
                 {
                     Point buffer = new Point(path[i].X, path[i].Y);
                     Game.DMap.SetActorPosition(path[i], lastPoint.X, lastPoint.Y);

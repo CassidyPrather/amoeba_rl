@@ -89,6 +89,11 @@ namespace AmoebaRL.Core
             }
         }
 
+        public Actor GetActorAt(int x, int y)
+        {
+            return Actors.FirstOrDefault(a => a.X == x && a.Y == y);
+        }
+
         // Returns true when able to place the Actor on the cell or false otherwise
         public bool SetActorPosition(Actor actor, int x, int y)
         {
@@ -112,6 +117,18 @@ namespace AmoebaRL.Core
             return false;
         }
 
+        public void Swap(Actor a, Actor b)
+        {
+            Point buffer = new Point(a.X, a.Y);
+            a.X = b.X;
+            a.Y = b.Y;
+            b.X = buffer.X;
+            b.Y = buffer.Y;
+            if ((a.Slime == true && a.Awareness != 0) || (b.Slime == true && b.Awareness != 0))
+                UpdatePlayerFieldOfView();
+
+        }
+
         // A helper method for setting the IsWalkable property on a Cell
         public void SetIsWalkable(int x, int y, bool isWalkable)
         {
@@ -131,6 +148,12 @@ namespace AmoebaRL.Core
         {
             Actors.Add(toAdd);
             SetIsWalkable(toAdd.X, toAdd.Y, false);
+        }
+
+        public void RemoveActor(Actor a)
+        {
+            Actors.Remove(a);
+            SetIsWalkable(a.X, a.Y, true);
         }
 
         // Helpers

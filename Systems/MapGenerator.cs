@@ -21,6 +21,7 @@ namespace AmoebaRL.Systems
         private readonly int INITIAL_SLIME = 4; // eventually replace this with a predefined list of IActors that get spawned in near the player.
 
         private readonly DungeonMap _map;
+        private readonly int FOOD_AMT = 32;
 
         // Constructing a new MapGenerator requires the dimensions of the maps it will create
         // as well as the sizes and maximum number of rooms
@@ -47,6 +48,9 @@ namespace AmoebaRL.Systems
             ConnectPockets();
 
             PlacePlayer();
+
+            for(int i = 0; i < FOOD_AMT; i++)
+                PlaceFood();
 
             return _map;
         }
@@ -354,6 +358,17 @@ namespace AmoebaRL.Systems
                 inMass.Y = initialSlime[i].Y;
                 _map.AddActor(inMass);
             }
+        }
+
+        public void PlaceFood()
+        {
+            Nutrient n = new Nutrient();
+            do
+            {
+                n.X = Game.Rand.Next(0, _width - 1);
+                n.Y = Game.Rand.Next(0, _height - 1);
+            } while (!_map.GetCell(n.X, n.Y).IsWalkable);
+            _map.AddActor(n);
         }
 
         public bool TryFluidSelect(out List<ICell> result, ICell from, int count)
