@@ -41,11 +41,14 @@ namespace AmoebaRL
         public static DungeonMap DMap { get; private set; }
 
         public static Nucleus Player { get; set; }
+        
+        public static CommandSystem CommandSystem { get; private set; }
+
+        public static MessageLog MessageLog { get; private set; }
 
         private static bool _renderRequired = true;
 
-        public static CommandSystem CommandSystem { get; private set; }
-
+        
         public Game()
         {
             Start();
@@ -53,9 +56,11 @@ namespace AmoebaRL
             _rootConsole.Update += OnRootConsoleUpdate;
             // Set up a handler for RLNET's Render event
             _rootConsole.Render += OnRootConsoleRender;
-            
         }
 
+        /// <summary>
+        /// Called once when the game is launched..
+        /// </summary>
         protected void Start()
         {
             seed = (int)DateTime.UtcNow.Ticks; // may save for later?
@@ -72,6 +77,11 @@ namespace AmoebaRL
             MapGenerator mapGenerator = new MapGenerator(_mapConsole.Width, _mapConsole.Height, 20, 13, 7);
             DMap = mapGenerator.CreateMap();
             DMap.UpdatePlayerFieldOfView();
+
+            // Create a new MessageLog and print the random seed used to generate the level
+            MessageLog = new MessageLog();
+            MessageLog.Add("Reach 128 mass to win.");
+            MessageLog.Add($"Level created with seed '{seed}'");
         }
 
         public void Play() => _rootConsole.Run();
@@ -125,6 +135,7 @@ namespace AmoebaRL
             {
                 DMap.Draw(_mapConsole);
                 Player.Draw(_mapConsole, DMap);
+                MessageLog.Draw(_infoConsole);
 
                 RLConsole.Blit(_mapConsole, 0, 0, _mapConsole.Width, _mapConsole.Height, _rootConsole, 0, 0);
                 RLConsole.Blit(_infoConsole, 0, 0, _infoConsole.Width, _infoConsole.Height, _rootConsole, 0, _mapConsole.Height);

@@ -14,6 +14,16 @@ Reach 128 mass to win.
 See if we can build to .NET 5.0 because I like it.
 Keybinding config?
 
+## 7DRL Agenda
+Using some libraries to help
+Day 1 (Saturday): Mapgen, movement, ~~map scrolling~~
+Day 2 (Sunday): Slime physics, movement, growth
+Day 3 (Monday): Enemies, organelles
+Day 4 (Tuesday): 2 more enemies, crafting
+Day 5 (Wednesday): Inspection menu; playtest release
+Day 6 (Thursday): Polish, balance
+Day 7 (Friday): Polish
+
 # Credits
 
 Vectis you'd better fix this up by release.
