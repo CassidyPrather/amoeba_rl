@@ -96,9 +96,10 @@ namespace AmoebaRL.Systems
                     for(int i = 0; i < bestBridges[mergePockets.Item2].Count; i++)
                     {
                         Tuple<ICell, ICell, int> stolenBridge = bestBridges[mergePockets.Item2][i];
-                        Tuple<ICell, ICell, int> toReplace = bestBridges[mergePockets.Item1][mergePockets.Item2 + i];
+                        int offset = mergePockets.Item1 < mergePockets.Item2 ? -1 : 0;
+                        Tuple<ICell, ICell, int> toReplace = bestBridges[mergePockets.Item1][mergePockets.Item2 + i + offset];
                         if (stolenBridge.Item3 < toReplace.Item3)
-                            bestBridges[mergePockets.Item1][mergePockets.Item2 + i] = stolenBridge;
+                            bestBridges[mergePockets.Item1][mergePockets.Item2 + i + offset] = stolenBridge;
                     }
                     bestBridges.RemoveAt(mergePockets.Item2);
                 }
