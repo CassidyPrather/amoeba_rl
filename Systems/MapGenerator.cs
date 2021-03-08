@@ -337,7 +337,8 @@ namespace AmoebaRL.Systems
             }
             if(playerMass == null)
             {
-                playerMass = new List<Actor>();
+                playerMass = new List<Actor>() { player };
+                Game.PlayerMass = playerMass;
                 for(int i = 0; i < INITIAL_SLIME; i++)
                     playerMass.Add(new Cytoplasm());
             }
@@ -350,7 +351,7 @@ namespace AmoebaRL.Systems
             } while (!_map.GetCell(player.X,player.Y).IsWalkable 
                     || !TryFluidSelect(out initialSlime, _map.GetCell(player.X, player.Y), playerMass.Count));
 
-            _map.AddPlayer(player);
+            
             for(int i = 1; i < playerMass.Count; i++)
             {
                 Actor inMass = playerMass[i];
@@ -358,6 +359,7 @@ namespace AmoebaRL.Systems
                 inMass.Y = initialSlime[i].Y;
                 _map.AddActor(inMass);
             }
+            _map.AddPlayer(player); // Must be called last because updates FOV
         }
 
         public void PlaceFood()

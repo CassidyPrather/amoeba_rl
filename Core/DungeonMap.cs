@@ -75,10 +75,14 @@ namespace AmoebaRL.Core
         // This method will be called any time we move the player to update field-of-view
         public void UpdatePlayerFieldOfView()
         {
-            // TODO: Repeat this for each organelle granting the player visibility
             Nucleus player = Game.Player;
-            // Compute the field-of-view based on the player's location and awareness
             ComputeFov(player.X, player.Y, player.Awareness, true);
+            // Compute the field-of-view based on the player's location and awareness
+            foreach (Actor a in Game.PlayerMass.Where(a => a != player))
+            {
+                AppendFov(a.X, a.Y, a.Awareness, true);
+            }
+
             // Mark all cells in field-of-view as having been explored
             foreach (Cell cell in GetAllCells())
             {
@@ -108,7 +112,7 @@ namespace AmoebaRL.Core
                 // The new cell the actor is on is now not walkable
                 SetIsWalkable(actor.X, actor.Y, false);
                 // Don't forget to update the field of view if we just repositioned the player
-                if (actor is Nucleus)
+                if (Game.PlayerMass.Contains(actor))
                 {
                     UpdatePlayerFieldOfView();
                 }

@@ -78,6 +78,7 @@ namespace AmoebaRL.Systems
                     };
                     Game.DMap.RemoveActor(targetActor);
                     Game.DMap.AddActor(n);
+                    Game.PlayerMass.Add(n);
                     Game.DMap.Swap(Game.Player, n);
                     return true;
                 }
