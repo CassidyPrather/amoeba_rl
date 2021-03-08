@@ -13,12 +13,14 @@ namespace AmoebaRL.Core
     public class DungeonMap : Map
     {
         public List<Actor> Actors;
+        public List<Item> Items;
         public List<Rectangle> Boulders;
 
         public DungeonMap()
         {
             Boulders = new List<Rectangle>();
             Actors = new List<Actor>();
+            Items = new List<Item>();
         }
 
         // The Draw method will be called each time the map is updated
@@ -72,6 +74,7 @@ namespace AmoebaRL.Core
             }
         }
 
+
         // This method will be called any time we move the player to update field-of-view
         public void UpdatePlayerFieldOfView()
         {
@@ -96,6 +99,10 @@ namespace AmoebaRL.Core
         public Actor GetActorAt(int x, int y)
         {
             return Actors.FirstOrDefault(a => a.X == x && a.Y == y);
+        }
+        public Item GetItemAt(int x, int y)
+        {
+            return Items.FirstOrDefault(a => a.X == x && a.Y == y);
         }
 
         // Returns true when able to place the Actor on the cell or false otherwise
@@ -154,11 +161,23 @@ namespace AmoebaRL.Core
             SetIsWalkable(toAdd.X, toAdd.Y, false);
         }
 
+        public void AddItem(Item toAdd)
+        {
+            Items.Add(toAdd);
+        }
+
+
         public void RemoveActor(Actor a)
         {
             Actors.Remove(a);
             SetIsWalkable(a.X, a.Y, true);
         }
+        public void RemoveItem(Item targetItem)
+        {
+            Items.Remove(targetItem);
+            // Items don't make cells unwalkable so this is fine anyway.
+        }
+
 
         // Helpers
         public static int TaxiDistance(ICell from, ICell to) => Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y);

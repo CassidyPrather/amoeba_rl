@@ -32,63 +32,73 @@ namespace AmoebaRL.Systems
             int x = Game.Player.X;
             int y = Game.Player.Y;
 
-            switch (direction)
-            {
-                case Direction.Up:
-                    {
-                        y = Game.Player.Y - 1;
-                        break;
-                    }
-                case Direction.Down:
-                    {
-                        y = Game.Player.Y + 1;
-                        break;
-                    }
-                case Direction.Left:
-                    {
-                        x = Game.Player.X - 1;
-                        break;
-                    }
-                case Direction.Right:
-                    {
-                        x = Game.Player.X + 1;
-                        break;
-                    }
-                default:
-                    {
-                        return false;
-                    }
-            }
+            Point mod = ApplyDirection(new Point(x, y), direction);
+            x = mod.X;
+            y = mod.Y;
 
             Actor targetActor = Game.DMap.GetActorAt(x, y);
-            if (targetActor != null )
+            if (targetActor != null)
             {
-                if(targetActor.Slime == true)
-                { 
+                if (targetActor.Slime == true)
+                {
                     // swap
                     Game.DMap.Swap(Game.Player, targetActor);
                     return true;
                 }
-                else if (targetActor.Name == "Nutrient") // stupid constant string
-                {
-                    Actor n = new Cytoplasm()
-                    {
-                        X = targetActor.X,
-                        Y = targetActor.Y
-                    };
-                    Game.DMap.RemoveActor(targetActor);
-                    Game.DMap.AddActor(n);
-                    Game.PlayerMass.Add(n);
-                    Game.DMap.Swap(Game.Player, n);
-                    return true;
-                }
+                
             }
             else
             {
-                return MoveNucleus(x, y);
+                Item targetItem = Game.DMap.GetItemAt(x, y);
+                if (targetItem != null)
+                {
+                    if (targetItem.Name == "Nutrient") // stupid constant string
+                    {
+                        Actor n = new Cytoplasm()
+                        {
+                            X = targetItem.X,
+                            Y = targetItem.Y
+                        };
+                        Game.DMap.RemoveItem(targetItem);
+                        Game.DMap.AddActor(n);
+                        Game.PlayerMass.Add(n);
+                        Game.DMap.Swap(Game.Player, n);
+                        return true;
+                    }
+                }
+                else // No actor and no item; move the player
+                {
+                    return MoveNucleus(x, y);
+                }
             }
 
+
             return false;
+        }
+
+        public Point ApplyDirection(Point basic, Direction dir)
+        {
+            Point output = new Point(basic.X, basic.Y);
+            switch (dir)
+            {
+                case Direction.Up:
+                    output.Y = basic.Y - 1;
+                    break;
+                case Direction.Down:
+                    output.Y = basic.Y + 1;
+                    break;
+                case Direction.Left:
+                    output.X = basic.X - 1;
+                    break;
+                case Direction.Right:
+                    output.X = basic.X + 1;
+                    break;
+                case Direction.None:
+                    break;
+                default:
+                    throw new InvalidOperationException("Invalid direction.");
+            }
+            return output;
         }
 
         private static bool MoveNucleus(int x, int y)

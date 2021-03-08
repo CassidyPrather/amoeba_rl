@@ -6,11 +6,8 @@ using System.Threading.Tasks;
 
 namespace AmoebaRL.Interfaces
 {
-    public interface IActor : INamed
+    public interface IItem : INamed
     {
-
-        int Awareness { get; set; }
-
-        bool Slime { get; set; }
+        // tbd
     }
 }

@@ -370,7 +370,7 @@ namespace AmoebaRL.Systems
                 n.X = Game.Rand.Next(0, _width - 1);
                 n.Y = Game.Rand.Next(0, _height - 1);
             } while (!_map.GetCell(n.X, n.Y).IsWalkable);
-            _map.AddActor(n);
+            _map.AddItem(n);
         }
 
         public bool TryFluidSelect(out List<ICell> result, ICell from, int count)
