@@ -7,14 +7,14 @@ using AmoebaRL.UI;
 
 namespace AmoebaRL.Core
 {
-    public class Nucleus : Actor
+    public class Cytoplasm : Actor
     {
-        public Nucleus()
-        {
-            Awareness = 4;
-            Name = "Nucleus";
-            Color = Palette.Player;
-            Symbol = '@';
+        public Cytoplasm()
+        { 
+            Awareness = 0;
+            Name = "Cytoplasm";
+            Color = Palette.Slime;
+            Symbol = ' ';
             X = 10;
             Y = 10;
             Slime = true;

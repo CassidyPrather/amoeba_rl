@@ -11,6 +11,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="System.ComponentModel.DataAnnotations" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="terminal8x8.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>

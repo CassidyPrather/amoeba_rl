@@ -73,5 +73,6 @@ namespace AmoebaRL.UI
         public static RLColor TextHeading = DbLight;
 
         public static RLColor Player = DbLight;
+        public static RLColor Slime = DbGrass;
     }
 }

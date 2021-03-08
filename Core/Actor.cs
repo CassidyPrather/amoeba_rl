@@ -16,6 +16,8 @@ namespace AmoebaRL.Core
         public string Name { get; set; }
         public int Awareness { get; set; }
 
+        public bool Slime { get; set; }
+
         // IDrawable
         public RLColor Color { get; set; }
 
@@ -32,17 +34,30 @@ namespace AmoebaRL.Core
             {
                 return;
             }
-
+            
             // Only draw the actor with the color and symbol when they are in field-of-view
             if (map.IsInFov(X, Y))
             {
-                console.Set(X, Y, Color, Palette.FloorBackgroundFov, Symbol);
+                if(Slime)
+                    console.Set(X, Y, Color, Palette.Slime, Symbol);
+                else
+                    console.Set(X, Y, Color, Palette.FloorBackgroundFov, Symbol);
             }
             else
             {
                 // When not in field-of-view just draw a normal floor
                 console.Set(X, Y, Palette.Floor, Palette.FloorBackground, '.');
             }
+        }
+
+        /// <summary>
+        /// Handy?
+        /// </summary>
+        public bool AdjacentTo(int tx, int ty)
+        {
+            if (Math.Abs(X - tx) + Math.Abs(Y - ty) == 1)
+                return true;
+            return false;
         }
     }
 }

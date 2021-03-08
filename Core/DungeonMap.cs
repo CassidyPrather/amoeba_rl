@@ -12,11 +12,13 @@ namespace AmoebaRL.Core
 {
     public class DungeonMap : Map
     {
+        public List<Actor> Actors;
         public List<Rectangle> Boulders;
 
         public DungeonMap()
         {
             Boulders = new List<Rectangle>();
+            Actors = new List<Actor>();
         }
 
         // The Draw method will be called each time the map is updated
@@ -27,6 +29,10 @@ namespace AmoebaRL.Core
             foreach (Cell cell in GetAllCells())
             {
                 SetConsoleSymbolForCell(mapConsole, cell);
+            }
+            foreach (Actor a in Actors)
+            {
+                a.Draw(mapConsole, this);
             }
         }
 
@@ -121,7 +127,14 @@ namespace AmoebaRL.Core
             UpdatePlayerFieldOfView();
         }
 
+        public void AddActor(Actor toAdd)
+        {
+            Actors.Add(toAdd);
+            SetIsWalkable(toAdd.X, toAdd.Y, false);
+        }
+
         // Helpers
         public static int TaxiDistance(ICell from, ICell to) => Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y);
+
     }
 }

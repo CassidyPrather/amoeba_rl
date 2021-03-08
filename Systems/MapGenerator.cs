@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using RogueSharp;
 using RLNET;
 using AmoebaRL.Core;
+using System.ComponentModel.DataAnnotations;
 
 namespace AmoebaRL.Systems
 {
@@ -17,6 +18,7 @@ namespace AmoebaRL.Systems
         private readonly int _mapBoulders;
         private readonly int _boulderMaxSize;
         private readonly int _boulderMinSize;
+        private readonly int INITIAL_SLIME = 4; // eventually replace this with a predefined list of IActors that get spawned in near the player.
 
         private readonly DungeonMap _map;
 
@@ -317,22 +319,103 @@ namespace AmoebaRL.Systems
             }
         }
 
-        // Place the nucleus at a random spot.
+        ///<summary>
+        /// Place the nucleus at a random spot.
+        /// Surround with slime.
+        /// </summary>
         private void PlacePlayer()
         {
             Nucleus player = Game.Player;
+            List<Actor> playerMass = Game.PlayerMass;
             if (player == null)
             {
                 player = new Nucleus();
             }
+            if(playerMass == null)
+            {
+                playerMass = new List<Actor>();
+                for(int i = 0; i < INITIAL_SLIME; i++)
+                    playerMass.Add(new Cytoplasm());
+            }
 
+            List<ICell> initialSlime;
             do
             {
                 player.X = Game.Rand.Next(0, _width - 1);
                 player.Y = Game.Rand.Next(0, _height - 1);
-            } while (!_map.GetCell(player.X,player.Y).IsWalkable);
-            
+            } while (!_map.GetCell(player.X,player.Y).IsWalkable 
+                    || !TryFluidSelect(out initialSlime, _map.GetCell(player.X, player.Y), playerMass.Count));
+
             _map.AddPlayer(player);
+            for(int i = 1; i < playerMass.Count; i++)
+            {
+                Actor inMass = playerMass[i];
+                inMass.X = initialSlime[i].X;
+                inMass.Y = initialSlime[i].Y;
+                _map.AddActor(inMass);
+            }
+        }
+
+        public bool TryFluidSelect(out List<ICell> result, ICell from, int count)
+        {
+            try
+            {
+                result = FluidSelect(from, count);
+                return true;
+            } catch (InvalidOperationException)
+            {
+                result = null;
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Prioritizes cells adjacent to more than one tiles in the selection,
+        /// but does not garuntee.
+        /// Throws <see cref="InvalidOperationException"/> if no room.
+        /// </summary>
+        /// <param name="from"></param>
+        /// <param name="count"></param>
+        /// <returns></returns>
+        public List<ICell> FluidSelect(ICell from, int count)
+        {
+            List<ICell> selection = new List<ICell> { from };
+            List<ICell> candidates = AdjacentWalkable(from);
+            while (selection.Count < count)
+            {
+                if (candidates.Count == 0 && candidates.Count < count)
+                    throw new InvalidOperationException("Not enough available cells to pick from.");
+                int idxToAdd = Game.Rand.Next(0, candidates.Count - 1);
+                ICell selected = candidates[idxToAdd];
+                candidates.Remove(selected);
+                selection.Add(selected);
+                List<ICell> newCandidates = AdjacentWalkable(selected);
+                candidates.AddRange(newCandidates.Where(c => !selection.Contains(c)));
+            }
+            return selection;
+        }
+
+        public List<ICell> AdjacentWalkable(ICell from)
+        {
+            List<ICell> adj = new List<ICell>();
+
+            if (from.X > 0)
+                AddIfWalkable(adj, from.X - 1, from.Y);
+            if (from.X < _map.Width)
+                AddIfWalkable(adj, from.X + 1, from.Y);
+            if (from.Y > 0)
+                AddIfWalkable(adj, from.X, from.Y - 1);
+            if (from.Y < _map.Height)
+                AddIfWalkable(adj, from.X, from.Y + 1);
+
+            return adj;
+        }
+
+        private void AddIfWalkable(ICollection<ICell> addTo, int x, int y)
+        {
+            ICell candidate = _map.GetCell(x, y);
+            if (candidate.IsWalkable)
+                addTo.Add(candidate);
         }
     }
 }

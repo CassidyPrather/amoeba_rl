@@ -36,12 +36,16 @@ namespace AmoebaRL
 
         public static int seed;
 
+        // hate that all these are static, but it's what the tutorial taught.
+
         public static IRandom Rand { get; private set; }
 
         public static DungeonMap DMap { get; private set; }
 
         public static Nucleus Player { get; set; }
         
+        public static List<Actor> PlayerMass { get; set; }
+
         public static CommandSystem CommandSystem { get; private set; }
 
         public static MessageLog MessageLog { get; private set; }

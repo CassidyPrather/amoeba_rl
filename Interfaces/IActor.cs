@@ -11,5 +11,7 @@ namespace AmoebaRL.Interfaces
         string Name { get; set; }
 
         int Awareness { get; set; }
+
+        bool Slime { get; set; }
     }
 }
