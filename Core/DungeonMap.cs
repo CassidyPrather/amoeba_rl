@@ -32,10 +32,15 @@ namespace AmoebaRL.Core
             {
                 SetConsoleSymbolForCell(mapConsole, cell);
             }
+            foreach (Item i in Items)
+            {
+                i.Draw(mapConsole, this);
+            }
             foreach (Actor a in Actors)
             {
                 a.Draw(mapConsole, this);
             }
+            
         }
 
         private void SetConsoleSymbolForCell(RLConsole console, Cell cell)

@@ -74,5 +74,9 @@ namespace AmoebaRL.UI
 
         public static RLColor Player = DbLight;
         public static RLColor Slime = DbGrass;
+        public static RLColor Militia = DbBrightWood;
+        public static RLColor City = DbMetal;
+        public static RLColor Tank = DbWater;
+        public static RLColor Soldier = DbSun;
     }
 }

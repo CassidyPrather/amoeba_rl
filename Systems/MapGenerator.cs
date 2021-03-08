@@ -22,6 +22,7 @@ namespace AmoebaRL.Systems
 
         private readonly DungeonMap _map;
         private readonly int FOOD_AMT = 32;
+        private readonly int CITY_AMT = 16;
 
         // Constructing a new MapGenerator requires the dimensions of the maps it will create
         // as well as the sizes and maximum number of rooms
@@ -51,6 +52,9 @@ namespace AmoebaRL.Systems
 
             for(int i = 0; i < FOOD_AMT; i++)
                 PlaceFood();
+
+            for (int i = 0; i < CITY_AMT; i++)
+                PlaceCity();
 
             return _map;
         }
@@ -373,6 +377,25 @@ namespace AmoebaRL.Systems
             _map.AddItem(n);
         }
 
+        public void PlaceCity()
+        {
+            City c = new City();
+            List<ICell> adjacent = new List<ICell>();
+            ICell src;
+            while(adjacent.Count != 1)
+            { 
+                do
+                {
+                    
+                    c.X = Game.Rand.Next(0, _width - 1);
+                    c.Y = Game.Rand.Next(0, _height - 1);
+                    src = _map.GetCell(c.X, c.Y);
+                } while (src.IsWalkable);
+                adjacent = AdjacentWalkable(src);
+            }
+            _map.AddActor(c);
+        }
+
         public bool TryFluidSelect(out List<ICell> result, ICell from, int count)
         {
             try
@@ -418,11 +441,11 @@ namespace AmoebaRL.Systems
 
             if (from.X > 0)
                 AddIfWalkable(adj, from.X - 1, from.Y);
-            if (from.X < _map.Width)
+            if (from.X < _map.Width - 1)
                 AddIfWalkable(adj, from.X + 1, from.Y);
             if (from.Y > 0)
                 AddIfWalkable(adj, from.X, from.Y - 1);
-            if (from.Y < _map.Height)
+            if (from.Y < _map.Height - 1)
                 AddIfWalkable(adj, from.X, from.Y + 1);
 
             return adj;
