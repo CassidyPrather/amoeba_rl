@@ -37,7 +37,7 @@ namespace AmoebaRL
         public static int seed;
 
         #region Settings
-        public static int SpawnRate = 10;
+        public static int SpawnRate = 40;
         #endregion
 
         #region Static Handles
@@ -107,7 +107,7 @@ namespace AmoebaRL
                 UserInput(sender, e, keyPress);
             else
             { 
-                CommandSystem.ActivateMonsters();
+                CommandSystem.AdvanceTurn();
                 _renderRequired = true;
             }
             _mapConsole.OnUpdate(sender, e);
@@ -137,6 +137,13 @@ namespace AmoebaRL
                 else if (keyPress.Key == RLKey.Right)
                 {
                     didPlayerAct = CommandSystem.MovePlayer(Direction.Right);
+                }
+                else if (keyPress.Key == RLKey.Space || keyPress.Key == RLKey.Period
+                    || keyPress.Key == RLKey.KeypadPeriod 
+                    || keyPress.Key == RLKey.Keypad5)
+                {
+                    didPlayerAct = CommandSystem.Wait();
+                    //MessageLog.Add("Test");
                 }
                 else if (keyPress.Key == RLKey.Escape)
                 {

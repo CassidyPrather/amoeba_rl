@@ -12,7 +12,7 @@ namespace AmoebaRL.Core
 {
     public class City : Monster
     {
-        IBehavior turn;
+        private readonly IBehavior turn;
 
         public City()
         {

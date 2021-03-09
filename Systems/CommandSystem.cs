@@ -33,7 +33,7 @@ namespace AmoebaRL.Systems
             IsPlayerTurn = false;
         }
 
-        public void ActivateMonsters()
+        public void AdvanceTurn()
         {
             ISchedulable scheduleable = Game.SchedulingSystem.Get();
             if (scheduleable is Nucleus)
@@ -44,14 +44,23 @@ namespace AmoebaRL.Systems
             else if(scheduleable is Monster monster)
             {
                 //Monster monster = scheduleable as Monster;
-                monster.PerformAction(this);
-                Game.SchedulingSystem.Add(monster);
+                monster.PerformAction(this); // Bandaid:
+                if (Game.DMap.Actors.Contains(scheduleable))
+                    Game.SchedulingSystem.Add(scheduleable);
 
-                ActivateMonsters();
+                AdvanceTurn();
+            }
+            else if(scheduleable is IProactive behavior)
+            {
+                behavior.Act(); // Bandaid for cases where things self-destruct: Could use global class "alive" variable?
+                if(Game.DMap.Actors.Contains(scheduleable))
+                    Game.SchedulingSystem.Add(scheduleable);
+                AdvanceTurn();
             }
             else
             {
                 Game.SchedulingSystem.Add(scheduleable);
+                AdvanceTurn();
             }
         }
 
@@ -59,9 +68,10 @@ namespace AmoebaRL.Systems
         {
             if (!Game.DMap.SetActorPosition(monster, cell.X, cell.Y))
             {
-                if (Game.Player.X == cell.X && Game.Player.Y == cell.Y)
-                {
-                    Attack(monster, Game.Player);
+                Actor target = Game.DMap.GetActorAt(cell.X, cell.Y);
+                if (Game.PlayerMass.Contains(target))
+                { // would be fine to just attack all slimed things instead?
+                    Attack(monster, target);
                 }
             }
         }
@@ -74,7 +84,7 @@ namespace AmoebaRL.Systems
         public void Attack(Monster monster, Actor victim)
         {
             if(victim is Nucleus)
-            {
+            { // how about only retreat if you're the last nucleus?
                 Actor newVictim = (victim as Nucleus).Retreat();
                 if(newVictim == null)
                 {
@@ -88,15 +98,21 @@ namespace AmoebaRL.Systems
                     Game.DMap.RemoveActor(newVictim);
                 }
             }
+            else
+            {
+                Game.MessageLog.Add($"A { victim.Name } is destroyed.");
+                Game.DMap.Swap(monster, victim);
+                Game.DMap.RemoveActor(victim);
+            }
         }
 
         public void Eat(Actor eating, Actor eaten)
         {
             // Also eat the item underneath, if it was present.
-            if(eating is IEatable)
+            if(eaten is IEatable e)
             { 
                 Game.DMap.Swap(eating, eaten);
-                (eating as IEatable).OnEaten();
+                e.OnEaten();
             }
             else
             {
@@ -147,6 +163,11 @@ namespace AmoebaRL.Systems
             return true;
         }
 
+        public bool Wait()
+        {
+            return true; // may need to do more stuff here.
+        }
+
         // Return value is true if the player was able to move
         // false when the player couldn't move, such as trying to move into a wall
         public bool MovePlayer(Direction direction)
@@ -167,7 +188,7 @@ namespace AmoebaRL.Systems
                     Game.DMap.Swap(Game.Player, targetActor);
                     return true;
                 }
-                if (targetActor is Militia)
+                else if (targetActor is IEatable)
                 {
                     Eat(Game.Player, targetActor);
                     return true;

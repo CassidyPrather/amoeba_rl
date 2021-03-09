@@ -364,6 +364,7 @@ namespace AmoebaRL.Systems
                 _map.AddActor(inMass);
             }
             _map.AddPlayer(player); // Must be called last because updates FOV
+            //Game.PlayerMass.Add(player);
         }
 
         public void PlaceFood()
@@ -390,7 +391,7 @@ namespace AmoebaRL.Systems
                     c.X = Game.Rand.Next(0, _width - 1);
                     c.Y = Game.Rand.Next(0, _height - 1);
                     src = _map.GetCell(c.X, c.Y);
-                } while (src.IsWalkable);
+                } while (src.IsWalkable && _map.GetActorAt(c.X, c.Y) == null);
                 adjacent = AdjacentWalkable(src);
             }
             _map.AddActor(c);

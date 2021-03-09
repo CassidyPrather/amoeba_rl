@@ -155,7 +155,8 @@ namespace AmoebaRL.Core
         // Called by MapGenerator after we generate a new map to add the player to the map
         public void AddPlayer(Nucleus player)
         {
-            Game.Player = player;
+            Game.Player = player; // would like to move away from this handle altogether.
+            Actors.Add(player);
             SetIsWalkable(player.X, player.Y, false);
             UpdatePlayerFieldOfView();
             Game.SchedulingSystem.Add(player);
@@ -220,6 +221,30 @@ namespace AmoebaRL.Core
         public static int TaxiDistance(ICell from, ICell to) => Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y);
 
         public static int TaxiDistance(IDrawable from, IDrawable to) => Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y);
+
+        public static Path QuickShortestPath(DungeonMap m, ICell from, ICell to)
+        {
+            PathNotFoundException innerException = null;
+            Tuple<bool, bool> oldWalkable = new Tuple<bool, bool>(m.IsWalkable(from.X, from.Y), m.IsWalkable(to.X, to.Y));
+            m.SetIsWalkable(from.X, from.Y, true);
+            m.SetIsWalkable(to.X, to.Y, true);
+             
+            PathFinder f = new PathFinder(m);
+            Path found = null;
+            try
+            {
+                found = f.ShortestPath(from, to);
+            }
+            catch (PathNotFoundException e)
+            {
+                innerException = e;
+            }
+            m.SetIsWalkable(from.X, from.Y, oldWalkable.Item1);
+            m.SetIsWalkable(to.X, to.Y, oldWalkable.Item2);
+            if (innerException != null)
+                throw innerException;
+            return found;
+        }
 
     }
 }
