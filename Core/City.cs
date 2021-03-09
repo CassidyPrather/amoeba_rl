@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 
 namespace AmoebaRL.Core
 {
-    public class City : Monster
+    public class City : TutorialMonster
     {
         private readonly IBehavior turn;
 

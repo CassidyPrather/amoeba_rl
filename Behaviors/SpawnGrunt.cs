@@ -14,7 +14,7 @@ namespace AmoebaRL.Behaviors
     {
         public int TurnsToSpawn = Game.SpawnRate;
 
-        public bool Act(Monster spawner, CommandSystem commandSystem)
+        public bool Act(TutorialMonster spawner, CommandSystem commandSystem)
         {
             
             TurnsToSpawn--;

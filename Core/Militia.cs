@@ -7,10 +7,11 @@ using AmoebaRL.Behaviors;
 using AmoebaRL.Interfaces;
 using AmoebaRL.Systems;
 using AmoebaRL.UI;
+using RogueSharp;
 
 namespace AmoebaRL.Core
 {
-    public class Militia : Monster, IEatable
+    public class Militia : Actor, IProactive, IEatable
     {
         public Militia()
         {
@@ -21,7 +22,7 @@ namespace AmoebaRL.Core
             Name = "Militia";
         }
 
-        public void OnEaten()
+        public virtual void OnEaten()
         {
             Game.DMap.RemoveActor(this);
             CapturedMilitia transformation = new CapturedMilitia
@@ -31,6 +32,48 @@ namespace AmoebaRL.Core
             };
             Game.DMap.AddActor(transformation);
         }
+
+        public virtual bool Act()
+        {
+            List<Actor> seenTargets = Seen(Game.PlayerMass);
+            if (seenTargets.Count > 0)
+                ActToTargets(seenTargets);
+            else
+                Wander();
+            return true;
+        }
+
+        public virtual void ActToTargets(List<Actor> seenTargets)
+        {
+            List<Path> actionPaths = PathsToNearest(seenTargets);
+            if (actionPaths.Count > 0)
+            {
+                int pick = Game.Rand.Next(0, actionPaths.Count - 1);
+                try
+                {
+                    //Formerly: path.Steps.First()
+                    Game.CommandSystem.AttackMove(this, actionPaths[pick].StepForward());
+                }
+                catch (NoMoreStepsException)
+                {
+                    Game.MessageLog.Add($"{Name} curses");
+                }
+            } // else, wait a turn.
+        }
+
+        public virtual void Wander()
+        {
+            List<ICell> adj = Game.DMap.AdjacentWalkable(X, Y);
+            int pick = Game.Rand.Next(0, adj.Count);
+            if (pick != adj.Count)
+                Game.CommandSystem.AttackMove(this, adj[pick]);
+        }
+
+        /*public override void PerformAction(CommandSystem commandSystem)
+        {
+            IBehavior behavior = new MilitiaPatrolAttack();//StandardMoveAndAttack(); //
+            behavior.Act(this, commandSystem);
+        }*/
 
         public class CapturedMilitia : Actor, IProactive
         {
@@ -51,7 +94,7 @@ namespace AmoebaRL.Core
             public bool Act()
             {
                 HP--;
-                if(HP <= 0)
+                if (HP <= 0)
                 {
                     Game.DMap.RemoveActor(this);
                     Cytoplasm transformation = new Cytoplasm
@@ -64,12 +107,6 @@ namespace AmoebaRL.Core
                 }
                 return true;
             }
-        }
-
-        public override void PerformAction(CommandSystem commandSystem)
-        {
-            IBehavior behavior = new MilitiaPatrolAttack();//StandardMoveAndAttack(); //
-            behavior.Act(this, commandSystem);
         }
     }
 }

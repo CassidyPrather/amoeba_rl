@@ -12,7 +12,7 @@ namespace AmoebaRL.Behaviors
 {
     class MilitiaPatrolAttack : IBehavior
     {
-        public bool Act(Monster monster, CommandSystem commandSystem)
+        public bool Act(TutorialMonster monster, CommandSystem commandSystem)
         {
             DungeonMap dMap = Game.DMap;
             FieldOfView monsterFov = new FieldOfView(dMap);
@@ -77,7 +77,7 @@ namespace AmoebaRL.Behaviors
                     {
                         // TODO: This should be path.StepForward() but there is a bug in RogueSharp V3
                         // The bug is that a Path returned from a PathFinder does not include the source Cell
-                        commandSystem.MoveMonster(monster, nearestPath.StepForward()); //path.Steps.First()
+                        commandSystem.AttackMove(monster, nearestPath.StepForward()); //path.Steps.First()
                     }
                     catch (NoMoreStepsException)
                     {
@@ -95,7 +95,7 @@ namespace AmoebaRL.Behaviors
                 List<ICell> adj = dMap.AdjacentWalkable(monster.X, monster.Y);
                 int pick = Game.Rand.Next(0, adj.Count);
                 if (pick != adj.Count)
-                    commandSystem.MoveMonster(monster, adj[pick]);
+                    commandSystem.AttackMove(monster, adj[pick]);
                 
             }
             return true;

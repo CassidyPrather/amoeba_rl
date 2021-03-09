@@ -106,7 +106,7 @@ namespace AmoebaRL
             if (CommandSystem.IsPlayerTurn)
             {
                 _renderRequired = true;
-                UserInput(sender, e, keyPress);
+                UserInput(keyPress);
             }
             else
             { 
@@ -118,7 +118,7 @@ namespace AmoebaRL
             _playerConsole.OnUpdate(sender, e);
         }
 
-        private void UserInput(object sender, UpdateEventArgs e, RLKeyPress keyPress)
+        private void UserInput(RLKeyPress keyPress)
         {
             bool didPlayerAct = false;
             

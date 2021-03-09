@@ -10,6 +10,6 @@ namespace AmoebaRL.Interfaces
 {
     public interface IBehavior
     {
-        bool Act(Monster monster, CommandSystem commandSystem);
+        bool Act(TutorialMonster monster, CommandSystem commandSystem);
     }
 }

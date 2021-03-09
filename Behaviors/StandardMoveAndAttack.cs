@@ -12,7 +12,7 @@ namespace AmoebaRL.Behaviors
 {
     public class StandardMoveAndAttack : IBehavior
     {
-        public bool Act(Monster monster, CommandSystem commandSystem)
+        public bool Act(TutorialMonster monster, CommandSystem commandSystem)
         {
             DungeonMap dungeonMap = Game.DMap;
             Nucleus player = Game.Player;
@@ -66,7 +66,7 @@ namespace AmoebaRL.Behaviors
                     {
                         // TODO: This should be path.StepForward() but there is a bug in RogueSharp V3
                         // The bug is that a Path returned from a PathFinder does not include the source Cell
-                        commandSystem.MoveMonster(monster, path.StepForward()); //path.Steps.First()
+                        commandSystem.AttackMove(monster, path.StepForward()); //path.Steps.First()
                     }
                     catch (NoMoreStepsException)
                     {

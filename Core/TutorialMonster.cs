@@ -9,7 +9,7 @@ using System.Threading.Tasks;
 
 namespace AmoebaRL.Core
 {
-    public class Monster : Actor
+    public class TutorialMonster : Actor
     {
         public int? TurnsAlerted { get; set; }
 

@@ -41,30 +41,32 @@ namespace AmoebaRL.Systems
                 IsPlayerTurn = true;
                 Game.SchedulingSystem.Add(nextUp);
             }
-            else if(nextUp is Monster monster)
+            else if(nextUp is TutorialMonster monster)
             {
-                //Monster monster = scheduleable as Monster;
-                monster.PerformAction(this); // Bandaid:
+                // The "monster" archetype is an artifact from the tutorial I'd like to move away from.
+                monster.PerformAction(this);
+                // Bandaid for cases where things self-destruct: Could use global class "alive" variable?
                 if (Game.DMap.Actors.Contains(nextUp))
                     Game.SchedulingSystem.Add(nextUp);
-
                 AdvanceTurn();
             }
             else if(nextUp is IProactive behavior)
             {
-                behavior.Act(); // Bandaid for cases where things self-destruct: Could use global class "alive" variable?
+                behavior.Act(); 
+                // Bandaid for cases where things self-destruct: Could use global class "alive" variable?
                 if(Game.DMap.Actors.Contains(nextUp))
                     Game.SchedulingSystem.Add(nextUp);
                 AdvanceTurn();
             }
             else
             {
+                // ISchedulables with no behaviors are very strange indeed...
                 Game.SchedulingSystem.Add(nextUp);
                 AdvanceTurn();
             }
         }
 
-        public void MoveMonster(Monster monster, ICell cell)
+        public void AttackMove(Actor monster, ICell cell)
         {
             if (!Game.DMap.SetActorPosition(monster, cell.X, cell.Y))
             {
@@ -81,7 +83,7 @@ namespace AmoebaRL.Systems
         /// </summary>
         /// <param name="monster"></param>
         /// <param name="victim"></param>
-        public void Attack(Monster monster, Actor victim)
+        public void Attack(Actor monster, Actor victim)
         {
             if(victim is Nucleus)
             { // how about only retreat if you're the last nucleus?
