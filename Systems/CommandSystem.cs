@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using RogueSharp;
 using RLNET;
 using AmoebaRL.Core;
+using AmoebaRL.Interfaces;
 
 namespace AmoebaRL.Systems
 {
@@ -23,6 +24,127 @@ namespace AmoebaRL.Systems
                 dest = d;
                 dist = di;
             }
+        }
+
+        public bool IsPlayerTurn { get; set; }
+
+        public void EndPlayerTurn()
+        {
+            IsPlayerTurn = false;
+        }
+
+        public void ActivateMonsters()
+        {
+            ISchedulable scheduleable = Game.SchedulingSystem.Get();
+            if (scheduleable is Nucleus)
+            {
+                IsPlayerTurn = true;
+                Game.SchedulingSystem.Add(Game.Player);
+            }
+            else if(scheduleable is Monster monster)
+            {
+                //Monster monster = scheduleable as Monster;
+                monster.PerformAction(this);
+                Game.SchedulingSystem.Add(monster);
+
+                ActivateMonsters();
+            }
+            else
+            {
+                Game.SchedulingSystem.Add(scheduleable);
+            }
+        }
+
+        public void MoveMonster(Monster monster, ICell cell)
+        {
+            if (!Game.DMap.SetActorPosition(monster, cell.X, cell.Y))
+            {
+                if (Game.Player.X == cell.X && Game.Player.Y == cell.Y)
+                {
+                    Attack(monster, Game.Player);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Destroy a player tile, or react appropriately if it is special.
+        /// </summary>
+        /// <param name="monster"></param>
+        /// <param name="victim"></param>
+        public void Attack(Monster monster, Actor victim)
+        {
+            if(victim is Nucleus)
+            {
+                Actor newVictim = (victim as Nucleus).Retreat();
+                if(newVictim == null)
+                {
+                    // Game over!
+                    Game.MessageLog.Add($"{victim.Name} had nowhere to run and was destroyed. Peace is restored.");
+                }
+                else
+                {
+                    Game.MessageLog.Add($"The {victim.Name} retreated into the nearby { newVictim.Name }, avoiding death.");
+                    Game.DMap.Swap(monster, newVictim);
+                    Game.DMap.RemoveActor(newVictim);
+                }
+            }
+        }
+
+        public void Eat(Actor eating, Actor eaten)
+        {
+            // Also eat the item underneath, if it was present.
+            if(eating is IEatable)
+            { 
+                Game.DMap.Swap(eating, eaten);
+                (eating as IEatable).OnEaten();
+            }
+            else
+            {
+                Game.DMap.RemoveActor(eaten);
+            }
+        }
+
+        public bool Ingest(Actor eating, Item eaten)
+        {
+            if(eaten is IEatable)
+            {
+                List<Actor> candidates = new List<Actor>() { eating };
+                List<Actor> seen = new List<Actor>();
+                List<Actor> frontier = new List<Actor>();
+                List<Cytoplasm> selection = new List<Cytoplasm>();
+                if (eating is Cytoplasm)
+                    selection.Add(eating as Cytoplasm);
+                while (selection.Count == 0)
+                {
+                    seen.AddRange(candidates);
+                    frontier.Clear();
+                    foreach(Actor c in candidates)
+                        frontier.AddRange(Game.PlayerMass.Where(a => a.AdjacentTo(c.X, c.Y) && !seen.Contains(a)));
+                    candidates.Clear();
+                    candidates.AddRange(frontier);
+                    foreach (Actor potential in candidates)
+                    {
+                        if (potential is Cytoplasm)
+                            selection.Add(potential as Cytoplasm);
+                    }
+                    if (candidates.Count == 0)
+                        return false;
+                }
+                int pick = Game.Rand.Next(0, selection.Count - 1);
+                Actor recepient = selection[pick];
+                Point newOrganellePos = new Point(recepient.X, recepient.Y);
+                Game.DMap.RemoveActor(recepient);
+                eaten.X = recepient.X;
+                eaten.Y = recepient.Y;
+                (eaten as IEatable).OnEaten();
+                
+            }
+            else
+            {
+                Game.DMap.RemoveItem(eaten);
+            }
+            MoveNucleus(eaten.X, eaten.Y);
+            return true;
         }
 
         // Return value is true if the player was able to move
@@ -43,6 +165,11 @@ namespace AmoebaRL.Systems
                 {
                     // swap
                     Game.DMap.Swap(Game.Player, targetActor);
+                    return true;
+                }
+                if (targetActor is Militia)
+                {
+                    Eat(Game.Player, targetActor);
                     return true;
                 }
                 

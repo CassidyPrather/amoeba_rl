@@ -10,11 +10,14 @@ using AmoebaRL.UI;
 
 namespace AmoebaRL.Core
 {
-    public class Actor : IActor, IDrawable
+    public class Actor : IActor, IDrawable, ISchedulable
     {
         // IActor
         public string Name { get; set; }
+
         public int Awareness { get; set; }
+
+        public int Speed { get; set; } = 1;
 
         public bool Slime { get; set; }
 
@@ -47,6 +50,15 @@ namespace AmoebaRL.Core
             {
                 // When not in field-of-view just draw a normal floor
                 console.Set(X, Y, Palette.Floor, Palette.FloorBackground, '.');
+            }
+        }
+
+        // ISchedulable
+        public int Time
+        {
+            get
+            {
+                return Speed;
             }
         }
 

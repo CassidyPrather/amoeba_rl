@@ -36,6 +36,11 @@ namespace AmoebaRL
 
         public static int seed;
 
+        #region Settings
+        public static int SpawnRate = 10;
+        #endregion
+
+        #region Static Handles
         // hate that all these are static, but it's what the tutorial taught.
 
         public static IRandom Rand { get; private set; }
@@ -48,11 +53,15 @@ namespace AmoebaRL
 
         public static CommandSystem CommandSystem { get; private set; }
 
+        public static SchedulingSystem SchedulingSystem { get; private set; }
+
         public static MessageLog MessageLog { get; private set; }
+        #endregion
 
         private static bool _renderRequired = true;
 
-        
+
+
         public Game()
         {
             Start();
@@ -77,6 +86,7 @@ namespace AmoebaRL
                                              _mapConsole.Height + _infoConsole.Height, _fontWidth, _fontHeight, 1f,
                                              _winTitle);
             CommandSystem = new CommandSystem();
+            SchedulingSystem = new SchedulingSystem();
             // Fix the numbers in the map generator call later.
             MapGenerator mapGenerator = new MapGenerator(_mapConsole.Width, _mapConsole.Height, 20, 13, 7);
             DMap = mapGenerator.CreateMap();
@@ -92,16 +102,23 @@ namespace AmoebaRL
 
         private void OnRootConsoleUpdate(object sender, UpdateEventArgs e)
         {
-            UserInput(sender, e);
+            RLKeyPress keyPress = _rootConsole.Keyboard.GetKeyPress();
+            if (CommandSystem.IsPlayerTurn)
+                UserInput(sender, e, keyPress);
+            else
+            { 
+                CommandSystem.ActivateMonsters();
+                _renderRequired = true;
+            }
             _mapConsole.OnUpdate(sender, e);
             _infoConsole.OnUpdate(sender, e);
             _playerConsole.OnUpdate(sender, e);
         }
 
-        private void UserInput(object sender, UpdateEventArgs e)
+        private void UserInput(object sender, UpdateEventArgs e, RLKeyPress keyPress)
         {
             bool didPlayerAct = false;
-            RLKeyPress keyPress = _rootConsole.Keyboard.GetKeyPress();
+            
 
             if (keyPress != null)
             {
@@ -130,6 +147,7 @@ namespace AmoebaRL
             if (didPlayerAct)
             {
                 _renderRequired = true;
+                CommandSystem.EndPlayerTurn();
             }
         }
 

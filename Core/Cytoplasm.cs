@@ -18,6 +18,7 @@ namespace AmoebaRL.Core
             X = 10;
             Y = 10;
             Slime = true;
+            Speed = 10000; // aaa
         }
     }
 }

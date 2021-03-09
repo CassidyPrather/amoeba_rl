@@ -158,12 +158,14 @@ namespace AmoebaRL.Core
             Game.Player = player;
             SetIsWalkable(player.X, player.Y, false);
             UpdatePlayerFieldOfView();
+            Game.SchedulingSystem.Add(player);
         }
 
         public void AddActor(Actor toAdd)
         {
             Actors.Add(toAdd);
             SetIsWalkable(toAdd.X, toAdd.Y, false);
+            Game.SchedulingSystem.Add(toAdd);
         }
 
         public void AddItem(Item toAdd)
@@ -175,7 +177,13 @@ namespace AmoebaRL.Core
         public void RemoveActor(Actor a)
         {
             Actors.Remove(a);
+            if(Game.PlayerMass.Contains(a))
+            {
+                Game.PlayerMass.Remove(a);
+                // May need to cut the player mass in half when necessary.
+            }
             SetIsWalkable(a.X, a.Y, true);
+            Game.SchedulingSystem.Remove(a);
         }
         public void RemoveItem(Item targetItem)
         {
@@ -183,9 +191,35 @@ namespace AmoebaRL.Core
             // Items don't make cells unwalkable so this is fine anyway.
         }
 
-
         // Helpers
+        public List<ICell> AdjacentWalkable(ICell from) => AdjacentWalkable(from.X, from.Y);
+
+        public List<ICell> AdjacentWalkable(int X, int Y)
+        {
+            List<ICell> adj = new List<ICell>();
+
+            if (X > 0)
+                AddIfWalkable(adj, X - 1, Y);
+            if (X < Width - 1)
+                AddIfWalkable(adj, X + 1, Y);
+            if (Y > 0)
+                AddIfWalkable(adj, X, Y - 1);
+            if (Y < Height - 1)
+                AddIfWalkable(adj, X, Y + 1);
+
+            return adj;
+        }
+
+        private void AddIfWalkable(ICollection<ICell> addTo, int x, int y)
+        {
+            ICell candidate = GetCell(x, y);
+            if (candidate.IsWalkable)
+                addTo.Add(candidate);
+        }
+
         public static int TaxiDistance(ICell from, ICell to) => Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y);
+
+        public static int TaxiDistance(IDrawable from, IDrawable to) => Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y);
 
     }
 }

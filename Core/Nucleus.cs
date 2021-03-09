@@ -18,6 +18,19 @@ namespace AmoebaRL.Core
             X = 10;
             Y = 10;
             Slime = true;
+            Speed = 16;
+        }
+
+        public Actor Retreat()
+        {
+            List<Actor> sacrifices = Game.PlayerMass.Where(a => DungeonMap.TaxiDistance(this, a) == 1 && !(a is Nucleus)).ToList();
+            if(sacrifices.Count > 0)
+            {
+                int r = Game.Rand.Next(0, sacrifices.Count-1);
+                Game.DMap.Swap(this, sacrifices[r]);
+                return sacrifices[r];
+            }
+            return null;
         }
     }
 }
