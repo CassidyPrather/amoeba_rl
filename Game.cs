@@ -104,11 +104,14 @@ namespace AmoebaRL
         {
             RLKeyPress keyPress = _rootConsole.Keyboard.GetKeyPress();
             if (CommandSystem.IsPlayerTurn)
+            {
+                _renderRequired = true;
                 UserInput(sender, e, keyPress);
+            }
             else
             { 
                 CommandSystem.AdvanceTurn();
-                _renderRequired = true;
+                
             }
             _mapConsole.OnUpdate(sender, e);
             _infoConsole.OnUpdate(sender, e);

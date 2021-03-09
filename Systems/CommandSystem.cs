@@ -35,31 +35,31 @@ namespace AmoebaRL.Systems
 
         public void AdvanceTurn()
         {
-            ISchedulable scheduleable = Game.SchedulingSystem.Get();
-            if (scheduleable is Nucleus)
+            ISchedulable nextUp = Game.SchedulingSystem.Get();
+            if (nextUp is Nucleus)
             {
                 IsPlayerTurn = true;
-                Game.SchedulingSystem.Add(Game.Player);
+                Game.SchedulingSystem.Add(nextUp);
             }
-            else if(scheduleable is Monster monster)
+            else if(nextUp is Monster monster)
             {
                 //Monster monster = scheduleable as Monster;
                 monster.PerformAction(this); // Bandaid:
-                if (Game.DMap.Actors.Contains(scheduleable))
-                    Game.SchedulingSystem.Add(scheduleable);
+                if (Game.DMap.Actors.Contains(nextUp))
+                    Game.SchedulingSystem.Add(nextUp);
 
                 AdvanceTurn();
             }
-            else if(scheduleable is IProactive behavior)
+            else if(nextUp is IProactive behavior)
             {
                 behavior.Act(); // Bandaid for cases where things self-destruct: Could use global class "alive" variable?
-                if(Game.DMap.Actors.Contains(scheduleable))
-                    Game.SchedulingSystem.Add(scheduleable);
+                if(Game.DMap.Actors.Contains(nextUp))
+                    Game.SchedulingSystem.Add(nextUp);
                 AdvanceTurn();
             }
             else
             {
-                Game.SchedulingSystem.Add(scheduleable);
+                Game.SchedulingSystem.Add(nextUp);
                 AdvanceTurn();
             }
         }
@@ -94,14 +94,14 @@ namespace AmoebaRL.Systems
                 else
                 {
                     Game.MessageLog.Add($"The {victim.Name} retreated into the nearby { newVictim.Name }, avoiding death.");
-                    Game.DMap.Swap(monster, newVictim);
+                    //Game.DMap.Swap(monster, newVictim);
                     Game.DMap.RemoveActor(newVictim);
                 }
             }
             else
             {
                 Game.MessageLog.Add($"A { victim.Name } is destroyed.");
-                Game.DMap.Swap(monster, victim);
+                //Game.DMap.Swap(monster, victim);
                 Game.DMap.RemoveActor(victim);
             }
         }

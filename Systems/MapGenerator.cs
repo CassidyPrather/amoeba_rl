@@ -391,7 +391,7 @@ namespace AmoebaRL.Systems
                     c.X = Game.Rand.Next(0, _width - 1);
                     c.Y = Game.Rand.Next(0, _height - 1);
                     src = _map.GetCell(c.X, c.Y);
-                } while (src.IsWalkable && _map.GetActorAt(c.X, c.Y) == null);
+                } while (src.IsWalkable && _map.GetActorAt(c.X, c.Y) != null);
                 adjacent = AdjacentWalkable(src);
             }
             _map.AddActor(c);
