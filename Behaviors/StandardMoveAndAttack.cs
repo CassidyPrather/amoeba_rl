@@ -1,4 +1,5 @@
 ﻿using AmoebaRL.Core;
+using AmoebaRL.Core.Organelles;
 using AmoebaRL.Interfaces;
 using AmoebaRL.Systems;
 using RogueSharp;

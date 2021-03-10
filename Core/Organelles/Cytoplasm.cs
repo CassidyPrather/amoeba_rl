@@ -5,9 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using AmoebaRL.UI;
 
-namespace AmoebaRL.Core
+namespace AmoebaRL.Core.Organelles
 {
-    public class Cytoplasm : Actor
+    public class Cytoplasm : Organelle
     {
         public Cytoplasm()
         { 

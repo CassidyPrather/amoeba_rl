@@ -9,6 +9,7 @@ using AmoebaRL.UI;
 using AmoebaRL.Core;
 using AmoebaRL.Systems;
 using RogueSharp.Random;
+using AmoebaRL.Core.Organelles;
 
 namespace AmoebaRL
 {
@@ -120,39 +121,14 @@ namespace AmoebaRL
 
         private void UserInput(RLKeyPress keyPress)
         {
-            bool didPlayerAct = false;
-            
+            bool didPlayerAct;
 
-            if (keyPress != null)
-            {
-                if (keyPress.Key == RLKey.Up)
-                {
-                    didPlayerAct = CommandSystem.MovePlayer(Direction.Up);
-                }
-                else if (keyPress.Key == RLKey.Down)
-                {
-                    didPlayerAct = CommandSystem.MovePlayer(Direction.Down);
-                }
-                else if (keyPress.Key == RLKey.Left)
-                {
-                    didPlayerAct = CommandSystem.MovePlayer(Direction.Left);
-                }
-                else if (keyPress.Key == RLKey.Right)
-                {
-                    didPlayerAct = CommandSystem.MovePlayer(Direction.Right);
-                }
-                else if (keyPress.Key == RLKey.Space || keyPress.Key == RLKey.Period
-                    || keyPress.Key == RLKey.KeypadPeriod 
-                    || keyPress.Key == RLKey.Keypad5)
-                {
-                    didPlayerAct = CommandSystem.Wait();
-                    //MessageLog.Add("Test");
-                }
-                else if (keyPress.Key == RLKey.Escape)
-                {
-                    _rootConsole.Close();
-                }
-            }
+            if (Player != null)
+                didPlayerAct = UserInputLive(keyPress);
+            else
+                didPlayerAct = UserInputMeta(keyPress);
+
+            
 
             if (didPlayerAct)
             {
@@ -161,12 +137,63 @@ namespace AmoebaRL
             }
         }
 
+        private bool UserInputLive(RLKeyPress keyPress)
+        {
+            if (keyPress != null)
+            {
+                if (keyPress.Key == RLKey.Up)
+                {
+                    return CommandSystem.AttackMoveOrganelle(Player, Direction.Up);
+                }
+                else if (keyPress.Key == RLKey.Down)
+                {
+                    return CommandSystem.AttackMoveOrganelle(Player, Direction.Down);
+                }
+                else if (keyPress.Key == RLKey.Left)
+                {
+                    return CommandSystem.AttackMoveOrganelle(Player, Direction.Left);
+                }
+                else if (keyPress.Key == RLKey.Right)
+                {
+                    return CommandSystem.AttackMoveOrganelle(Player, Direction.Right);
+                }
+                else if (keyPress.Key == RLKey.Space || keyPress.Key == RLKey.Period
+                    || keyPress.Key == RLKey.KeypadPeriod
+                    || keyPress.Key == RLKey.Keypad5)
+                {
+                    return CommandSystem.Wait();
+                }
+                else if (keyPress.Key == RLKey.Escape)
+                {
+                    _rootConsole.Close();
+                }
+            }
+            return false;
+        }
+
+        private bool UserInputMeta(RLKeyPress keyPress)
+        {
+            if (keyPress != null)
+            {
+                if (keyPress.Key == RLKey.R)
+                {
+                    throw new System.NotImplementedException();
+                }
+                else if(keyPress.Key == RLKey.Escape)
+                {
+                    _rootConsole.Close();
+                }
+                return true; // Let the user idle after their death I guess.
+            }
+            return false;
+        }
+
         private void OnRootConsoleRender(object sender, UpdateEventArgs e)
         {
             if(_renderRequired)
             {
                 DMap.Draw(_mapConsole);
-                Player.Draw(_mapConsole, DMap);
+                //Player.Draw(_mapConsole, DMap);
                 MessageLog.Draw(_infoConsole);
 
                 RLConsole.Blit(_mapConsole, 0, 0, _mapConsole.Width, _mapConsole.Height, _rootConsole, 0, 0);

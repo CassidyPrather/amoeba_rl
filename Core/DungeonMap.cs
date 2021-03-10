@@ -7,6 +7,7 @@ using RLNET;
 using RogueSharp;
 using AmoebaRL.UI;
 using AmoebaRL.Interfaces;
+using AmoebaRL.Core.Organelles;
 
 namespace AmoebaRL.Core
 {

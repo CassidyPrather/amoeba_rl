@@ -7,6 +7,7 @@ using RogueSharp;
 using RLNET;
 using AmoebaRL.Core;
 using System.ComponentModel.DataAnnotations;
+using AmoebaRL.Core.Organelles;
 
 namespace AmoebaRL.Systems
 {

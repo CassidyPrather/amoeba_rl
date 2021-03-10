@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using AmoebaRL.Behaviors;
+using AmoebaRL.Core.Organelles;
 using AmoebaRL.Interfaces;
 using AmoebaRL.Systems;
 using AmoebaRL.UI;
@@ -75,7 +76,7 @@ namespace AmoebaRL.Core
             behavior.Act(this, commandSystem);
         }*/
 
-        public class CapturedMilitia : Actor, IProactive
+        public class CapturedMilitia : Organelle, IProactive
         {
             int HP;
 
@@ -107,6 +108,8 @@ namespace AmoebaRL.Core
                 }
                 return true;
             }
+
+            public override void OnDestroy() => BecomeActor(new Militia());
         }
     }
 }

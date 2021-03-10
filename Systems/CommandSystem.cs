@@ -7,6 +7,7 @@ using RogueSharp;
 using RLNET;
 using AmoebaRL.Core;
 using AmoebaRL.Interfaces;
+using AmoebaRL.Core.Organelles;
 
 namespace AmoebaRL.Systems
 {
@@ -35,35 +36,46 @@ namespace AmoebaRL.Systems
 
         public void AdvanceTurn()
         {
-            ISchedulable nextUp = Game.SchedulingSystem.Get();
-            if (nextUp is Nucleus)
+            // Why was the original design for this recursive? Just asking
+            // for stack problems.
+            int itr = 0;
+            do
             {
-                IsPlayerTurn = true;
-                Game.SchedulingSystem.Add(nextUp);
-            }
-            else if(nextUp is TutorialMonster monster)
-            {
-                // The "monster" archetype is an artifact from the tutorial I'd like to move away from.
-                monster.PerformAction(this);
-                // Bandaid for cases where things self-destruct: Could use global class "alive" variable?
-                if (Game.DMap.Actors.Contains(nextUp))
+                if (itr++ > 2048)
+                    throw new System.TimeoutException();
+                ISchedulable nextUp = Game.SchedulingSystem.Get();
+                if (nextUp is Nucleus)
+                {
+                    IsPlayerTurn = true;
                     Game.SchedulingSystem.Add(nextUp);
-                AdvanceTurn();
-            }
-            else if(nextUp is IProactive behavior)
-            {
-                behavior.Act(); 
-                // Bandaid for cases where things self-destruct: Could use global class "alive" variable?
-                if(Game.DMap.Actors.Contains(nextUp))
+                }
+                else if (nextUp is PostMortem)
+                {
+                    IsPlayerTurn = true;
+                    Game.Player = null;
                     Game.SchedulingSystem.Add(nextUp);
-                AdvanceTurn();
-            }
-            else
-            {
-                // ISchedulables with no behaviors are very strange indeed...
-                Game.SchedulingSystem.Add(nextUp);
-                AdvanceTurn();
-            }
+                }
+                else if (nextUp is TutorialMonster monster)
+                {
+                    // The "monster" archetype is an artifact from the tutorial I'd like to move away from.
+                    monster.PerformAction(this);
+                    // Bandaid for cases where things self-destruct: Could use global class "alive" variable?
+                    if (Game.DMap.Actors.Contains(nextUp))
+                        Game.SchedulingSystem.Add(nextUp);
+                }
+                else if (nextUp is IProactive behavior)
+                {
+                    behavior.Act();
+                    // Bandaid for cases where things self-destruct: Could use global class "alive" variable?
+                    if (Game.DMap.Actors.Contains(nextUp))
+                        Game.SchedulingSystem.Add(nextUp);
+                }
+                else
+                {
+                    // ISchedulables with no behaviors are very strange indeed...
+                    Game.SchedulingSystem.Add(nextUp);
+                }
+            } while (!IsPlayerTurn);
         }
 
         public void AttackMove(Actor monster, ICell cell)
@@ -85,25 +97,28 @@ namespace AmoebaRL.Systems
         /// <param name="victim"></param>
         public void Attack(Actor monster, Actor victim)
         {
-            if(victim is Nucleus)
-            { // how about only retreat if you're the last nucleus?
-                Actor newVictim = (victim as Nucleus).Retreat();
+            if(victim is Nucleus n)
+            {
+                Actor newVictim = n.Retreat();
                 if(newVictim == null)
                 {
-                    // Game over!
-                    Game.MessageLog.Add($"{victim.Name} had nowhere to run and was destroyed. Peace is restored.");
+                    Game.MessageLog.Add($"{victim.Name} could not retreat and was destroyed.");
+                    n.Destroy();
                 }
                 else
                 {
                     Game.MessageLog.Add($"The {victim.Name} retreated into the nearby { newVictim.Name }, avoiding death.");
-                    //Game.DMap.Swap(monster, newVictim);
-                    Game.DMap.RemoveActor(newVictim);
+                    Attack(monster, newVictim);
                 }
+            }
+            else if(victim is Organelle o)
+            {
+                Game.MessageLog.Add($"A { victim.Name } is destroyed.");
+                o.Destroy();
             }
             else
             {
                 Game.MessageLog.Add($"A { victim.Name } is destroyed.");
-                //Game.DMap.Swap(monster, victim);
                 Game.DMap.RemoveActor(victim);
             }
         }
@@ -111,8 +126,9 @@ namespace AmoebaRL.Systems
         public void Eat(Actor eating, Actor eaten)
         {
             // Also eat the item underneath, if it was present.
+            Item under = Game.DMap.GetItemAt(eaten.X, eaten.Y);
             if(eaten is IEatable e)
-            { 
+            {
                 Game.DMap.Swap(eating, eaten);
                 e.OnEaten();
             }
@@ -120,11 +136,13 @@ namespace AmoebaRL.Systems
             {
                 Game.DMap.RemoveActor(eaten);
             }
+            if (under != null)
+                Ingest(eating, under);
         }
 
         public bool Ingest(Actor eating, Item eaten)
         {
-            if(eaten is IEatable)
+            if(eaten is IEatable e)
             {
                 List<Actor> candidates = new List<Actor>() { eating };
                 List<Actor> seen = new List<Actor>();
@@ -154,14 +172,15 @@ namespace AmoebaRL.Systems
                 Game.DMap.RemoveActor(recepient);
                 eaten.X = recepient.X;
                 eaten.Y = recepient.Y;
-                (eaten as IEatable).OnEaten();
+                e.OnEaten();
                 
             }
             else
             {
                 Game.DMap.RemoveItem(eaten);
             }
-            MoveNucleus(eaten.X, eaten.Y);
+            if(eating is Organelle o)
+                MoveOrganelle(o, eaten.X, eaten.Y);
             return true;
         }
 
@@ -172,10 +191,10 @@ namespace AmoebaRL.Systems
 
         // Return value is true if the player was able to move
         // false when the player couldn't move, such as trying to move into a wall
-        public bool MovePlayer(Direction direction)
+        public bool AttackMoveOrganelle(Organelle player, Direction direction)
         {
-            int x = Game.Player.X;
-            int y = Game.Player.Y;
+            int x = player.X;
+            int y = player.Y;
 
             Point mod = ApplyDirection(new Point(x, y), direction);
             x = mod.X;
@@ -187,12 +206,12 @@ namespace AmoebaRL.Systems
                 if (targetActor.Slime == true)
                 {
                     // swap
-                    Game.DMap.Swap(Game.Player, targetActor);
+                    Game.DMap.Swap(player, targetActor);
                     return true;
                 }
                 else if (targetActor is IEatable)
                 {
-                    Eat(Game.Player, targetActor);
+                    Eat(player, targetActor);
                     return true;
                 }
                 
@@ -212,13 +231,13 @@ namespace AmoebaRL.Systems
                         Game.DMap.RemoveItem(targetItem);
                         Game.DMap.AddActor(n);
                         Game.PlayerMass.Add(n);
-                        Game.DMap.Swap(Game.Player, n);
+                        Game.DMap.Swap(player, n);
                         return true;
                     }
                 }
                 else // No actor and no item; move the player
                 {
-                    return MoveNucleus(x, y);
+                    return MoveOrganelle(player, x, y);
                 }
             }
 
@@ -251,12 +270,12 @@ namespace AmoebaRL.Systems
             return output;
         }
 
-        private static bool MoveNucleus(int x, int y)
+        private static bool MoveOrganelle(Organelle player, int x, int y)
         {
             int counter = 1;
             int max = 0;
             bool done = false;
-            SlimePathfind root = new SlimePathfind(Game.Player, null, 0);
+            SlimePathfind root = new SlimePathfind(player, null, 0);
             List<SlimePathfind> last = new List<SlimePathfind>() { root };
             List<SlimePathfind> accountedFor = new List<SlimePathfind>() { root };
             while (!done)
@@ -298,8 +317,8 @@ namespace AmoebaRL.Systems
 
             path.Reverse();
 
-            Point lastPoint = new Point(Game.Player.X, Game.Player.Y);
-            if (Game.DMap.SetActorPosition(Game.Player, x, y))
+            Point lastPoint = new Point(player.X, player.Y);
+            if (Game.DMap.SetActorPosition(player, x, y))
             {// Player was moved; cascade vaccume
                 for (int i = 1; i < path.Count; i++)
                 {

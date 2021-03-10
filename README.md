@@ -12,7 +12,7 @@ X: Examine mode toggle
 Reach 128 mass to win.
 
 # TODO
-
+URGENT make cities stop spawning on cytoplasm
 See if we can build to .NET 5.0 because I like it.
 Keybinding config would be nice
 
