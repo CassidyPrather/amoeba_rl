@@ -71,9 +71,11 @@ namespace AmoebaRL.UI
         public static RLColor WallFov = SecondaryLighter;
 
         public static RLColor TextHeading = DbLight;
+        public static RLColor TextBody = DbBrightWood;
 
         public static RLColor Player = DbLight;
         public static RLColor PlayerInactive = DbDark;
+        public static RLColor DarkSlime = DbVegetation;
         public static RLColor Slime = DbGrass;
         public static RLColor Militia = DbBrightWood;
         public static RLColor City = DbMetal;

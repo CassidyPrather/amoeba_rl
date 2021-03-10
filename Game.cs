@@ -57,6 +57,8 @@ namespace AmoebaRL
         public static SchedulingSystem SchedulingSystem { get; private set; }
 
         public static MessageLog MessageLog { get; private set; }
+
+        public static OrganelleLog OrganelleLog { get; private set; }
         #endregion
 
         private static bool _renderRequired = true;
@@ -94,6 +96,7 @@ namespace AmoebaRL
             MessageLog = new MessageLog();
             MessageLog.Add("Reach 128 mass to win.");
             MessageLog.Add($"Level created with seed '{seed}'");
+            OrganelleLog = new OrganelleLog();
 
             // Launch the game!
             CommandSystem.AdvanceTurn();
@@ -191,6 +194,7 @@ namespace AmoebaRL
                 DMap.Draw(_mapConsole);
                 //Player.Draw(_mapConsole, DMap);
                 MessageLog.Draw(_infoConsole);
+                OrganelleLog.Draw(_playerConsole);
 
                 RLConsole.Blit(_mapConsole, 0, 0, _mapConsole.Width, _mapConsole.Height, _rootConsole, 0, 0);
                 RLConsole.Blit(_infoConsole, 0, 0, _infoConsole.Width, _infoConsole.Height, _rootConsole, 0, _mapConsole.Height);

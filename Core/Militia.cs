@@ -76,9 +76,11 @@ namespace AmoebaRL.Core
             behavior.Act(this, commandSystem);
         }*/
 
-        public class CapturedMilitia : Organelle, IProactive
+        public class CapturedMilitia : Organelle, IProactive, IDigestable
         {
-            int HP;
+            public int MaxHP { get; set; }
+
+            public int HP { get; set; }
 
             public CapturedMilitia()
             {
@@ -87,7 +89,8 @@ namespace AmoebaRL.Core
                 Color = Palette.Militia;
                 Name = "Dissolving Militia";
                 Symbol = 'm';
-                HP = 8;
+                MaxHP = 8;
+                HP = MaxHP;
                 Speed = 16;
                 Game.PlayerMass.Add(this);
             }
