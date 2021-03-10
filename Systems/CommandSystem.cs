@@ -193,6 +193,8 @@ namespace AmoebaRL.Systems
             return true;
         }
 
+
+
         public bool Wait()
         {
             return true; // may need to do more stuff here.
@@ -334,6 +336,13 @@ namespace AmoebaRL.Systems
             }
 
             return false;
+        }
+
+        public void NextNucleus(int shift)
+        {
+            List<Actor> nuclei = Game.PlayerMass.Where(a => a is Nucleus).ToList();
+            int curIdx = nuclei.IndexOf(Game.Player);
+            (nuclei[(curIdx + shift) % nuclei.Count] as Nucleus).SetAsActiveNucleus();
         }
     }
 }

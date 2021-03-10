@@ -10,12 +10,29 @@ namespace AmoebaRL.Systems
 {
     public class MessageLog
     {
+        public enum Mode
+        {
+            MESSAGE,
+            ORGANELLE,
+            EXAMINE
+        }
+
+        public Mode Showing { get; private set; } = Mode.MESSAGE;
+
         // Define the maximum number of lines to store
         private static readonly int _maxLines = InfoConsole.INFO_HEIGHT - 2;
 
         // Use a Queue to keep track of the lines of text
         // The first line added to the log will also be the first removed
         private readonly Queue<string> _lines;
+
+        public void Toggle()
+        {
+            if (Showing == Mode.MESSAGE)
+                Showing = Mode.ORGANELLE;
+            else if (Showing == Mode.ORGANELLE)
+                Showing = Mode.MESSAGE;
+        }
 
         public MessageLog()
         {
@@ -49,6 +66,22 @@ namespace AmoebaRL.Systems
         // Draw each line of the MessageLog queue to the console
         public void Draw(RLConsole console)
         {
+            switch (Showing)
+            {
+                case Mode.MESSAGE:
+                    DrawMessage(console);
+                    break;
+                case Mode.ORGANELLE:
+                    DrawOrganelle(console);
+                    break;
+                case Mode.EXAMINE:
+                    DrawExamine(console);
+                    break;
+            }
+        }
+
+        public void DrawMessage(RLConsole console)
+        {
             console.Clear();
             string[] lines = _lines.ToArray();
             for (int i = 0; i < lines.Length; i++)
@@ -56,5 +89,15 @@ namespace AmoebaRL.Systems
                 console.Print(1, i + 1, lines[i], RLColor.White);
             }
         }
+        public void DrawOrganelle(RLConsole console)
+        {
+            throw new System.NotImplementedException();
+        }
+
+        public void DrawExamine(RLConsole console)
+        {
+            throw new System.NotImplementedException();
+        }
+
     }
 }

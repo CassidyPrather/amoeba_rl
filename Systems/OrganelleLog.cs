@@ -19,10 +19,14 @@ namespace AmoebaRL.Systems
         public int idx = 0; // Select an organelle
         public int page = 0; // Scroll through huge organelle lists
 
+        public Organelle Highlighted { get; private set; }
+
+        protected List<Actor> GetLoggable() => Game.PlayerMass.Where(a => !(a is Cytoplasm)).ToList();
+
         // Draw each line of the MessageLog queue to the console
         public void Draw(RLConsole console)
         {
-            List<Actor> loggable = Game.PlayerMass.Where(a => !(a is Cytoplasm)).ToList();
+            List<Actor> loggable = GetLoggable();
             console.Clear();
             console.SetBackColor(0, 0, console.Width, console.Height, Palette.DarkSlime);
             console.Print(1, 1, "Organelles", Palette.TextHeading);
@@ -34,6 +38,7 @@ namespace AmoebaRL.Systems
 
                 if (i == idx)
                 {
+                    Highlighted = target as Organelle;
                     console.Print(1, row, ">", Palette.TextHeading);
                     console.Print(3, row, target.Name, Palette.TextHeading);
                 }
@@ -51,6 +56,24 @@ namespace AmoebaRL.Systems
                     console.SetColor(3 + digestionCutoff, row, _nameWidth - digestionCutoff, 1, Palette.Militia);
                 }
             }
+        }
+
+        public void Scroll(int by)
+        {
+            int numItems = GetLoggable().Count();
+            if(numItems > 0)
+                idx = (idx + by) % numItems;
+            if (idx < 0)
+                idx += numItems;
+        }
+
+        public void Page(int by)
+        {
+            int numPages = GetLoggable().Count() / _maxLines;
+            if(numPages > 0)
+                page = (page + by) % numPages;
+            if (page < 0)
+                page += numPages;
         }
     }
 }

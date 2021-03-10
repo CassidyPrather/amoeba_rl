@@ -140,6 +140,43 @@ namespace AmoebaRL
             }
         }
 
+        private bool UserInputExamine(RLKeyPress keyPress)
+        {
+            if (keyPress != null)
+            {
+                if (keyPress.Key == RLKey.Up)
+                {
+                    // Move cursor up
+                }
+                else if (keyPress.Key == RLKey.Down)
+                {
+                    // Move cursor down
+                }
+                else if (keyPress.Key == RLKey.Left)
+                {
+                    // Move cursor Left
+                }
+                else if (keyPress.Key == RLKey.Right)
+                {
+                    // Move cursor right
+                }
+                else if (keyPress.Key == RLKey.X)
+                {
+                    // Exit examine mode
+                }
+                else if (keyPress.Key == RLKey.Escape)
+                {
+                    // Quit the game
+                }
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Returns true if the player moved.
+        /// </summary>
+        /// <param name="keyPress"></param>
+        /// <returns></returns>
         private bool UserInputLive(RLKeyPress keyPress)
         {
             if (keyPress != null)
@@ -165,6 +202,39 @@ namespace AmoebaRL
                     || keyPress.Key == RLKey.Keypad5)
                 {
                     return CommandSystem.Wait();
+                }
+                else if(keyPress.Key == RLKey.A)
+                {
+                    CommandSystem.NextNucleus(-1);
+                }
+                else if(keyPress.Key == RLKey.D)
+                {
+                    CommandSystem.NextNucleus(1);
+                }
+                else if(keyPress.Key == RLKey.W)
+                {
+                    OrganelleLog.Scroll(-1);
+                }
+                else if (keyPress.Key == RLKey.S)
+                {
+                    OrganelleLog.Scroll(1);
+                }
+                else if (keyPress.Key == RLKey.Q)
+                {
+                    OrganelleLog.Page(-1);
+                }
+                else if (keyPress.Key == RLKey.E)
+                {
+                    OrganelleLog.Page(1);
+                }
+                else if (keyPress.Key == RLKey.Z)
+                {
+                    MessageLog.Toggle();
+                    // Toggle Information Pane (Organelle/Log)
+                }
+                else if (keyPress.Key == RLKey.X)
+                {
+                    // Enter Examine Mode
                 }
                 else if (keyPress.Key == RLKey.Escape)
                 {
