@@ -14,8 +14,14 @@ namespace AmoebaRL.Core.Organelles
         {
             Color = Palette.Membrane;
             Symbol = 'B';
+            Name = "Membrane";
             Slime = true;
             Awareness = 0;
+        }
+
+        public override void OnDestroy()
+        {
+            BecomeItem(new BarbedWire());
         }
     }
 
@@ -23,8 +29,9 @@ namespace AmoebaRL.Core.Organelles
     {
         public BarbedWire()
         {
-            Color = Palette.Membrane;
+            Color = Palette.MembraneInactive;
             Symbol = 'b';
+            Name = "Barbed Wire";
         }
 
         public override Actor NewOrganelle()

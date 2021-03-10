@@ -128,6 +128,11 @@ namespace AmoebaRL.Core
             return GetActorAt(x, y) == null && GetItemAt(x, y) == null;
         }
 
+        public bool IsWall(ICell w)
+        {
+            return !w.IsWalkable && IsEmpty(w.X, w.Y);
+        }
+
         // Returns true when able to place the Actor on the cell or false otherwise
         public bool SetActorPosition(Actor actor, int x, int y)
         {
@@ -210,6 +215,41 @@ namespace AmoebaRL.Core
         }
 
         // Helpers
+        public ICell NearestLootDrop(int x, int y)
+        {
+            List<ICell> candidates = NearestLootDrops(x, y);
+            if (candidates.Count == 0)
+                return null;
+            return candidates[Game.Rand.Next(0, candidates.Count - 1)];
+        }
+
+        public List<ICell> NearestLootDrops(int x, int y)
+        {
+            List<ICell> seen = new List<ICell>();
+            List<ICell> frontier = new List<ICell>();
+            List<ICell> candidates = new List<ICell>() { GetCell(x, y) };
+            List<ICell> found = new List<ICell>();
+            while(found.Count == 0 && candidates.Count > 0)
+            {
+                foreach(ICell c in candidates)
+                {
+                    seen.Add(c);
+                    if(GetItemAt(c.X, c.Y) == null && !IsWall(c))
+                        found.Add(c);
+                    else
+                    {
+                        foreach(ICell adj in Adjacent(c.X, c.Y).Where(a => !seen.Contains(a) && !IsWall(a)))
+                            frontier.Add(c);
+                    } 
+                }
+                candidates.Clear();
+                candidates.AddRange(frontier);
+                frontier.Clear();
+            }
+            return found;
+
+        }
+
         public List<ICell> AdjacentWalkable(ICell from) => AdjacentWalkable(from.X, from.Y);
 
         public List<ICell> AdjacentWalkable(int X, int Y)
@@ -224,6 +264,22 @@ namespace AmoebaRL.Core
                 AddIfWalkable(adj, X, Y - 1);
             if (Y < Height - 1)
                 AddIfWalkable(adj, X, Y + 1);
+
+            return adj;
+        }
+
+        public List<ICell> Adjacent(int X, int Y)
+        {
+            List<ICell> adj = new List<ICell>();
+
+            if (X > 0)
+                adj.Add(GetCell(X - 1, Y));
+            if (X < Width - 1)
+                adj.Add(GetCell(X + 1, Y));
+            if (Y > 0)
+                adj.Add(GetCell(X, Y - 1));
+            if (Y < Height - 1)
+                adj.Add(GetCell(X, Y + 1));
 
             return adj;
         }

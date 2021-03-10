@@ -14,12 +14,25 @@ namespace AmoebaRL.Core.Organelles
         {
             Awareness = 4;
             Name = "Nucleus";
-            Color = Palette.Player;
+            Color = Palette.PlayerInactive;
             Symbol = '@';
             X = 10;
             Y = 10;
             Slime = true;
             Speed = 16;
+        }
+
+        public void SetAsActiveNucleus()
+        {
+            Game.Player = this;
+            Color = Palette.Player;
+            List<Actor> otherNucleus = Game.PlayerMass.Where(a => a is Nucleus && a != this).ToList();
+            foreach(Nucleus n in otherNucleus)
+            {
+                n.Color = Palette.PlayerInactive;
+                Game.SchedulingSystem.Remove(n);
+                Game.SchedulingSystem.Add(n);
+            }
         }
 
         public override void OnDestroy()

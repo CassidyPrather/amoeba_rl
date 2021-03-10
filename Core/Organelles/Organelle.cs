@@ -1,4 +1,5 @@
 ﻿using AmoebaRL.Interfaces;
+using RogueSharp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,10 +19,11 @@ namespace AmoebaRL.Core.Organelles
 
         public virtual void OnDestroy() { }
 
-        public virtual void BecomeItem(Item i)
+        public void BecomeItem(Item i)
         {
-            i.X = X;
-            i.Y = Y;
+            ICell lands = Game.DMap.NearestLootDrop(X, Y);
+            i.X = lands.X;
+            i.Y = lands.Y;
             Game.DMap.AddItem(i);
         }
 

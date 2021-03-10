@@ -44,8 +44,8 @@ namespace AmoebaRL.Systems
                 if (nextUp is Nucleus n)
                 {
                     IsPlayerTurn = true;
-                    Game.Player = n;
-                    Game.SchedulingSystem.Add(nextUp);
+                    Game.SchedulingSystem.Add(nextUp); // We want the same nucleus to go again, if possible.
+                    n.SetAsActiveNucleus();
                 }
                 else if (nextUp is PostMortem)
                 {
@@ -173,7 +173,7 @@ namespace AmoebaRL.Systems
                             selection.Add(potential as Cytoplasm);
                     }
                     if (candidates.Count == 0)
-                        return false;
+                        return false; // No room to eat
                 }
                 // Pick a random cytoplasm among the nearest.
                 int pick = Game.Rand.Next(0, selection.Count - 1);
