@@ -12,7 +12,7 @@ using RogueSharp;
 
 namespace AmoebaRL.Core
 {
-    public class Militia : Actor, IProactive, IEatable
+    public class Militia : Actor, IProactive, IEatable, ISlayable
     {
         public Militia()
         {
@@ -21,6 +21,18 @@ namespace AmoebaRL.Core
             Symbol = 'm';
             Speed = 16;
             Name = "Militia";
+        }
+
+        public virtual void Die()
+        {
+            Game.DMap.RemoveActor(this);
+            ICell drop = Game.DMap.NearestLootDrop(X, Y);
+            Nutrient transformation = new Nutrient
+            {
+                X = drop.X,
+                Y = drop.Y
+            };
+            Game.DMap.AddItem(transformation);
         }
 
         public virtual void OnEaten()
@@ -36,12 +48,30 @@ namespace AmoebaRL.Core
 
         public virtual bool Act()
         {
-            List<Actor> seenTargets = Seen(Game.PlayerMass);
-            if (seenTargets.Count > 0)
-                ActToTargets(seenTargets);
-            else
-                Wander();
+            if(!Engulf())
+            { 
+                List<Actor> seenTargets = Seen(Game.PlayerMass);
+                if (seenTargets.Count > 0)
+                    ActToTargets(seenTargets);
+                else
+                    Wander();
+            }
             return true;
+        }
+        
+        public virtual bool Engulf()
+        {
+            List<ICell> adj = Game.DMap.Adjacent(X,Y);
+            if(adj.Where(a => !Game.DMap.IsWall(a) 
+                    && !Game.PlayerMass.Contains(Game.DMap.GetActorAt(a.X, a.Y)))
+                .Count() == 0)
+            {
+                Game.MessageLog.Add($"The {Name} is engulfed!");
+                OnEaten();
+                return true;
+            }
+            return false;
+            
         }
 
         public virtual void ActToTargets(List<Actor> seenTargets)
@@ -95,22 +125,22 @@ namespace AmoebaRL.Core
                 Game.PlayerMass.Add(this);
             }
 
-            public bool Act()
+            public virtual bool Act()
             {
                 HP--;
                 if (HP <= 0)
                 {
                     Game.DMap.RemoveActor(this);
-                    Cytoplasm transformation = new Cytoplasm
-                    {
-                        X = X,
-                        Y = Y
-                    };
+                    Actor transformation = DigestsTo();
+                    transformation.X = X;
+                    transformation.Y = Y;
                     Game.DMap.AddActor(transformation);
                     Game.PlayerMass.Add(transformation);
                 }
                 return true;
             }
+
+            public virtual Actor DigestsTo() => new Cytoplasm();
 
             public override void OnDestroy() => BecomeActor(new Militia());
         }

@@ -4,25 +4,27 @@
 
 # How to Play
 
-Arrow keys: Move.
+Arrow keys: Move
 Space: Wait
-Z, C: Go to previous/next organelle
+A, D: Go to previous/next nucleus
+W, S: Go to previous/next organelle in menu
+Z: Toggle Organelle Descriptions or Message Log
 X: Examine mode toggle
-    Arrow keys (Examine mode): Move examine cursor.
+    Arrow keys (Examine mode): Move examine cursor
+Esc: Quit
 Reach 128 mass to win.
 
 # TODO
-URGENT make cities stop spawning on cytoplasm
-See if we can build to .NET 5.0 because I like it.
-Keybinding config would be nice
+Add context help to the organelle menu to show what pressing different keys will do.
+Spawn loot at random, increase rarities.
 
 ## 7DRL Agenda
 Using some libraries to help
 Day 1 (Saturday): Mapgen, movement, ~~map scrolling~~
 Day 2 (Sunday): Slime physics, movement, growth
 Day 3 (Monday): Enemies, organelles
-Day 4 (Tuesday): 2 more enemies, crafting
-Day 5 (Wednesday): Inspection menu; playtest release
+Day 4 (Tuesday): 2 more enemies, crafting // Almost done
+Day 5 (Wednesday): Inspection menu; playtest release (have a few more organs first?)
 Day 6 (Thursday): Polish, balance
 Day 7 (Friday): Polish
 
@@ -38,6 +40,9 @@ Environmental hazards and boons
 More mapgen types
 Overworld infinite-scroll map
 Within-map pipes
+Scratch this, too OP: ~~Enemies should panic before being engulfed if they can't pathfind out w/o running into slime.~~
+See if we can build to .NET 5.0 because I like it.
+Keybinding config would be nice
 
 # Credits
 

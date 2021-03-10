@@ -61,10 +61,13 @@ namespace AmoebaRL
         public static OrganelleLog OrganelleLog { get; private set; }
         #endregion
 
-        private static bool _renderRequired = true;
+        private bool _renderRequired = true;
+
+        private DateTime _lastGraphicalTime;
 
         public Game()
         {
+            _lastGraphicalTime = DateTime.UtcNow;
             StartNewGame();
             // Set up a handler for RLNET's Update event
             _rootConsole.Update += OnRootConsoleUpdate;
@@ -259,6 +262,13 @@ namespace AmoebaRL
 
         private void OnRootConsoleRender(object sender, UpdateEventArgs e)
         {
+            // Update Animations
+            DateTime renderInstant = DateTime.UtcNow;
+            TimeSpan delta = renderInstant - _lastGraphicalTime;
+            _lastGraphicalTime = renderInstant;
+            if (DMap.Animate(_mapConsole, delta))
+                _rootConsole.Draw();
+            // Update Main Game
             if(_renderRequired)
             {
                 DMap.Draw(_mapConsole);

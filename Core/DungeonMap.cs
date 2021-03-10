@@ -16,12 +16,21 @@ namespace AmoebaRL.Core
         public List<Actor> Actors;
         public List<Item> Items;
         public List<Rectangle> Boulders;
+        public List<IDrawable> Effects;
+
+        
+        private static readonly TimeSpan ANIMATION_RATE = TimeSpan.FromMilliseconds(250);
+
+        public TimeSpan TimeSinceLastAnimation = TimeSpan.Zero;
+
+        public int AnimationFrame = 0;
 
         public DungeonMap()
         {
             Boulders = new List<Rectangle>();
             Actors = new List<Actor>();
             Items = new List<Item>();
+            Effects = new List<IDrawable>();
         }
 
         // The Draw method will be called each time the map is updated
@@ -41,7 +50,24 @@ namespace AmoebaRL.Core
             {
                 a.Draw(mapConsole, this);
             }
-            
+            foreach(VFX e in Effects)
+            {
+                e.Draw(mapConsole, this);
+            }
+        }
+
+        public bool Animate(RLConsole mapConsole, TimeSpan delta)
+        {
+            TimeSinceLastAnimation += delta;
+            if(TimeSinceLastAnimation >= ANIMATION_RATE)
+            {
+                AnimationFrame++;
+                TimeSinceLastAnimation = TimeSpan.Zero;
+                foreach (VFX e in Effects)
+                    e.Draw(mapConsole, this);
+                return true;
+            }
+            return false;
         }
 
         private void SetConsoleSymbolForCell(RLConsole console, Cell cell)
@@ -107,15 +133,22 @@ namespace AmoebaRL.Core
             }
         }
 
-        public Actor GetActorAt(int x, int y)
+
+
+        public IDrawable GetActorOrItem(int x, int y)
         {
-            return Actors.FirstOrDefault(a => a.X == x && a.Y == y);
+            IDrawable firstChoice = GetActorAt(x, y);
+            if (firstChoice != null)
+                return firstChoice;
+            IDrawable secondChoice = GetItemAt(x, y);
+            return secondChoice; // may be null
         }
 
-        public Item GetItemAt(int x, int y)
-        {
-            return Items.FirstOrDefault(a => a.X == x && a.Y == y);
-        }
+        public Actor GetActorAt(int x, int y) => Actors.FirstOrDefault(a => a.X == x && a.Y == y);
+
+        public Item GetItemAt(int x, int y) => Items.FirstOrDefault(a => a.X == x && a.Y == y);
+
+        public IDrawable GetVFX(int x, int y) => Effects.FirstOrDefault(a => a.X == x && a.Y == y);
 
         /// <summary>
         /// Determines whether there is an <see cref="Actor"/> or <see cref="Item"/> at the point.
@@ -123,15 +156,13 @@ namespace AmoebaRL.Core
         /// <param name="x"></param>
         /// <param name="y"></param>
         /// <returns></returns>
-        public bool IsEmpty(int x, int y)
-        {
-            return GetActorAt(x, y) == null && GetItemAt(x, y) == null;
-        }
+        public bool IsEmpty(int x, int y) => GetActorAt(x, y) == null && GetItemAt(x, y) == null;
 
-        public bool IsWall(ICell w)
-        {
-            return !w.IsWalkable && IsEmpty(w.X, w.Y);
-        }
+        public bool IsWall(ICell w) => !w.IsWalkable && IsEmpty(w.X, w.Y);
+
+        public bool IsWall(int x, int y) => IsWall(GetCell(x,y));
+
+        public bool WithinBounds(int x, int y) => x >= 0 && y >= 0 && x < Width && y < Height;
 
         // Returns true when able to place the Actor on the cell or false otherwise
         public bool SetActorPosition(Actor actor, int x, int y)
@@ -191,10 +222,9 @@ namespace AmoebaRL.Core
             Game.SchedulingSystem.Add(toAdd);
         }
 
-        public void AddItem(Item toAdd)
-        {
-            Items.Add(toAdd);
-        }
+        public void AddItem(Item toAdd) => Items.Add(toAdd);
+
+        public void AddVFX(VFX toAdd) => Effects.Add(toAdd);
 
 
         public void RemoveActor(Actor a)
@@ -208,11 +238,14 @@ namespace AmoebaRL.Core
             SetIsWalkable(a.X, a.Y, true);
             Game.SchedulingSystem.Remove(a);
         }
+        
         public void RemoveItem(Item targetItem)
         {
             Items.Remove(targetItem);
             // Items don't make cells unwalkable so this is fine to not mess with.
         }
+
+        public void RemoveVFX(VFX toRemove) => Effects.Remove(toRemove);
 
         // Helpers
         public ICell NearestLootDrop(int x, int y)
@@ -239,7 +272,7 @@ namespace AmoebaRL.Core
                     else
                     {
                         foreach(ICell adj in Adjacent(c.X, c.Y).Where(a => !seen.Contains(a) && !IsWall(a)))
-                            frontier.Add(c);
+                            frontier.Add(adj);
                     } 
                 }
                 candidates.Clear();

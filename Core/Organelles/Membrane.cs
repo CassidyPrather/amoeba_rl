@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace AmoebaRL.Core.Organelles
 {
-    public class Membrane : Organelle
+    public class Membrane : Organelle, IUpgradable
     {
         public Membrane()
         {
@@ -22,6 +22,11 @@ namespace AmoebaRL.Core.Organelles
         public override void OnDestroy()
         {
             BecomeItem(new BarbedWire());
+        }
+
+        public bool Upgrade(CraftingMaterial.Resource material)
+        {
+            throw new NotImplementedException();
         }
     }
 

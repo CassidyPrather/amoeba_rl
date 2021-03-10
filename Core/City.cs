@@ -10,6 +10,9 @@ using System.Threading.Tasks;
 
 namespace AmoebaRL.Core
 {
+    /// <summary>
+    /// Spawns hostiles into the map. The fact that these get progressively harder is the game's "clock".
+    /// </summary>
     public class City : TutorialMonster
     {
         private readonly IBehavior turn;

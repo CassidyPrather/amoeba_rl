@@ -80,9 +80,14 @@ namespace AmoebaRL.UI
         public static RLColor Militia = DbBrightWood;
         public static RLColor City = DbMetal;
         public static RLColor Tank = DbWater;
-        public static RLColor Soldier = DbSun;
+        public static RLColor RestingTank = DbDeepWater;
+        public static RLColor Hunter = DbSun;
+        public static RLColor ReticleForeground = DbBlood;
+        public static RLColor ReticleBackground = DbOldBlood;
+
 
         public static RLColor Membrane = DbBlood;
         public static RLColor MembraneInactive = DbMetal;
+
     }
 }

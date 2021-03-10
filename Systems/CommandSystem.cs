@@ -105,10 +105,25 @@ namespace AmoebaRL.Systems
                 }
                 else
                 {
-                    Game.MessageLog.Add($"The {victim.Name} retreated into the nearby { newVictim.Name }, avoiding death.");
+                    Game.MessageLog.Add($"The {victim.Name} retreated into the nearby { newVictim.Name }, thereby avoiding death.");
                     Attack(monster, newVictim);
                 }
             }
+            else if(victim is Membrane m && monster is ISlayable i)
+            {
+                if(i is Tank)
+                {
+                    Game.MessageLog.Add($"The {monster.Name} shrugs off the membrane protiens.");
+                    m.Destroy();
+                }
+                else
+                {
+                    Game.MessageLog.Add($"The {monster.Name} is impaled by sharp membrane protiens!");
+                    i.Die();
+                }
+                
+                
+            }    
             else if(victim is Organelle o)
             {
                 Game.MessageLog.Add($"A { victim.Name } is destroyed.");
@@ -134,7 +149,7 @@ namespace AmoebaRL.Systems
             {
                 Game.DMap.RemoveActor(eaten);
             }
-            if (under != null && under is IEatable u)
+            if (under != null && under is IEatable)
             {
                 Ingest(eating, under);
             }
@@ -223,6 +238,11 @@ namespace AmoebaRL.Systems
                 { // Swap
                     Game.DMap.Swap(player, targetActor);
                     return true;
+                }
+                else if (targetActor is Tank)
+                {
+                    Game.MessageLog.Add($"The {targetActor.Name}'s armor is too strong!");
+                    return false;
                 }
                 else if (targetActor is IEatable)
                 {
@@ -342,7 +362,10 @@ namespace AmoebaRL.Systems
         {
             List<Actor> nuclei = Game.PlayerMass.Where(a => a is Nucleus).ToList();
             int curIdx = nuclei.IndexOf(Game.Player);
-            (nuclei[(curIdx + shift) % nuclei.Count] as Nucleus).SetAsActiveNucleus();
+            int newIdx = (curIdx + shift) % nuclei.Count;
+            if (newIdx < 0)
+                newIdx += nuclei.Count();
+            (nuclei[newIdx] as Nucleus).SetAsActiveNucleus();
         }
     }
 }
