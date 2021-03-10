@@ -84,14 +84,19 @@ namespace AmoebaRL.Core
         // This method will be called any time we move the player to update field-of-view
         public void UpdatePlayerFieldOfView()
         {
-            Nucleus player = Game.Player;
-            ComputeFov(player.X, player.Y, player.Awareness, true);
-            // Compute the field-of-view based on the player's location and awareness
-            foreach (Actor a in Game.PlayerMass.Where(a => a != player))
+            IEnumerator<Actor> grantsVision = Game.PlayerMass.Where(a => a.Awareness >= 0).GetEnumerator();
+            bool hasNext = grantsVision.MoveNext();
+            if (hasNext)
             {
-                AppendFov(a.X, a.Y, a.Awareness, true);
+                ComputeFov(grantsVision.Current.X, grantsVision.Current.Y, grantsVision.Current.Awareness, true);
+                // Compute the field-of-view based on the player's location and awareness
+                while(grantsVision.MoveNext())
+                {
+                    AppendFov(grantsVision.Current.X, grantsVision.Current.Y, grantsVision.Current.Awareness, true);
+                }
             }
-
+            else
+                ComputeFov(0, 0, 0, false);// Player is blind (shouldn't happen?)
             // Mark all cells in field-of-view as having been explored
             foreach (Cell cell in GetAllCells())
             {
@@ -106,9 +111,21 @@ namespace AmoebaRL.Core
         {
             return Actors.FirstOrDefault(a => a.X == x && a.Y == y);
         }
+
         public Item GetItemAt(int x, int y)
         {
             return Items.FirstOrDefault(a => a.X == x && a.Y == y);
+        }
+
+        /// <summary>
+        /// Determines whether there is an <see cref="Actor"/> or <see cref="Item"/> at the point.
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <returns></returns>
+        public bool IsEmpty(int x, int y)
+        {
+            return GetActorAt(x, y) == null && GetItemAt(x, y) == null;
         }
 
         // Returns true when able to place the Actor on the cell or false otherwise
@@ -143,7 +160,6 @@ namespace AmoebaRL.Core
             b.Y = buffer.Y;
             if ((a.Slime == true && a.Awareness != 0) || (b.Slime == true && b.Awareness != 0))
                 UpdatePlayerFieldOfView();
-
         }
 
         // A helper method for setting the IsWalkable property on a Cell
@@ -156,7 +172,7 @@ namespace AmoebaRL.Core
         // Called by MapGenerator after we generate a new map to add the player to the map
         public void AddPlayer(Nucleus player)
         {
-            Game.Player = player; // would like to move away from this handle altogether.
+            // Game.Player = player; // would like to move away from this handle altogether.
             Actors.Add(player);
             SetIsWalkable(player.X, player.Y, false);
             UpdatePlayerFieldOfView();
@@ -182,7 +198,7 @@ namespace AmoebaRL.Core
             if(Game.PlayerMass.Contains(a))
             {
                 Game.PlayerMass.Remove(a);
-                // May need to cut the player mass in half when necessary.
+                // It is okay for the player mass to be disjoint.
             }
             SetIsWalkable(a.X, a.Y, true);
             Game.SchedulingSystem.Remove(a);
@@ -190,7 +206,7 @@ namespace AmoebaRL.Core
         public void RemoveItem(Item targetItem)
         {
             Items.Remove(targetItem);
-            // Items don't make cells unwalkable so this is fine anyway.
+            // Items don't make cells unwalkable so this is fine to not mess with.
         }
 
         // Helpers
@@ -246,6 +262,5 @@ namespace AmoebaRL.Core
                 throw innerException;
             return found;
         }
-
     }
 }

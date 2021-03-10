@@ -38,15 +38,13 @@ namespace AmoebaRL.Systems
         {
             // Why was the original design for this recursive? Just asking
             // for stack problems.
-            int itr = 0;
             do
             {
-                if (itr++ > 2048)
-                    throw new System.TimeoutException();
                 ISchedulable nextUp = Game.SchedulingSystem.Get();
-                if (nextUp is Nucleus)
+                if (nextUp is Nucleus n)
                 {
                     IsPlayerTurn = true;
+                    Game.Player = n;
                     Game.SchedulingSystem.Add(nextUp);
                 }
                 else if (nextUp is PostMortem)

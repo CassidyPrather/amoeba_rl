@@ -17,7 +17,7 @@ namespace AmoebaRL.Core
             Slime = false;
             Awareness = 0;
             Speed = 0;
-            Game.MessageLog.Add("Press ESC to quit or r to retry.");
+            Game.MessageLog.Add("Press ESC to quit.");
         }
     }
 }

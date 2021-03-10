@@ -8,7 +8,6 @@ namespace AmoebaRL
         {
             if (args.Length >= 1 && args[0].Equals("-gj"))
                 Console.WriteLine("GJ mode enabled.");
-
             Game g = new Game();
             g.Play();
         }

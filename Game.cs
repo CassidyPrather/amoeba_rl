@@ -49,7 +49,7 @@ namespace AmoebaRL
         public static DungeonMap DMap { get; private set; }
 
         public static Nucleus Player { get; set; }
-        
+
         public static List<Actor> PlayerMass { get; set; }
 
         public static CommandSystem CommandSystem { get; private set; }
@@ -61,11 +61,9 @@ namespace AmoebaRL
 
         private static bool _renderRequired = true;
 
-
-
         public Game()
         {
-            Start();
+            StartNewGame();
             // Set up a handler for RLNET's Update event
             _rootConsole.Update += OnRootConsoleUpdate;
             // Set up a handler for RLNET's Render event
@@ -75,7 +73,7 @@ namespace AmoebaRL
         /// <summary>
         /// Called once when the game is launched..
         /// </summary>
-        protected void Start()
+        protected void StartNewGame()
         {
             seed = (int)DateTime.UtcNow.Ticks; // may save for later?
             Rand = new DotNetRandom(seed);
@@ -91,12 +89,14 @@ namespace AmoebaRL
             // Fix the numbers in the map generator call later.
             MapGenerator mapGenerator = new MapGenerator(_mapConsole.Width, _mapConsole.Height, 20, 13, 7);
             DMap = mapGenerator.CreateMap();
-            DMap.UpdatePlayerFieldOfView();
-
+            
             // Create a new MessageLog and print the random seed used to generate the level
             MessageLog = new MessageLog();
             MessageLog.Add("Reach 128 mass to win.");
             MessageLog.Add($"Level created with seed '{seed}'");
+
+            // Launch the game!
+            CommandSystem.AdvanceTurn();
         }
 
         public void Play() => _rootConsole.Run();
@@ -175,11 +175,7 @@ namespace AmoebaRL
         {
             if (keyPress != null)
             {
-                if (keyPress.Key == RLKey.R)
-                {
-                    throw new System.NotImplementedException();
-                }
-                else if(keyPress.Key == RLKey.Escape)
+                if(keyPress.Key == RLKey.Escape)
                 {
                     _rootConsole.Close();
                 }

@@ -49,13 +49,15 @@ namespace AmoebaRL.Systems
 
             ConnectPockets();
 
-            PlacePlayer();
+            InitalizeNewPlayermassOnMap();
 
             for(int i = 0; i < FOOD_AMT; i++)
                 PlaceFood();
 
             for (int i = 0; i < CITY_AMT; i++)
                 PlaceCity();
+
+            _map.UpdatePlayerFieldOfView();
 
             return _map;
         }
@@ -307,12 +309,6 @@ namespace AmoebaRL.Systems
             {
                 _map.SetCellProperties(cell.X, cell.Y, false, false, false);
             }
-
-            // Set the first and last columns in the map to not be transparent or walkable
-            foreach (Cell cell in _map.GetCellsInColumns(_width/2, _width / 2))
-            {
-                _map.SetCellProperties(cell.X, cell.Y, false, false, false);
-            }
         }
 
         // Given a rectangular area on the map
@@ -332,17 +328,17 @@ namespace AmoebaRL.Systems
         /// Place the nucleus at a random spot.
         /// Surround with slime.
         /// </summary>
-        private void PlacePlayer()
+        private void InitalizeNewPlayermassOnMap()
         {
-            Nucleus player = Game.Player;
+            Nucleus initialPlayer = Game.Player;
             List<Actor> playerMass = Game.PlayerMass;
-            if (player == null)
+            if (initialPlayer == null)
             {
-                player = new Nucleus();
+                initialPlayer = new Nucleus();
             }
             if(playerMass == null)
             {
-                playerMass = new List<Actor>() { player };
+                playerMass = new List<Actor>() { initialPlayer };
                 Game.PlayerMass = playerMass;
                 for(int i = 0; i < INITIAL_SLIME; i++)
                     playerMass.Add(new Cytoplasm());
@@ -351,20 +347,20 @@ namespace AmoebaRL.Systems
             List<ICell> initialSlime;
             do
             {
-                player.X = Game.Rand.Next(0, _width - 1);
-                player.Y = Game.Rand.Next(0, _height - 1);
-            } while (!_map.GetCell(player.X,player.Y).IsWalkable 
-                    || !TryFluidSelect(out initialSlime, _map.GetCell(player.X, player.Y), playerMass.Count));
+                initialPlayer.X = Game.Rand.Next(0, _width - 1);
+                initialPlayer.Y = Game.Rand.Next(0, _height - 1);
+            } while (!_map.GetCell(initialPlayer.X,initialPlayer.Y).IsWalkable 
+                    || !TryFluidSelect(out initialSlime, _map.GetCell(initialPlayer.X, initialPlayer.Y), playerMass.Count));
 
             
-            for(int i = 1; i < playerMass.Count; i++)
+            for(int i = 0; i < playerMass.Count; i++)
             {
                 Actor inMass = playerMass[i];
                 inMass.X = initialSlime[i].X;
                 inMass.Y = initialSlime[i].Y;
                 _map.AddActor(inMass);
             }
-            _map.AddPlayer(player); // Must be called last because updates FOV
+            //_map.AddPlayer(initialPlayer); // Must be called last because updates FOV
             //Game.PlayerMass.Add(player);
         }
 
@@ -392,7 +388,7 @@ namespace AmoebaRL.Systems
                     c.X = Game.Rand.Next(0, _width - 1);
                     c.Y = Game.Rand.Next(0, _height - 1);
                     src = _map.GetCell(c.X, c.Y);
-                } while (src.IsWalkable && _map.GetActorAt(c.X, c.Y) != null);
+                } while (src.IsWalkable || !_map.IsEmpty(c.X, c.Y));
                 adjacent = AdjacentWalkable(src);
             }
             _map.AddActor(c);
