@@ -121,7 +121,7 @@ namespace AmoebaRL.Systems
             }
         }
 
-        public void Eat(Actor eating, Actor eaten)
+        public void EatActor(Actor eating, Actor eaten)
         {
             // Also eat the item underneath, if it was present.
             Item under = Game.DMap.GetItemAt(eaten.X, eaten.Y);
@@ -134,14 +134,24 @@ namespace AmoebaRL.Systems
             {
                 Game.DMap.RemoveActor(eaten);
             }
-            if (under != null)
+            if (under != null && under is IEatable u)
+            {
                 Ingest(eating, under);
+            }
         }
 
         public bool Ingest(Actor eating, Item eaten)
         {
-            if(eaten is IEatable e)
+            Point mealLocation = new Point(eaten.X, eaten.Y);
+            if (eaten is Nutrient n)
+            { 
+                // Nutrients are the only IEatable which do not require cytoplasm hosts (is this good?)
+                n.OnEaten();
+            }
+
+            else if (eaten is IEatable e)
             {
+                // Find a cytoplasm to host the new thing.
                 List<Actor> candidates = new List<Actor>() { eating };
                 List<Actor> seen = new List<Actor>();
                 List<Actor> frontier = new List<Actor>();
@@ -150,9 +160,10 @@ namespace AmoebaRL.Systems
                     selection.Add(eating as Cytoplasm);
                 while (selection.Count == 0)
                 {
+                    // Find the nearest cytoplasm.
                     seen.AddRange(candidates);
                     frontier.Clear();
-                    foreach(Actor c in candidates)
+                    foreach (Actor c in candidates)
                         frontier.AddRange(Game.PlayerMass.Where(a => a.AdjacentTo(c.X, c.Y) && !seen.Contains(a)));
                     candidates.Clear();
                     candidates.AddRange(frontier);
@@ -164,6 +175,7 @@ namespace AmoebaRL.Systems
                     if (candidates.Count == 0)
                         return false;
                 }
+                // Pick a random cytoplasm among the nearest.
                 int pick = Game.Rand.Next(0, selection.Count - 1);
                 Actor recepient = selection[pick];
                 Point newOrganellePos = new Point(recepient.X, recepient.Y);
@@ -171,14 +183,13 @@ namespace AmoebaRL.Systems
                 eaten.X = recepient.X;
                 eaten.Y = recepient.Y;
                 e.OnEaten();
-                
             }
             else
             {
                 Game.DMap.RemoveItem(eaten);
             }
             if(eating is Organelle o)
-                MoveOrganelle(o, eaten.X, eaten.Y);
+                AttackMoveOrganelle(o, mealLocation.X, mealLocation.Y);
             return true;
         }
 
@@ -189,7 +200,7 @@ namespace AmoebaRL.Systems
 
         // Return value is true if the player was able to move
         // false when the player couldn't move, such as trying to move into a wall
-        public bool AttackMoveOrganelle(Organelle player, Direction direction)
+        public bool AttackMovePlayer(Organelle player, Direction direction)
         {
             int x = player.X;
             int y = player.Y;
@@ -198,39 +209,34 @@ namespace AmoebaRL.Systems
             x = mod.X;
             y = mod.Y;
 
+            return AttackMoveOrganelle(player, x, y);
+        }
+
+        public bool AttackMoveOrganelle(Organelle player, int x, int y)
+        {
             Actor targetActor = Game.DMap.GetActorAt(x, y);
             if (targetActor != null)
             {
                 if (targetActor.Slime == true)
-                {
-                    // swap
+                { // Swap
                     Game.DMap.Swap(player, targetActor);
                     return true;
                 }
                 else if (targetActor is IEatable)
                 {
-                    Eat(player, targetActor);
+                    EatActor(player, targetActor);
                     return true;
                 }
-                
+
             }
             else
             {
                 Item targetItem = Game.DMap.GetItemAt(x, y);
                 if (targetItem != null)
                 {
-                    if (targetItem.Name == "Nutrient") // stupid constant string
+                    if (targetItem is IEatable)
                     {
-                        Actor n = new Cytoplasm()
-                        {
-                            X = targetItem.X,
-                            Y = targetItem.Y
-                        };
-                        Game.DMap.RemoveItem(targetItem);
-                        Game.DMap.AddActor(n);
-                        Game.PlayerMass.Add(n);
-                        Game.DMap.Swap(player, n);
-                        return true;
+                        Ingest(player, targetItem);
                     }
                 }
                 else // No actor and no item; move the player

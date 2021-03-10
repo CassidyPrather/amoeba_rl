@@ -18,6 +18,7 @@ namespace AmoebaRL.Core.Organelles
             transformation.X = X;
             transformation.Y = Y;
             Game.DMap.AddActor(transformation);
+            Game.PlayerMass.Add(transformation);
         }
     }
 }

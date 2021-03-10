@@ -143,19 +143,19 @@ namespace AmoebaRL
             {
                 if (keyPress.Key == RLKey.Up)
                 {
-                    return CommandSystem.AttackMoveOrganelle(Player, Direction.Up);
+                    return CommandSystem.AttackMovePlayer(Player, Direction.Up);
                 }
                 else if (keyPress.Key == RLKey.Down)
                 {
-                    return CommandSystem.AttackMoveOrganelle(Player, Direction.Down);
+                    return CommandSystem.AttackMovePlayer(Player, Direction.Down);
                 }
                 else if (keyPress.Key == RLKey.Left)
                 {
-                    return CommandSystem.AttackMoveOrganelle(Player, Direction.Left);
+                    return CommandSystem.AttackMovePlayer(Player, Direction.Left);
                 }
                 else if (keyPress.Key == RLKey.Right)
                 {
-                    return CommandSystem.AttackMoveOrganelle(Player, Direction.Right);
+                    return CommandSystem.AttackMovePlayer(Player, Direction.Right);
                 }
                 else if (keyPress.Key == RLKey.Space || keyPress.Key == RLKey.Period
                     || keyPress.Key == RLKey.KeypadPeriod

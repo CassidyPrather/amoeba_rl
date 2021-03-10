@@ -21,4 +21,18 @@ namespace AmoebaRL.Core.Organelles
             Speed = 10000; // aaa
         }
     }
+
+    public class Nutrient : Catalyst
+    {
+        public Nutrient()
+        {
+            Name = "Nutrient";
+            Color = Palette.Slime;
+            Symbol = '%';
+            X = 10;
+            Y = 10;
+        }
+
+        public override Actor NewOrganelle() => new Cytoplasm();
+    }
 }

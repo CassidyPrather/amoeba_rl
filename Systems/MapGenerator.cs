@@ -24,6 +24,8 @@ namespace AmoebaRL.Systems
         private readonly DungeonMap _map;
         private readonly int FOOD_AMT = 32;
         private readonly int CITY_AMT = 16;
+        private readonly int DNA_AMT = 8;
+        private readonly int WIRE_AMT = 16;
 
         // Constructing a new MapGenerator requires the dimensions of the maps it will create
         // as well as the sizes and maximum number of rooms
@@ -51,11 +53,7 @@ namespace AmoebaRL.Systems
 
             InitalizeNewPlayermassOnMap();
 
-            for(int i = 0; i < FOOD_AMT; i++)
-                PlaceFood();
-
-            for (int i = 0; i < CITY_AMT; i++)
-                PlaceCity();
+            PlaceFeatures();
 
             _map.UpdatePlayerFieldOfView();
 
@@ -256,6 +254,21 @@ namespace AmoebaRL.Systems
             }
         }
 
+        private void PlaceFeatures()
+        {
+            for (int i = 0; i < FOOD_AMT; i++)
+                PlaceLoot(new Nutrient());
+
+            for (int i = 0; i < CITY_AMT; i++)
+                PlaceCity();
+
+            for (int i = 0; i < DNA_AMT; i++)
+                PlaceLoot(new DNA());
+
+            for (int i = 0; i < WIRE_AMT; i++)
+                PlaceLoot(new BarbedWire());
+        }
+
         private void PlaceBoulders()
         {
             // Try to place as many rooms as the specified maxRooms
@@ -364,15 +377,14 @@ namespace AmoebaRL.Systems
             //Game.PlayerMass.Add(player);
         }
 
-        public void PlaceFood()
+        public void PlaceLoot(Item l)
         {
-            Nutrient n = new Nutrient();
             do
             {
-                n.X = Game.Rand.Next(0, _width - 1);
-                n.Y = Game.Rand.Next(0, _height - 1);
-            } while (!_map.GetCell(n.X, n.Y).IsWalkable);
-            _map.AddItem(n);
+                l.X = Game.Rand.Next(0, _width - 1);
+                l.Y = Game.Rand.Next(0, _height - 1);
+            } while (!_map.GetCell(l.X, l.Y).IsWalkable || !_map.IsEmpty(l.X, l.Y));
+            _map.AddItem(l);
         }
 
         public void PlaceCity()

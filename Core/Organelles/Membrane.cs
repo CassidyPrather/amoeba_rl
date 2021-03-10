@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace AmoebaRL.Core.Organelles
 {
-    class Membrane : Organelle
+    public class Membrane : Organelle
     {
         public Membrane()
         {
@@ -19,9 +19,9 @@ namespace AmoebaRL.Core.Organelles
         }
     }
 
-    class BarbedWire : Catalyst
+    public class BarbedWire : Catalyst
     {
-        BarbedWire()
+        public BarbedWire()
         {
             Color = Palette.Membrane;
             Symbol = 'b';
