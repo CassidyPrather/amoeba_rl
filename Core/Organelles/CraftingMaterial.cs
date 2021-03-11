@@ -18,6 +18,16 @@ namespace AmoebaRL.Core.Organelles
             ELECTRONICS
         }
 
+        public static string ResourceName(Resource toName)
+        {
+            if (toName == Resource.CALCIUM)
+                return "Calcium";
+            else if (toName == Resource.ELECTRONICS)
+                return "Electronics";
+            else
+                return "???";
+        }
+
         public abstract Resource Provides { get; set; }
 
         public virtual bool Act()

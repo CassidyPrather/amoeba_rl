@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace AmoebaRL.Core.Organelles
 {
-    public abstract class Organelle : Actor, IOrganelle
+    public abstract class Organelle : Actor, IOrganelle, IDescribable
     {
         /// <summary>
         /// Returns a new list of the <see cref="Item"/>s which were used to create this organelle.
@@ -64,5 +64,7 @@ namespace AmoebaRL.Core.Organelles
             Game.DMap.AddActor(a);
             return a;
         }
+
+        public abstract string GetDescription();
     }
 }

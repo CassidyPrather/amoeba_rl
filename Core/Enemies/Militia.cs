@@ -12,7 +12,7 @@ using RogueSharp;
 
 namespace AmoebaRL.Core
 {
-    public class Militia : Actor, IProactive, IEatable, ISlayable
+    public class Militia : Actor, IProactive, IEatable, ISlayable, IDescribable
     {
         public Militia()
         {
@@ -21,6 +21,11 @@ namespace AmoebaRL.Core
             Symbol = 'm';
             Speed = 16;
             Name = "Militia";
+        }
+
+        public virtual string GetDescription()
+        {
+            return "A meager human who took up arms to defend its pitiful life. Nothing special about it.";
         }
 
         public virtual void Die()
@@ -125,6 +130,7 @@ namespace AmoebaRL.Core
                 Game.PlayerMass.Add(this);
             }
 
+
             public virtual bool Act()
             {
                 HP--;
@@ -145,6 +151,12 @@ namespace AmoebaRL.Core
             public override void OnUnslime() => BecomeActor(new Militia());
 
             public override void OnDestroy() => BecomeActor(new Militia());
+
+            public override string GetDescription()
+            {
+                return $"Probably regrets its mediocrity. After {HP} turns, it will become cytoplasm." +
+                    $" Be careful, it can still be rescued!";
+            }
         }
     }
 }

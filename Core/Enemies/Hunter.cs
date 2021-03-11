@@ -1,4 +1,5 @@
 ﻿using AmoebaRL.Core.Organelles;
+using AmoebaRL.Interfaces;
 using AmoebaRL.UI;
 using RogueSharp;
 using System;
@@ -29,6 +30,14 @@ namespace AmoebaRL.Core
             Symbol = 'h';
             Speed = 16;
             Name = "Hunter";
+        }
+
+        public override string GetDescription()
+        {
+            return $"H-69 model robotic troop with a penetrating kinetic gun. If it sees a hostile within {Range} tiles orthogonally, " +
+                $"it will line up a shot, which is fired in {_firingTime} more turns if it isn't killed in that time. This shot penetrates all" +
+                $"tiles until it hits a wall, killing friendlies and enemies alike. Fortunately, its high salvage value means organelles destroyed " +
+                $"by this shot will be able to be rebuilt from their remains.";
         }
 
         public override bool Act()
@@ -188,6 +197,11 @@ namespace AmoebaRL.Core
                 Speed = 16;
                 // Already called by parent?
                 // Game.PlayerMass.Add(this);
+            }
+
+            public override string GetDescription()
+            {
+                return $"It could not fulfill its purpose. In {HP} turns, its processors will be repurposed as electronics. Be careful, it can still be rescued!";
             }
 
             public override Actor DigestsTo() => new Electronics();

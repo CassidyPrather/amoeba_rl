@@ -25,6 +25,7 @@ Organelles should downgrade instead of die when possible.
 
 ## 7DRL Agenda
 Using some libraries to help
+
 Day 1 (Saturday): Mapgen, movement, ~~map scrolling~~
 Day 2 (Sunday): Slime physics, movement, growth
 Day 3 (Monday): Enemies, organelles
@@ -35,6 +36,7 @@ Day 7 (Friday): Polish
 
 ## Post-7DRL Agenda
 
+Press shift to see which organelles will be pulled longest.
 Remove tutorial artifacts
 Remove static references wherever possible
 Optimize

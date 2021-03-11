@@ -12,8 +12,8 @@ namespace AmoebaRL.Behaviors
 {
     class SpawnGrunt : IBehavior
     {
-        public int TurnsToSpawn = Game.SpawnRate;
-        public int MilitiaWeight = 8;
+        public int TurnsToSpawn = Game.DefaultSpawnRate;
+        public int MilitiaWeight = 12;
         public int TankWeight = 2;
         public int HunterWeight = 1;
 
@@ -30,7 +30,7 @@ namespace AmoebaRL.Behaviors
                     baby.X = spawnAreas[0].X;
                     baby.Y = spawnAreas[0].Y;
                     Game.DMap.AddActor(baby);
-                    TurnsToSpawn += Game.SpawnRate;
+                    TurnsToSpawn += Game.DefaultSpawnRate;
                     TankWeight++;
                     HunterWeight = TankWeight / 2;
                 }

@@ -79,6 +79,12 @@ namespace AmoebaRL.Core.Organelles
         {
             throw new NotImplementedException();
         }
+
+        public override string GetDescription()
+        {
+            return "Might as well be the powerhouse of the cell. Can eat from the ground, attack, and move freely. However, they are very competitive, " +
+                "and as such only one can move per turn. They are also cowards, and will retreat rather than be destroyed.";
+        }
     }
 
     public class DNA : Catalyst
@@ -88,6 +94,11 @@ namespace AmoebaRL.Core.Organelles
             Name = "DNA";
             Color = Palette.Player;
             Symbol = 'X';
+        }
+
+        public override string GetDescription()
+        {
+            return "Short for Deoxyribonucleic Acid. It would be possible to fasion a new nucleus out of this.";
         }
 
         public override Actor NewOrganelle() => new Nucleus();

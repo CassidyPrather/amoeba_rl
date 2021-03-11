@@ -3,6 +3,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using AmoebaRL.Core;
+using AmoebaRL.Core.Organelles;
+using AmoebaRL.Interfaces;
 using AmoebaRL.UI;
 using RLNET;
 
@@ -91,12 +94,57 @@ namespace AmoebaRL.Systems
         }
         public void DrawOrganelle(RLConsole console)
         {
-            throw new System.NotImplementedException();
+            Actor toDraw = Game.OrganelleLog.GetLoggable()[Game.OrganelleLog.idx];
+            if (toDraw is IDescribable d)
+                Describe(console, d);
+            else
+                Console.Clear();
         }
 
         public void DrawExamine(RLConsole console)
         {
             throw new System.NotImplementedException();
+        }
+
+        public void Describe(RLConsole console, IDescribable toDescribe)
+        {
+            console.Clear();
+            console.Print(1, 1, toDescribe.Name, Palette.TextHeading);
+            int maxLen = InfoConsole.INFO_WIDTH - 2;
+            string desc = toDescribe.GetDescription();
+            int row = 3;
+            while(desc.Length > 0)
+            {
+                string nextChunk = desc.Substring(0, Math.Min(maxLen,desc.Length));
+                if (desc.Length >= maxLen)
+                    desc = desc.Substring(maxLen, desc.Length - maxLen);
+                else
+                    desc = "";
+                console.Print(1, row++, nextChunk, Palette.TextHeading);
+            }
+            if(toDescribe is Upgradable u)
+            {
+                Upgradable.UpgradePath status = u.CurrentPath;
+                if (status == null)
+                {
+                    foreach(Upgradable.UpgradePath p in u.PossiblePaths)
+                    {
+                        string mat = CraftingMaterial.ResourceName(p.TypeRequired);
+                        console.Print(1, row++, $"It can be upgraded with {p.AmountRequired} {mat}.", Palette.TextHeading);
+                        console.SetColor(26, row - 1, ResourceColor(p.TypeRequired));
+                    }
+                }
+            }
+        }
+
+        public static RLColor ResourceColor(CraftingMaterial.Resource toColor)
+        {
+            if (toColor == CraftingMaterial.Resource.CALCIUM)
+                return Palette.Calcium;
+            else if (toColor == CraftingMaterial.Resource.ELECTRONICS)
+                return Palette.Hunter;
+            else
+                return Palette.TextHeading;
         }
 
     }

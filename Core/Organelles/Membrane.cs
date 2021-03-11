@@ -25,6 +25,11 @@ namespace AmoebaRL.Core.Organelles
             };
         }
 
+        public override string GetDescription()
+        {
+            return "Barbed wire integrated into the cytoplasm membrane is quite frightful for anybody who tries to directly attack it. Unless they were a literal tank, of course.";
+        }
+
         public override List<Item> OrganelleComponents() => new List<Item>() { new BarbedWire(), new Nutrient() };
     }
 
@@ -42,6 +47,11 @@ namespace AmoebaRL.Core.Organelles
                 new UpgradePath(3, CraftingMaterial.Resource.CALCIUM, () => new ForceField()),
                 new UpgradePath(1, CraftingMaterial.Resource.ELECTRONICS, () => new NonNewtonianMembrane()),
             };
+        }
+
+        public override string GetDescription()
+        {
+            return "It menaces with spikes of calcium, and will kill even the mightiest of tanks who try to attack it.";
         }
 
         public override List<Item> OrganelleComponents()
@@ -67,6 +77,11 @@ namespace AmoebaRL.Core.Organelles
                 new UpgradePath(3, CraftingMaterial.Resource.CALCIUM, () => new ReinforcedMaw()),
                 new UpgradePath(3, CraftingMaterial.Resource.ELECTRONICS, () => new Tentacle()),
             };
+        }
+
+        public override string GetDescription()
+        {
+            return "A mouth in the side of the ooze welcomes in any delicious meal which gets too close to it. Automatically attacks adjacent enemies, except for tanks.";
         }
 
         public virtual bool Act()
@@ -112,6 +127,12 @@ namespace AmoebaRL.Core.Organelles
             Awareness = 0;
         }
 
+        public override string GetDescription()
+        {
+            return "The high concentration of calcium has resulted in a localized gravity distortion which prevents all adjacent allies other than tanks from attacks."
+                + " It is immune even to tanks itself, but vulnerable to ranged attacks.";
+        }
+
         public override List<Item> OrganelleComponents()
         {
             List<Item> source = base.OrganelleComponents();
@@ -129,6 +150,12 @@ namespace AmoebaRL.Core.Organelles
             Name = "Non-Newtonian Membrane";
             Slime = true;
             Awareness = 0;
+        }
+
+        public override string GetDescription()
+        {
+            return "This slime dances along the lines of reality and imagination. It will phase into existence to block any melee attacks made against its neighbors, and is immune to them." +
+                "While the neighbor might be disoriented by having its location swapped, it will continue to operate as usual.";
         }
 
         public override List<Item> OrganelleComponents()
@@ -150,6 +177,12 @@ namespace AmoebaRL.Core.Organelles
             Awareness = 1;
             Speed = 16;
         }
+
+        public override string GetDescription()
+        {
+            return "Built strong bones, and the bones were teeth. Automatically attacks adjacent enemies, including tanks.";
+        }
+
         public override bool Act()
         {
             List<Actor> seenTargets = Seen(Game.DMap.Actors).Where(s => s is Militia).ToList();
@@ -178,6 +211,12 @@ namespace AmoebaRL.Core.Organelles
             Slime = true;
             Awareness = 3;
             Speed = 4;
+        }
+
+        public override string GetDescription()
+        {
+            return "This reckless pseudopod thrashes about in hunger. It is very fast and can see very far, and will approach and attack any enemies it sees for free four times per turn." +
+                "However, it will try to avoid placing itself adjacent to tanks, which it cannot defeat.";
         }
 
         // Eat everything you see that you can. Retreat from tanks. Don't commit suicide.
@@ -284,6 +323,11 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.MembraneInactive;
             Symbol = 'b';
             Name = "Barbed Wire";
+        }
+
+        public override string GetDescription()
+        {
+            return "Humans set these up to protect their cities. You can probably put it to better use.";
         }
 
         public override Actor NewOrganelle()

@@ -23,6 +23,11 @@ namespace AmoebaRL.Core.Organelles
 
         public override List<Item> Components() => new List<Item>() { new Nutrient() };
 
+        public override string GetDescription()
+        {
+            return "A terrifying, viscious mass. Not very useful on its own.";
+        }
+
         public override void OnDestroy()
         {
             // Cytoplasm drop nothing when destroyed!
@@ -40,7 +45,10 @@ namespace AmoebaRL.Core.Organelles
             Y = 10;
         }
 
-        
+        public override string GetDescription()
+        {
+            return "This precious meal is the foundation of growth.";
+        }
 
         public override Actor NewOrganelle() => new Cytoplasm();
     }

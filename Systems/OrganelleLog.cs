@@ -21,7 +21,7 @@ namespace AmoebaRL.Systems
 
         public Organelle Highlighted { get; private set; }
 
-        protected List<Actor> GetLoggable() => Game.PlayerMass.Where(a => !(a is Cytoplasm)).ToList();
+        public List<Actor> GetLoggable() => Game.PlayerMass.Where(a => !(a is Cytoplasm)).ToList();
 
         // Draw each line of the MessageLog queue to the console
         public void Draw(RLConsole console)
@@ -47,13 +47,39 @@ namespace AmoebaRL.Systems
                     console.Print(3, row, target.Name, Palette.TextBody);
                 }
 
-                if (target is IDigestable I)
+                if (target is IDigestable dig)
                 {
-                    int digestionCutoff = (int)Math.Floor(_nameWidth * (1-((float)I.HP / (float)I.MaxHP)));
+                    int digestionCutoff = (int)Math.Floor(_nameWidth * (1-((float)dig.HP / (float)dig.MaxHP)));
                     console.SetBackColor(3, row, digestionCutoff, 1, Palette.Slime);
                     console.SetColor(3, row, digestionCutoff, 1, Palette.MembraneInactive);
                     console.SetBackColor(3 + digestionCutoff, row, _nameWidth - digestionCutoff, 1, Palette.Membrane);
                     console.SetColor(3 + digestionCutoff, row, _nameWidth - digestionCutoff, 1, Palette.Militia);
+                }
+                else if(target is Upgradable up && up.CurrentPath != null)
+                {
+                    int upgradeCutoff = (int)Math.Floor(_nameWidth * (1 - ((float)up.Progress / (float)up.CurrentPath.AmountRequired)));
+                    RLColor barBG = Palette.Membrane;
+                    RLColor bar = Palette.Slime;
+                    RLColor text = Palette.Militia;
+                    RLColor barText = Palette.MembraneInactive;
+                    if(up.CurrentPath.TypeRequired == CraftingMaterial.Resource.CALCIUM)
+                    {
+                        barBG = Palette.RestingTank;
+                        bar = Palette.Calcium;
+                        text = Palette.TextHeading;
+                        barText = Palette.TextHeading;
+                    }
+                    else if(up.CurrentPath.TypeRequired == CraftingMaterial.Resource.ELECTRONICS)
+                    {
+                        barBG = Palette.ReticleBackground;
+                        bar = Palette.Hunter;
+                        text = Palette.TextHeading;
+                        barText = Palette.TextHeading;
+                    }
+                    console.SetBackColor(3, row, upgradeCutoff, 1, bar);
+                    console.SetColor(3, row, upgradeCutoff, 1, barText);
+                    console.SetBackColor(3 + upgradeCutoff, row, _nameWidth - upgradeCutoff, 1, barBG);
+                    console.SetColor(3 + upgradeCutoff, row, _nameWidth - upgradeCutoff, 1, text);
                 }
             }
         }

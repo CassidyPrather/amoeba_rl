@@ -23,6 +23,11 @@ namespace AmoebaRL.Core.Organelles
         public override Resource Provides { get; set; } = Resource.ELECTRONICS;
 
         public override List<Item> Components() => new List<Item>() { new SiliconDust(), new Nutrient() };
+
+        public override string GetDescription()
+        {
+            return "Not found in nature. Automatically consumed by adjacent organelles when an upgrade is possible.";
+        }
     }
 
     public class SiliconDust : Catalyst
@@ -32,6 +37,11 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.Hunter;
             Symbol = '%';
             Name = "Silicon Dust";
+        }
+
+        public override string GetDescription()
+        {
+            return "These rocks contain the magic of humanity, and could be used to accelerate evolution.";
         }
 
         public override Actor NewOrganelle()

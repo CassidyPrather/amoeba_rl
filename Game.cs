@@ -38,7 +38,7 @@ namespace AmoebaRL
         public static int seed;
 
         #region Settings
-        public static int SpawnRate = 40;
+        public static int DefaultSpawnRate = 40;
         #endregion
 
         #region Static Handles

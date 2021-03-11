@@ -7,8 +7,9 @@ using System.Threading.Tasks;
 
 namespace AmoebaRL.Core
 {
-    public abstract class Catalyst : Item, IEatable
+    public abstract class Catalyst : Item, IEatable, IDescribable
     {
+        public abstract string GetDescription();
         public abstract Actor NewOrganelle();
 
         public virtual void OnEaten()

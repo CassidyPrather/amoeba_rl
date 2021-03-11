@@ -21,6 +21,8 @@ namespace AmoebaRL.Core
 
         public bool Slime { get; set; }
 
+        public bool Unforgettable { get; set; } = false;
+
         // IDrawable
         public RLColor Color { get; set; }
 
@@ -39,7 +41,7 @@ namespace AmoebaRL.Core
             }
             
             // Only draw the actor with the color and symbol when they are in field-of-view
-            if (map.IsInFov(X, Y))
+            if (map.IsInFov(X, Y) || Unforgettable)
             {
                 if(Slime)
                     console.Set(X, Y, Color, Palette.Slime, Symbol);
