@@ -258,7 +258,9 @@ namespace AmoebaRL.Systems
                 {
                     if (targetItem is IEatable)
                     {
-                        Ingest(player, targetItem);
+                        if(Ingest(player, targetItem))
+                            return true;
+                        return MoveOrganelle(player, x, y);
                     }
                 }
                 else // No actor and no item; move the player

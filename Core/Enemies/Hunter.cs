@@ -11,6 +11,8 @@ namespace AmoebaRL.Core
 {
     class Hunter : Militia
     {
+        public int Range = 3;
+
         public static readonly int _firingTime = 2;
 
         public int Firing { get; protected set; } = _firingTime;
@@ -37,7 +39,7 @@ namespace AmoebaRL.Core
                 {
                     Fire();
                 }
-                if(Firing < _firingTime)
+                else if(Firing < _firingTime)
                 {
                     Firing--;
                     return true;
@@ -53,14 +55,28 @@ namespace AmoebaRL.Core
         public virtual void Fire()
         {
             Firing = _firingTime;
+            int hitCount = 0;
             foreach(Reticle r in Targeted)
             {
                 Actor hit = Game.DMap.GetActorAt(r.X, r.Y);
                 if(hit != null)
                 {
-                    if(hit is Organelle o)
+                    hitCount++;
+                    if (hit is Nucleus n)
                     {
-                        o.Destroy();
+                        Organelle newVictim = n.Retreat();
+                        if (newVictim == null)
+                        {
+                            n.Unslime();
+                        }
+                        else
+                        {
+                            newVictim.Unslime();
+                        }
+                    }
+                    else if(hit is Organelle o)
+                    {
+                        o.Unslime();
                     }
                     else if(hit is Militia m)
                     {
@@ -68,7 +84,10 @@ namespace AmoebaRL.Core
                     }
                 }
                 Game.DMap.RemoveVFX(r);
+                Symbol = 'h';
             }
+            if(hitCount > 0)
+                Game.MessageLog.Add($"The {Name} hit {hitCount} mass.");
             Targeted.Clear();
             Symbol = 'h';
         }
@@ -78,34 +97,53 @@ namespace AmoebaRL.Core
             List<Path> actionPaths = PathsToNearest(seenTargets);
             if (actionPaths.Count > 0)
             {
-                int pick = Game.Rand.Next(0, actionPaths.Count - 1);
-                ICell sights = actionPaths[pick].StepForward();
-                // Calculate direction of firing
-                FiringDirection = new Point(sights.X - X, sights.Y - Y);
-                if (FiringDirection.X > 0)
-                    Symbol = (char)16;
-                else if (FiringDirection.X < 0)
-                    Symbol = (char)17;
-                else if (FiringDirection.Y > 0)
-                    Symbol = (char)31;
-                else if (FiringDirection.Y < 0)
-                    Symbol = (char)30;
-                // Calculate targets
-                Point bullet = new Point(sights.X, sights.Y);
-                while(!Game.DMap.IsWall(bullet.X, bullet.Y) && Game.DMap.WithinBounds(bullet.X, bullet.Y))
+                Path picked;
+                ICell target;
+                bool HasFiringPath = false;
+                do
                 {
-                    Reticle r = new Reticle()
+                    int pick = Game.Rand.Next(0, actionPaths.Count - 1);
+                    picked = actionPaths[pick];
+                    target = picked.Steps.Last();
+                    actionPaths.Remove(picked);
+                    HasFiringPath = picked.Length <= Range + 1 && (target.X == X || target.Y == Y);
+                } while (!HasFiringPath && actionPaths.Count > 0);
+
+
+                if (HasFiringPath)
+                {
+                    ICell sights = picked.StepForward();
+                    // Calculate direction of firing
+                    FiringDirection = new Point(sights.X - X, sights.Y - Y);
+                    if (FiringDirection.X > 0)
+                        Symbol = (char)16;
+                    else if (FiringDirection.X < 0)
+                        Symbol = (char)17;
+                    else if (FiringDirection.Y > 0)
+                        Symbol = (char)31;
+                    else if (FiringDirection.Y < 0)
+                        Symbol = (char)30;
+                    // Calculate targets
+                    Point bullet = new Point(sights.X, sights.Y);
+                    while (!Game.DMap.IsWall(bullet.X, bullet.Y) && Game.DMap.WithinBounds(bullet.X, bullet.Y))
                     {
-                        X = bullet.X,
-                        Y = bullet.Y
-                    };
-                    Game.DMap.AddVFX(r);
-                    Targeted.Add(r);
-                    bullet.X += FiringDirection.X;
-                    bullet.Y += FiringDirection.Y;
+                        Reticle r = new Reticle()
+                        {
+                            X = bullet.X,
+                            Y = bullet.Y
+                        };
+                        Game.DMap.AddVFX(r);
+                        Targeted.Add(r);
+                        bullet.X += FiringDirection.X;
+                        bullet.Y += FiringDirection.Y;
+                    }
+                    // Start firing countdown
+                    Firing--;
                 }
-                // Start firing countdown
-                Firing--;
+                else
+                {
+                    base.ActToTargets(seenTargets);
+                }
             } // else, wait a turn.
         }
 
@@ -153,6 +191,8 @@ namespace AmoebaRL.Core
             }
 
             public override Actor DigestsTo() => new Electronics();
+
+            public override void OnUnslime() => BecomeActor(new Hunter());
 
             public override void OnDestroy() => BecomeActor(new Hunter());
         }

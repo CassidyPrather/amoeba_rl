@@ -86,6 +86,26 @@ namespace AmoebaRL.Core
             return seenTargets;
         }
 
+        public List<Path> PathsTo(List<Actor> potentialTargets)
+        {
+            List<Path> results = new List<Path>();
+            Path attempt;
+            foreach (Actor candidate in potentialTargets)
+            {
+                attempt = null;
+                try
+                {
+                    attempt = DungeonMap.QuickShortestPath(Game.DMap,
+                    Game.DMap.GetCell(X, Y),
+                    Game.DMap.GetCell(candidate.X, candidate.Y));
+                }
+                catch (PathNotFoundException) { }
+                if (attempt != null)
+                    results.Add(attempt);
+            }
+            return results;
+        }
+
         public List<Path> PathsToNearest(List<Actor> potentialTargets)
         {
             List<Path> nearestPaths = new List<Path>();

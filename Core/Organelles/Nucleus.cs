@@ -21,13 +21,15 @@ namespace AmoebaRL.Core.Organelles
             Slime = true;
             Speed = 16;
         }
+        public override List<Item> Components() => new List<Item>() { new BarbedWire(), new DNA() };
+
 
         public void SetAsActiveNucleus()
         {
             Game.Player = this;
             Color = Palette.Player;
             List<Actor> otherNucleus = Game.PlayerMass.Where(a => a is Nucleus && a != this).ToList();
-            foreach(Nucleus n in otherNucleus)
+            foreach (Nucleus n in otherNucleus)
             {
                 n.Color = Palette.PlayerInactive;
                 Game.SchedulingSystem.Remove(n);
@@ -35,9 +37,20 @@ namespace AmoebaRL.Core.Organelles
             }
         }
 
+        public override void OnUnslime()
+        {
+            base.OnUnslime();
+            HandleGameOver();
+        }
+
         public override void OnDestroy()
         {
-            BecomeItem(new DNA());
+            base.OnDestroy();
+            HandleGameOver();
+        }
+
+        public void HandleGameOver()
+        {
             if (Game.DMap.Actors.Where(a => a is Nucleus).Count() == 0)
             {
                 Game.MessageLog.Add($"You lose. Final Score: {Game.PlayerMass.Count}.");
@@ -45,14 +58,18 @@ namespace AmoebaRL.Core.Organelles
             }
         }
 
-        public Actor Retreat()
+        public Organelle Retreat()
         {
-            List<Actor> sacrifices = Game.PlayerMass.Where(a => DungeonMap.TaxiDistance(this, a) == 1 && !(a is Nucleus)).ToList();
+            List<Actor> sacrifices = Game.PlayerMass.Where(a => DungeonMap.TaxiDistance(this, a) == 1 && !(a is Nucleus) && (a is Organelle)).ToList();
             if (sacrifices.Count > 0)
             {
-                int r = Game.Rand.Next(0, sacrifices.Count - 1);
-                Game.DMap.Swap(this, sacrifices[r]);
-                return sacrifices[r];
+                List<Actor> bestSacrifices = sacrifices.Where(s => !(Game.DMap.GetVFX(s.X,s.Y) is Hunter.Reticle)).ToList();
+                if (bestSacrifices.Count == 0)
+                    bestSacrifices = sacrifices;
+                // Prioritize retreating into organelles?
+                int r = Game.Rand.Next(0, bestSacrifices.Count - 1);
+                Game.DMap.Swap(this, bestSacrifices[r]);
+                return bestSacrifices[r] as Organelle;
             }
             return null;
         }

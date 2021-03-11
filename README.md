@@ -17,6 +17,9 @@ Reach 128 mass to win.
 # TODO
 Add context help to the organelle menu to show what pressing different keys will do.
 Spawn loot at random, increase rarities.
+Add "c" to "show items only"? Should items not spawn under slime? YES. ITEMS SHOULD NOT SPAWN UNDER SLIME.
+IUpgradables in progress should add the things currently being used in their recipe to their UnSlime pool.
+Give hunters a visual indicator of how close they are to firing
 
 ## 7DRL Agenda
 Using some libraries to help

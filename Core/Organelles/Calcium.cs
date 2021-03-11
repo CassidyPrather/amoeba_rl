@@ -10,6 +10,7 @@ namespace AmoebaRL.Core.Organelles
 {
     public class Calcium : CraftingMaterial
     {
+
         public Calcium()
         {
             Awareness = 0;
@@ -22,10 +23,8 @@ namespace AmoebaRL.Core.Organelles
 
         public override Resource Provides { get; set; } = Resource.CALCIUM;
 
-        public override void OnDestroy()
-        {
-            BecomeItem(new CalciumDust());
-        }
+        public override List<Item> Components() => new List<Item> { new CalciumDust(), new Nutrient() };
+
     }
 
     public class CalciumDust : Catalyst

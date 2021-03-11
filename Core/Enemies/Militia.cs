@@ -142,6 +142,8 @@ namespace AmoebaRL.Core
 
             public virtual Actor DigestsTo() => new Cytoplasm();
 
+            public override void OnUnslime() => BecomeActor(new Militia());
+
             public override void OnDestroy() => BecomeActor(new Militia());
         }
     }

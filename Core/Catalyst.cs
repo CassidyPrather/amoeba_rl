@@ -5,7 +5,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AmoebaRL.Core.Organelles
+namespace AmoebaRL.Core
 {
     public abstract class Catalyst : Item, IEatable
     {

@@ -20,6 +20,13 @@ namespace AmoebaRL.Core.Organelles
             Slime = true;
             Speed = 10000; // aaa
         }
+
+        public override List<Item> Components() => new List<Item>() { new Nutrient() };
+
+        public override void OnDestroy()
+        {
+            // Cytoplasm drop nothing when destroyed!
+        }
     }
 
     public class Nutrient : Catalyst
@@ -32,6 +39,8 @@ namespace AmoebaRL.Core.Organelles
             X = 10;
             Y = 10;
         }
+
+        
 
         public override Actor NewOrganelle() => new Cytoplasm();
     }

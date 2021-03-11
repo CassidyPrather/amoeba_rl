@@ -22,11 +22,7 @@ namespace AmoebaRL.Core.Organelles
 
         public override Resource Provides { get; set; } = Resource.ELECTRONICS;
 
-
-        public override void OnDestroy()
-        {
-            BecomeItem(new SiliconDust());
-        }
+        public override List<Item> Components() => new List<Item>() { new SiliconDust(), new Nutrient() };
     }
 
     public class SiliconDust : Catalyst

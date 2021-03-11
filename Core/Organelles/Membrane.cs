@@ -19,10 +19,7 @@ namespace AmoebaRL.Core.Organelles
             Awareness = 0;
         }
 
-        public override void OnDestroy()
-        {
-            BecomeItem(new BarbedWire());
-        }
+        public override List<Item> Components() => new List<Item>() { new BarbedWire(), new Nutrient() };
 
         public bool Upgrade(CraftingMaterial.Resource material)
         {
