@@ -35,6 +35,13 @@ namespace AmoebaRL.Systems
                 Showing = Mode.ORGANELLE;
             else if (Showing == Mode.ORGANELLE)
                 Showing = Mode.MESSAGE;
+            else if (Showing == Mode.EXAMINE)
+                Showing = Mode.MESSAGE;
+        }
+
+        public void ExamineMode()
+        {
+            Showing = Mode.EXAMINE;
         }
 
         public MessageLog()
@@ -103,13 +110,29 @@ namespace AmoebaRL.Systems
 
         public void DrawExamine(RLConsole console)
         {
-            throw new System.NotImplementedException();
+            if(Game.cursor != null)
+            {
+                IDescribable toDraw = Game.cursor.Under();
+                if (toDraw != null)
+                    Describe(console, toDraw);
+                else
+                    Console.Clear();
+            }
+            else
+                Console.Clear();
         }
 
         public void Describe(RLConsole console, IDescribable toDescribe)
         {
             console.Clear();
-            console.Print(1, 1, toDescribe.Name, Palette.TextHeading);
+            RLColor nameColor = Palette.TextHeading;
+            if (toDescribe is Organelle)
+                nameColor = Palette.Slime;
+            else if (toDescribe is Militia || toDescribe is City)
+                nameColor = Palette.Militia;
+            else if (toDescribe is Item)
+                nameColor = Palette.Membrane;
+            console.Print(1, 1, toDescribe.Name, nameColor);
             int maxLen = InfoConsole.INFO_WIDTH - 2;
             string desc = toDescribe.GetDescription();
             int row = 3;
@@ -131,7 +154,7 @@ namespace AmoebaRL.Systems
                     {
                         string mat = CraftingMaterial.ResourceName(p.TypeRequired);
                         console.Print(1, row++, $"It can be upgraded with {p.AmountRequired} {mat}.", Palette.TextHeading);
-                        console.SetColor(26, row - 1, ResourceColor(p.TypeRequired));
+                        console.SetColor(27, row - 1, mat.Length, 1, ResourceColor(p.TypeRequired));
                     }
                 }
             }

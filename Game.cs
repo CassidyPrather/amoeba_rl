@@ -59,6 +59,8 @@ namespace AmoebaRL
         public static MessageLog MessageLog { get; private set; }
 
         public static OrganelleLog OrganelleLog { get; private set; }
+
+        public static Cursor cursor { get; private set; } = null;
         #endregion
 
         private bool _renderRequired = true;
@@ -129,7 +131,9 @@ namespace AmoebaRL
         {
             bool didPlayerAct;
 
-            if (Player != null)
+            if (cursor != null)
+                didPlayerAct = UserInputExamine(keyPress);
+            else if (Player != null)
                 didPlayerAct = UserInputLive(keyPress);
             else
                 didPlayerAct = UserInputMeta(keyPress);
@@ -149,26 +153,33 @@ namespace AmoebaRL
             {
                 if (keyPress.Key == RLKey.Up)
                 {
-                    // Move cursor up
+                    cursor.Move(cursor.X, cursor.Y - 1);
                 }
                 else if (keyPress.Key == RLKey.Down)
                 {
-                    // Move cursor down
+                    cursor.Move(cursor.X, cursor.Y + 1);
                 }
                 else if (keyPress.Key == RLKey.Left)
                 {
-                    // Move cursor Left
+                    cursor.Move(cursor.X - 1, cursor.Y);
                 }
                 else if (keyPress.Key == RLKey.Right)
                 {
-                    // Move cursor right
+                    cursor.Move(cursor.X + 1, cursor.Y);
                 }
                 else if (keyPress.Key == RLKey.X)
                 {
+                    DMap.RemoveVFX(cursor);
+                    cursor = null;
+                    MessageLog.Toggle();
                     // Exit examine mode
                 }
                 else if (keyPress.Key == RLKey.Escape)
                 {
+                    DMap.RemoveVFX(cursor);
+                    cursor = null;
+                    MessageLog.Toggle();
+                    // _rootConsole.Close();
                     // Quit the game
                 }
             }
@@ -237,11 +248,19 @@ namespace AmoebaRL
                 }
                 else if (keyPress.Key == RLKey.X)
                 {
+                    MessageLog.ExamineMode();
+                    cursor = new Cursor()
+                    {
+                        X = Player.X,
+                        Y = Player.Y
+                    };
+                    DMap.AddVFX(cursor);
                     // Enter Examine Mode
                 }
                 else if (keyPress.Key == RLKey.Escape)
                 {
-                    _rootConsole.Close();
+                    if (MessageLog.Showing == MessageLog.Mode.ORGANELLE)
+                        MessageLog.Toggle();
                 }
             }
             return false;

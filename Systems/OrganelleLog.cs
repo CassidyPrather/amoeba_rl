@@ -19,6 +19,8 @@ namespace AmoebaRL.Systems
         public int idx = 0; // Select an organelle
         public int page = 0; // Scroll through huge organelle lists
 
+        public static Cursor HighlightCursor { get; protected set; } = null;
+
         public Organelle Highlighted { get; private set; }
 
         public List<Actor> GetLoggable() => Game.PlayerMass.Where(a => !(a is Cytoplasm)).ToList();
@@ -26,6 +28,28 @@ namespace AmoebaRL.Systems
         // Draw each line of the MessageLog queue to the console
         public void Draw(RLConsole console)
         {
+            if(Game.MessageLog.Showing == MessageLog.Mode.ORGANELLE)
+            {
+                if(Highlighted != null)
+                {
+                    if (HighlightCursor == null)
+                    {
+                        HighlightCursor = new Cursor();
+                        Game.DMap.AddVFX(HighlightCursor);
+                    }
+                    HighlightCursor.X = Highlighted.X;
+                    HighlightCursor.Y = Highlighted.Y;
+                }
+            }
+            else
+            {
+                if(HighlightCursor != null)
+                {
+                    Game.DMap.RemoveVFX(HighlightCursor);
+                    HighlightCursor = null;
+                }
+            }
+
             List<Actor> loggable = GetLoggable();
             console.Clear();
             console.SetBackColor(0, 0, console.Width, console.Height, Palette.DarkSlime);
@@ -36,7 +60,7 @@ namespace AmoebaRL.Systems
                 Actor target = loggable[i];
                 int row = i + 4 - page * _maxLines;
 
-                if (i == idx)
+                if (i == idx && Game.MessageLog.Showing == MessageLog.Mode.ORGANELLE)
                 {
                     Highlighted = target as Organelle;
                     console.Print(1, row, ">", Palette.TextHeading);

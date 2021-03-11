@@ -8,10 +8,10 @@ Arrow keys: Move
 Space: Wait
 A, D: Go to previous/next nucleus
 W, S: Go to previous/next organelle in menu
+    Q, E: Page up, down through menu
 Z: Toggle Organelle Descriptions or Message Log
 X: Examine mode toggle
     Arrow keys (Examine mode): Move examine cursor
-Esc: Quit
 Reach 128 mass to win.
 
 # TODO
@@ -22,6 +22,7 @@ IUpgradables in progress should add the things currently being used in their rec
 Give hunters a visual indicator of how close they are to firing
 Need to refactor the crafting system to be more standardized, less busywork.
 Organelles should downgrade instead of die when possible.
+Press "c" to make items under things blink every second and make examine mode prioritize items.
 
 ## 7DRL Agenda
 Using some libraries to help
