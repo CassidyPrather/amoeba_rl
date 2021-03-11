@@ -86,11 +86,12 @@ namespace AmoebaRL.UI
         public static RLColor ReticleForeground = DbBlood;
         public static RLColor ReticleBackground = DbOldBlood;
 
-        public static RLColor Membrane = DbBlood;
-        public static RLColor MembraneInactive = DbMetal;
+        public static RLColor RootOrganelle = DbBlood;
+        public static RLColor OrganelleInactive = DbMetal;
 
         public static RLColor Cursor = RLColor.LightMagenta;
         public static RLColor DarkCursor = RLColor.Magenta;
         public static RLColor SmartCoreInactive = DbOldStone;
+        public static RLColor Overfill = DbSky;
     }
 }

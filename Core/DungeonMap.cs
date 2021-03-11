@@ -217,6 +217,8 @@ namespace AmoebaRL.Core
 
         public void AddActor(Actor toAdd)
         {
+            if (!IsWalkable(toAdd.X, toAdd.Y) && !(toAdd is City) && !(toAdd is PostMortem))
+                Game.MessageLog.Add($"Placed actor in an impossible location");
             Actors.Add(toAdd);
             SetIsWalkable(toAdd.X, toAdd.Y, false);
             Game.SchedulingSystem.Add(toAdd);
@@ -233,6 +235,7 @@ namespace AmoebaRL.Core
             if(Game.PlayerMass.Contains(a))
             {
                 Game.PlayerMass.Remove(a);
+                UpdatePlayerFieldOfView();
                 // It is okay for the player mass to be disjoint.
             }
             SetIsWalkable(a.X, a.Y, true);
@@ -283,11 +286,38 @@ namespace AmoebaRL.Core
         }
 
 
-        internal List<Actor> NearestActors(int x, int y, Func<Actor, bool> filterBy)
+        public List<Actor> NearestActors(int x, int y, Func<Actor, bool> filterBy)
         {
             IEnumerable<Actor> Candidates = Actors.Where(filterBy);
             int shortestDistance = Candidates.Min(c => TaxiDistance(GetCell(c.X, c.Y), GetCell(x, y)));
             return Candidates.Where(c => TaxiDistance(GetCell(c.X, c.Y), GetCell(x, y)) == shortestDistance).ToList();
+        }
+
+        public List<ICell> NearestNoActor(int x, int y)
+        {
+            // implementation wise this is very similar to nearestLootDrops so try to merge the functionalities maybe.
+            List<ICell> seen = new List<ICell>();
+            List<ICell> frontier = new List<ICell>();
+            List<ICell> candidates = new List<ICell>() { GetCell(x, y) };
+            List<ICell> found = new List<ICell>();
+            while (found.Count == 0 && candidates.Count > 0)
+            {
+                foreach (ICell c in candidates)
+                {
+                    seen.Add(c);
+                    if (GetActorAt(c.X, c.Y) == null && !IsWall(c))
+                        found.Add(c);
+                    else
+                    {
+                        foreach (ICell adj in Adjacent(c.X, c.Y).Where(a => !seen.Contains(a) && !IsWall(a)))
+                            frontier.Add(adj);
+                    }
+                }
+                candidates.Clear();
+                candidates.AddRange(frontier);
+                frontier.Clear();
+            }
+            return found;
         }
 
         public List<ICell> AdjacentWalkable(ICell from) => AdjacentWalkable(from.X, from.Y);

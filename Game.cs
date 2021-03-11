@@ -60,7 +60,7 @@ namespace AmoebaRL
 
         public static OrganelleLog OrganelleLog { get; private set; }
 
-        public static Cursor cursor { get; private set; } = null;
+        public static Cursor ExamineCursor { get; private set; } = null;
         #endregion
 
         private bool _renderRequired = true;
@@ -131,7 +131,7 @@ namespace AmoebaRL
         {
             bool didPlayerAct;
 
-            if (cursor != null)
+            if (ExamineCursor != null)
                 didPlayerAct = UserInputExamine(keyPress);
             else if (Player != null)
                 didPlayerAct = UserInputLive(keyPress);
@@ -153,31 +153,31 @@ namespace AmoebaRL
             {
                 if (keyPress.Key == RLKey.Up)
                 {
-                    cursor.Move(cursor.X, cursor.Y - 1);
+                    ExamineCursor.Move(ExamineCursor.X, ExamineCursor.Y - 1);
                 }
                 else if (keyPress.Key == RLKey.Down)
                 {
-                    cursor.Move(cursor.X, cursor.Y + 1);
+                    ExamineCursor.Move(ExamineCursor.X, ExamineCursor.Y + 1);
                 }
                 else if (keyPress.Key == RLKey.Left)
                 {
-                    cursor.Move(cursor.X - 1, cursor.Y);
+                    ExamineCursor.Move(ExamineCursor.X - 1, ExamineCursor.Y);
                 }
                 else if (keyPress.Key == RLKey.Right)
                 {
-                    cursor.Move(cursor.X + 1, cursor.Y);
+                    ExamineCursor.Move(ExamineCursor.X + 1, ExamineCursor.Y);
                 }
                 else if (keyPress.Key == RLKey.X)
                 {
-                    DMap.RemoveVFX(cursor);
-                    cursor = null;
+                    DMap.RemoveVFX(ExamineCursor);
+                    ExamineCursor = null;
                     MessageLog.Toggle();
                     // Exit examine mode
                 }
                 else if (keyPress.Key == RLKey.Escape)
                 {
-                    DMap.RemoveVFX(cursor);
-                    cursor = null;
+                    DMap.RemoveVFX(ExamineCursor);
+                    ExamineCursor = null;
                     MessageLog.Toggle();
                     // _rootConsole.Close();
                     // Quit the game
@@ -249,12 +249,12 @@ namespace AmoebaRL
                 else if (keyPress.Key == RLKey.X)
                 {
                     MessageLog.ExamineMode();
-                    cursor = new Cursor()
+                    ExamineCursor = new Cursor()
                     {
                         X = Player.X,
                         Y = Player.Y
                     };
-                    DMap.AddVFX(cursor);
+                    DMap.AddVFX(ExamineCursor);
                     // Enter Examine Mode
                 }
                 else if (keyPress.Key == RLKey.Escape)

@@ -24,9 +24,9 @@ namespace AmoebaRL.Systems
         private readonly DungeonMap _map;
         private readonly int FOOD_AMT = 32;
         private readonly int CITY_AMT = 16;
-        private readonly int DNA_AMT = 8;
-        private readonly int WIRE_AMT = 16;
-        private readonly int CHLOROPLAST_AMT = 16;
+        private readonly int DNA_AMT = 5;
+        private readonly int WIRE_AMT = 8;
+        private readonly int PLANT_AMT = 8;
 
         // Constructing a new MapGenerator requires the dimensions of the maps it will create
         // as well as the sizes and maximum number of rooms
@@ -268,6 +268,9 @@ namespace AmoebaRL.Systems
 
             for (int i = 0; i < WIRE_AMT; i++)
                 PlaceLoot(new BarbedWire());
+
+            for (int i = 0; i < PLANT_AMT; i++)
+                PlaceLoot(new Plant());
         }
 
         private void PlaceBoulders()

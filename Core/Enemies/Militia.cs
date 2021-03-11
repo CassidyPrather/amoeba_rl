@@ -92,7 +92,7 @@ namespace AmoebaRL.Core
                 }
                 catch (NoMoreStepsException)
                 {
-                    Game.MessageLog.Add($"{Name} curses");
+                    Game.MessageLog.Add($"Help me JackNine, this should never happen! My name is {Name}, and I am on the same tile as another actor.");
                 }
             } // else, wait a turn.
         }
@@ -117,6 +117,8 @@ namespace AmoebaRL.Core
 
             public int HP { get; set; }
 
+            public int Overfill { get; set; } = 0;
+
             public CapturedMilitia()
             {
                 Awareness = 1;
@@ -136,6 +138,12 @@ namespace AmoebaRL.Core
                 HP--;
                 if (HP <= 0)
                 {
+                    int numButchers = Game.PlayerMass.Where(k => k is Butcher).Count();
+                    for (int i = 0; i < numButchers; i++)
+                    {
+                        Overfill = MaxHP * 2;
+                        ProduceIfOverfull();
+                    }
                     Game.DMap.RemoveActor(this);
                     Actor transformation = DigestsTo();
                     transformation.X = X;
@@ -146,6 +154,25 @@ namespace AmoebaRL.Core
                 return true;
             }
 
+            public bool ProduceIfOverfull()
+            {
+                if(Overfill >= MaxHP * 2)
+                {
+                    List<ICell> drops = Game.DMap.NearestNoActor(X, Y);
+                    if(drops.Count > 0)
+                    {
+                        ICell pick = drops[Game.Rand.Next(drops.Count - 1)];
+                        Actor bounty = DigestsTo();
+                        bounty.X = pick.X;
+                        bounty.Y = pick.Y;
+                        Game.DMap.AddActor(bounty);
+                        Game.PlayerMass.Add(bounty);
+                        Overfill = 0;
+                    }
+                }
+                return false;
+            }
+
             public virtual Actor DigestsTo() => new Cytoplasm();
 
             public override void OnUnslime() => BecomeActor(new Militia());
@@ -154,9 +181,23 @@ namespace AmoebaRL.Core
 
             public override string GetDescription()
             {
-                return $"Probably regrets its mediocrity. After {HP} turns, it will become cytoplasm." +
-                    $" Be careful, it can still be rescued!";
+                return $"Probably regrets its mediocrity. " + DissolvingAddendum();
             }
+
+            public virtual string DissolvingAddendum()
+            {
+                if(Overfill == 0)
+                { 
+                    return $"After {HP} turns, it will become {NameOfResult}. Be careful, it can still be rescued!";
+                }
+                else
+                {
+                    return $"Kept alive against its will. It is regenerating up to {MaxHP} HP. After {MaxHP * 2 - Overfill} turns," +
+                        $" it will produce {NameOfResult}. Be careful, it can still be rescued!";
+                }
+            }
+
+            public virtual string NameOfResult { get; set; } = "cytoplasm";
         }
     }
 }

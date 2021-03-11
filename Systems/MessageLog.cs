@@ -65,10 +65,9 @@ namespace AmoebaRL.Systems
             }
             else
             {
-                string nextChunk = message.Substring(0, maxLen);
-                string remainder = message.Substring(maxLen, message.Length - maxLen);
-                Add(nextChunk);
-                Add(remainder);
+                List<string> wrapped = WrapText(message, maxLen);
+                foreach (string s in wrapped)
+                    Add(s);
             }
             
         }
@@ -110,9 +109,9 @@ namespace AmoebaRL.Systems
 
         public void DrawExamine(RLConsole console)
         {
-            if(Game.cursor != null)
+            if(Game.ExamineCursor != null)
             {
-                IDescribable toDraw = Game.cursor.Under();
+                IDescribable toDraw = Game.ExamineCursor.Under();
                 if (toDraw != null)
                     Describe(console, toDraw);
                 else
@@ -131,20 +130,14 @@ namespace AmoebaRL.Systems
             else if (toDescribe is Militia || toDescribe is City)
                 nameColor = Palette.Militia;
             else if (toDescribe is Item)
-                nameColor = Palette.Membrane;
+                nameColor = Palette.RootOrganelle;
             console.Print(1, 1, toDescribe.Name, nameColor);
             int maxLen = InfoConsole.INFO_WIDTH - 2;
             string desc = toDescribe.GetDescription();
             int row = 3;
-            while(desc.Length > 0)
-            {
-                string nextChunk = desc.Substring(0, Math.Min(maxLen,desc.Length));
-                if (desc.Length >= maxLen)
-                    desc = desc.Substring(maxLen, desc.Length - maxLen);
-                else
-                    desc = "";
-                console.Print(1, row++, nextChunk, Palette.TextHeading);
-            }
+            List<string> wrapped = WrapText(desc, maxLen);
+            foreach (string s in wrapped)
+                console.Print(1, row++, s, Palette.TextHeading);
             if(toDescribe is Upgradable u)
             {
                 Upgradable.UpgradePath status = u.CurrentPath;
@@ -156,6 +149,22 @@ namespace AmoebaRL.Systems
                         console.Print(1, row++, $"It can be upgraded with {p.AmountRequired} {mat}.", Palette.TextHeading);
                         console.SetColor(27, row - 1, mat.Length, 1, ResourceColor(p.TypeRequired));
                     }
+                }
+                else
+                {
+                    string mat = CraftingMaterial.ResourceName(status.TypeRequired);
+                    int remaining = status.AmountRequired - u.Progress;
+                    console.Print(1, row++, $"It needs {remaining} more {mat}.", Palette.TextHeading);
+                    console.SetColor(17, row - 1, mat.Length, 1, ResourceColor(status.TypeRequired));
+                }
+            }
+            if(toDescribe is Actor a)
+            {
+                Item on = Game.DMap.GetItemAt(a.X, a.Y);
+                if(on != null)
+                {    
+                    console.Print(1, row++, $"It is standing on a {on.Name}.", Palette.TextHeading);
+                    console.SetColor(21, row - 1, on.Name.Length, 1, on.Color);
                 }
             }
         }
@@ -170,5 +179,40 @@ namespace AmoebaRL.Systems
                 return Palette.TextHeading;
         }
 
+        /// <summary>
+        /// 
+        /// <seealso cref="https://stackoverflow.com/questions/3961278/word-wrap-a-string-in-multiple-lines"/>
+        /// </summary>
+        /// <param name="text"></param>
+        /// <param name="lineWidth"></param>
+        /// <returns></returns>
+        public static List<string> WrapText(string text, int lineWidth)
+        {
+            const string space = " ";
+            string[] words = text.Split(new string[] { space }, StringSplitOptions.None);
+            int spaceLeft = lineWidth;
+            List<string> output = new List<string>();
+            StringBuilder buffer = new StringBuilder();
+
+            foreach (string word in words)
+            {
+                int wordWidth = word.Length;
+                if (wordWidth + 1 > spaceLeft)
+                {
+                    output.Add(buffer.ToString());
+                    buffer.Clear();
+                    spaceLeft = lineWidth - wordWidth;
+                }
+                else
+                {
+                    spaceLeft -= (wordWidth + 1);
+                }
+                buffer.Append(word + space);
+            }
+            if (!(buffer.Length == 0))
+                output.Add(buffer.ToString());
+
+            return output;
+        }
     }
 }

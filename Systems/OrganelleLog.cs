@@ -68,24 +68,37 @@ namespace AmoebaRL.Systems
                 }
                 else
                 {
-                    console.Print(3, row, target.Name, Palette.TextBody);
+                    console.Print(3, row, target.Name, target.Color);
+                }
+
+                if(target is Chloroplast c)
+                {
+                    int nextProductCutoff = (int)Math.Floor(_nameWidth * (1 - ((float)c.NextFood / (float)c.Delay)));
+                    console.SetBackColor(3, row, nextProductCutoff, 1, Palette.Overfill);
+                    console.SetColor(3, row, nextProductCutoff, 1, Palette.RootOrganelle);
                 }
 
                 if (target is IDigestable dig)
                 {
                     int digestionCutoff = (int)Math.Floor(_nameWidth * (1-((float)dig.HP / (float)dig.MaxHP)));
                     console.SetBackColor(3, row, digestionCutoff, 1, Palette.Slime);
-                    console.SetColor(3, row, digestionCutoff, 1, Palette.MembraneInactive);
-                    console.SetBackColor(3 + digestionCutoff, row, _nameWidth - digestionCutoff, 1, Palette.Membrane);
+                    console.SetColor(3, row, digestionCutoff, 1, Palette.RootOrganelle);
+                    console.SetBackColor(3 + digestionCutoff, row, _nameWidth - digestionCutoff, 1, Palette.RootOrganelle);
                     console.SetColor(3 + digestionCutoff, row, _nameWidth - digestionCutoff, 1, Palette.Militia);
+                    if(dig.Overfill > 0)
+                    { 
+                        int overfullCutoff = (int)Math.Floor(_nameWidth * (1 - ((float)dig.Overfill / (float)(2*dig.MaxHP))));
+                        console.SetBackColor(3, row, overfullCutoff, 1, Palette.Overfill);
+                        console.SetColor(3, row, overfullCutoff, 1, Palette.RootOrganelle);
+                    }
                 }
                 else if(target is Upgradable up && up.CurrentPath != null)
                 {
                     int upgradeCutoff = (int)Math.Floor(_nameWidth * (1 - ((float)up.Progress / (float)up.CurrentPath.AmountRequired)));
-                    RLColor barBG = Palette.Membrane;
+                    RLColor barBG = Palette.RootOrganelle;
                     RLColor bar = Palette.Slime;
                     RLColor text = Palette.Militia;
-                    RLColor barText = Palette.MembraneInactive;
+                    RLColor barText = Palette.RootOrganelle;
                     if(up.CurrentPath.TypeRequired == CraftingMaterial.Resource.CALCIUM)
                     {
                         barBG = Palette.RestingTank;
@@ -100,11 +113,40 @@ namespace AmoebaRL.Systems
                         text = Palette.TextHeading;
                         barText = Palette.TextHeading;
                     }
+
+                    if (!(up is Chloroplast))
+                    {
+                        // Chloroplasts have a progress bar we don't want to overwrite.
+                        console.SetBackColor(3 + upgradeCutoff, row, _nameWidth - upgradeCutoff, 1, barBG);
+                        console.SetColor(3 + upgradeCutoff, row, _nameWidth - upgradeCutoff, 1, text);
+                    }
                     console.SetBackColor(3, row, upgradeCutoff, 1, bar);
                     console.SetColor(3, row, upgradeCutoff, 1, barText);
-                    console.SetBackColor(3 + upgradeCutoff, row, _nameWidth - upgradeCutoff, 1, barBG);
-                    console.SetColor(3 + upgradeCutoff, row, _nameWidth - upgradeCutoff, 1, text);
+                    
                 }
+
+                if(target is Nucleus n)
+                {
+                    List<Actor> nuclei = Game.PlayerMass.Where(a => a is Nucleus).ToList();
+                    if(nuclei.Count > 2)
+                    { 
+                        int curIdx = nuclei.IndexOf(Game.Player);
+                        int listedIdx = nuclei.IndexOf(n);
+                        int diff = listedIdx - curIdx;
+                        if (diff == 0)
+                            console.Print(console.Width - 1, row, "@", Palette.Player, Palette.Slime);
+                        else if (diff == -1 || curIdx == 0 && listedIdx == nuclei.Count-1)
+                            console.Print(console.Width - 1, row, "A", Palette.Player, Palette.Slime);
+                        else if (diff == 1 || curIdx == nuclei.Count - 1 && listedIdx == 0)
+                            console.Print(console.Width - 1, row, "D", Palette.Player, Palette.Slime);
+                    }
+                }
+            }
+
+            if(loggable.Count > _maxLines)
+            {
+                console.Print(0, _maxLines - 1, $"Q{(char)30}", Palette.TextHeading, Palette.Slime);
+                console.Print(console.Width-2, _maxLines - 1, $"E{(char)31}", Palette.TextHeading, Palette.Slime);
             }
         }
 

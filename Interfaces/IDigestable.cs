@@ -11,5 +11,7 @@ namespace AmoebaRL.Interfaces
         int HP { get; set; }
 
         int MaxHP { get; set; }
+
+        int Overfill { get; set; }
     }
 }

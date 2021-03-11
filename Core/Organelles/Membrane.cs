@@ -13,7 +13,7 @@ namespace AmoebaRL.Core.Organelles
     {
         public Membrane()
         {
-            Color = Palette.Membrane;
+            Color = Palette.RootOrganelle;
             Symbol = 'B';
             Name = "Membrane";
             Slime = true;
@@ -62,7 +62,7 @@ namespace AmoebaRL.Core.Organelles
         }
     }
 
-    public class Maw : Upgradable, IProactive
+    public class Maw : Membrane, IProactive
     {
         public Maw()
         {
@@ -81,7 +81,8 @@ namespace AmoebaRL.Core.Organelles
 
         public override string GetDescription()
         {
-            return "A mouth in the side of the ooze welcomes in any delicious meal which gets too close to it. Automatically attacks adjacent enemies, except for tanks.";
+            return "A mouth in the side of the ooze welcomes in any delicious meal which gets too close to it. Immune to melee attacks, other than those from tanks." +
+                " Automatically attacks adjacent enemies, except for tanks.";
         }
 
         public virtual bool Act()
@@ -183,7 +184,7 @@ namespace AmoebaRL.Core.Organelles
 
         public override string GetDescription()
         {
-            return "Built strong bones, and the bones were teeth. Automatically attacks adjacent enemies, including tanks.";
+            return "Built strong bones, and the bones were teeth. Automatically attacks adjacent enemies, including tanks. Immune to melee.";
         }
 
         public override bool Act()
@@ -220,7 +221,7 @@ namespace AmoebaRL.Core.Organelles
         public override string GetDescription()
         {
             return "This reckless pseudopod thrashes about in hunger. It is very fast and can see very far, and will approach and attack any enemies it sees for free four times per turn." +
-                "However, it will try to avoid placing itself adjacent to tanks, which it cannot defeat.";
+                "However, it will try to avoid placing itself adjacent to tanks, which it cannot defeat. It is immune to other melee attacks, though.";
         }
 
         // Eat everything you see that you can. Retreat from tanks. Don't commit suicide.
@@ -324,7 +325,7 @@ namespace AmoebaRL.Core.Organelles
     {
         public BarbedWire()
         {
-            Color = Palette.MembraneInactive;
+            Color = Palette.OrganelleInactive;
             Symbol = 'b';
             Name = "Barbed Wire";
         }

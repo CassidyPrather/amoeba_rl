@@ -201,8 +201,10 @@ namespace AmoebaRL.Core
 
             public override string GetDescription()
             {
-                return $"It could not fulfill its purpose. In {HP} turns, its processors will be repurposed as electronics. Be careful, it can still be rescued!";
+                return $"It could not fulfill its purpose. " + DissolvingAddendum();
             }
+
+            public override string NameOfResult { get; set; } = "electronics";
 
             public override Actor DigestsTo() => new Electronics();
 

@@ -49,8 +49,8 @@ namespace AmoebaRL.Core.Organelles
                 {
                     Cytoplasm byproduct = new Cytoplasm();
                     Game.PlayerMass.Add(byproduct);
-                    BecomeActor(byproduct);
                     Game.DMap.RemoveActor(this);
+                    BecomeActor(byproduct);
                     break;
                 }
             }

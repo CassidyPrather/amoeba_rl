@@ -15,6 +15,8 @@ X: Examine mode toggle
 Reach 128 mass to win.
 
 # TODO
+
+Add a visual indicator to how close the chloroplast tree is to finishing on the organelle view
 Add context help to the organelle menu to show what pressing different keys will do.
 Spawn loot at random, increase rarities.
 Add "c" to "show items only"? Should items not spawn under slime? YES. ITEMS SHOULD NOT SPAWN UNDER SLIME.

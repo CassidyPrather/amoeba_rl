@@ -19,6 +19,7 @@ namespace AmoebaRL.Core
             Symbol = 'X';
             Frames = 2;
             Speed = 2;
+            AlwaysVisible = true;
         }
 
         public bool Move(int x, int y)
@@ -43,7 +44,8 @@ namespace AmoebaRL.Core
         public IDescribable Under()
         {
             IDrawable Hovering = Game.DMap.GetActorOrItem(X,Y);
-            if (Hovering != null && Hovering is IDescribable d)
+            if (Hovering != null && Hovering is IDescribable d
+                && ((Hovering is City && Game.DMap.IsExplored(X,Y)) || Game.DMap.IsInFov(X,Y)))
                 return d;
             return null;
         }

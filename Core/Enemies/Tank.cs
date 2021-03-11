@@ -16,7 +16,7 @@ namespace AmoebaRL.Core
         public Tank()
         {
             Awareness = 3;
-            Color = Palette.Calcium;
+            Color = Palette.RestingTank;
             Symbol = 't';
             Speed = 16;
             Name = "Tank";
@@ -87,9 +87,10 @@ namespace AmoebaRL.Core
 
             public override string GetDescription()
             {
-                return $"Much less scary now that its armor has been overcome. In {HP} turns, it will be melted down for some calcium." +
-                    $" Be careful, it can still be rescued!";
+                return $"Much less scary now that its armor has been overcome. " + DissolvingAddendum();
             }
+
+            public override string NameOfResult { get; set; } = "calcium";
 
             public override Actor DigestsTo() => new Calcium();
 

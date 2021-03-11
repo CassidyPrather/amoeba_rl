@@ -42,6 +42,8 @@ namespace AmoebaRL.Core.Organelles
             {
                 n.Color = Palette.PlayerInactive;
                 Game.SchedulingSystem.Remove(n);
+                int buffer = n.Speed;
+                n.Speed = Speed;
                 Game.SchedulingSystem.Add(n);
             }
         }
@@ -167,7 +169,7 @@ namespace AmoebaRL.Core.Organelles
             Color = InactiveColor;
             Symbol = '@';
             Slime = true;
-            Speed = 16;
+            Speed = 8;
             PossiblePaths = new List<UpgradePath>()
             {
                 new UpgradePath(2, CraftingMaterial.Resource.CALCIUM, () => new GravityCore()),
@@ -190,8 +192,8 @@ namespace AmoebaRL.Core.Organelles
 
     public class LaserCore : EyeCore
     {
-        public override RLColor ActiveColor { get; set; } = Palette.Membrane;
-        public override RLColor InactiveColor { get; set; } = Palette.MembraneInactive;
+        public override RLColor ActiveColor { get; set; } = Palette.RootOrganelle;
+        public override RLColor InactiveColor { get; set; } = Palette.OrganelleInactive;
 
         public LaserCore()
         {

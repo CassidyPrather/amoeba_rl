@@ -88,7 +88,43 @@ namespace AmoebaRL.Core
             return seenTargets;
         }
 
-public List<Path> PathsTo(List<Actor> potentialTargets)
+        public Path PathIgnoring(Func<Actor,bool> ignoreIf, int x, int y)
+        {
+            IEnumerable<Actor> ignore = Game.DMap.Actors.Where(ignoreIf);
+            List<bool> wasAlreadyIgnored = new List<bool>();
+            foreach (Actor toIgnore in ignore)
+            {
+                wasAlreadyIgnored.Add(Game.DMap.IsWalkable(toIgnore.X, toIgnore.Y));
+                Game.DMap.SetIsWalkable(toIgnore.X, toIgnore.X, true);
+            }
+
+            PathFinder f = new PathFinder(Game.DMap);
+            Path found = null;
+            try
+            {
+                found = f.ShortestPath(
+                    Game.DMap.GetCell(X, Y),
+                    Game.DMap.GetCell(x, y)
+                );
+            }
+            catch (PathNotFoundException)
+            {
+                
+            }
+
+            IEnumerator<bool> alreadyIgnored = wasAlreadyIgnored.GetEnumerator();
+            foreach (Actor toIgnore in ignore)
+            {
+                alreadyIgnored.MoveNext();
+                Game.DMap.SetIsWalkable(toIgnore.X, toIgnore.X, alreadyIgnored.Current);
+            }
+
+
+            return found;
+
+        }
+
+        public List<Path> PathsTo(List<Actor> potentialTargets)
         {
             List<Path> results = new List<Path>();
             Path attempt;

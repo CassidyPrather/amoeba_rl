@@ -283,13 +283,13 @@ namespace AmoebaRL.Systems
                     {
                         Game.MessageLog.Add($"The {targetActor.Name}'s is crushed by the jaws of the {player.Name}!");
                         EatActor(player, targetActor);
-                        return false;
+                        return true;
                     }
                     else if(player is LaserCore)
                     {
                         Game.MessageLog.Add($"The {targetActor.Name}'s is melted by the {player.Name}'s laser beam!");
                         EatActor(player, targetActor);
-                        return false;
+                        return true;
                     }
                     else
                     {
@@ -300,6 +300,7 @@ namespace AmoebaRL.Systems
                 }
                 else if (targetActor is IEatable)
                 {
+                    Game.MessageLog.Add($"The {player.Name} consumes the {targetActor.Name}.");
                     EatActor(player, targetActor);
                     return true;
                 }
