@@ -37,6 +37,7 @@ Day 7 (Friday): Polish
 
 ## Post-7DRL Agenda
 
+Why do I have to put "PossiblePaths.Clear()" at the end of every organelle's upgrade chain?
 Press shift to see which organelles will be pulled longest.
 Remove tutorial artifacts
 Remove static references wherever possible

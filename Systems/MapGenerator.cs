@@ -26,6 +26,7 @@ namespace AmoebaRL.Systems
         private readonly int CITY_AMT = 16;
         private readonly int DNA_AMT = 8;
         private readonly int WIRE_AMT = 16;
+        private readonly int CHLOROPLAST_AMT = 16;
 
         // Constructing a new MapGenerator requires the dimensions of the maps it will create
         // as well as the sizes and maximum number of rooms
@@ -343,11 +344,12 @@ namespace AmoebaRL.Systems
         /// </summary>
         private void InitalizeNewPlayermassOnMap()
         {
+            // Insert your dev hacks here.
             Nucleus initialPlayer = Game.Player;
             List<Actor> playerMass = Game.PlayerMass;
             if (initialPlayer == null)
             {
-                initialPlayer = new Nucleus();
+                initialPlayer = new LaserCore();
             }
             if(playerMass == null)
             {

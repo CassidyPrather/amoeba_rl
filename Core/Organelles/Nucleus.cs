@@ -201,6 +201,7 @@ namespace AmoebaRL.Core.Organelles
             Symbol = '@';
             Slime = true;
             Speed = 16;
+            PossiblePaths.Clear();
         }
 
         public override string GetDescription()
@@ -233,6 +234,7 @@ namespace AmoebaRL.Core.Organelles
             Symbol = '@';
             Slime = true;
             Speed = 16;
+            PossiblePaths.Clear();
         }
 
         public override string GetDescription()
@@ -285,6 +287,7 @@ namespace AmoebaRL.Core.Organelles
             Symbol = '@';
             Slime = true;
             Speed = 8;
+            PossiblePaths.Clear();
         }
 
         public override string GetDescription()
@@ -348,6 +351,7 @@ namespace AmoebaRL.Core.Organelles
             Symbol = '@';
             Slime = true;
             Speed = 8;
+            PossiblePaths.Clear();
         }
 
         public override string GetDescription()

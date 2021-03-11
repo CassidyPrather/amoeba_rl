@@ -125,6 +125,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Force Field";
             Slime = true;
             Awareness = 0;
+            PossiblePaths.Clear();
         }
 
         public override string GetDescription()
@@ -150,6 +151,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Non-Newtonian Membrane";
             Slime = true;
             Awareness = 0;
+            PossiblePaths.Clear();
         }
 
         public override string GetDescription()
@@ -176,6 +178,7 @@ namespace AmoebaRL.Core.Organelles
             Slime = true;
             Awareness = 1;
             Speed = 16;
+            PossiblePaths.Clear();
         }
 
         public override string GetDescription()
@@ -211,6 +214,7 @@ namespace AmoebaRL.Core.Organelles
             Slime = true;
             Awareness = 3;
             Speed = 4;
+            PossiblePaths.Clear();
         }
 
         public override string GetDescription()
