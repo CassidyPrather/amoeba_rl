@@ -88,7 +88,7 @@ namespace AmoebaRL.Core
             return seenTargets;
         }
 
-        public List<Path> PathsTo(List<Actor> potentialTargets)
+public List<Path> PathsTo(List<Actor> potentialTargets)
         {
             List<Path> results = new List<Path>();
             Path attempt;

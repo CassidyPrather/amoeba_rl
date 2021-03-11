@@ -90,5 +90,7 @@ namespace AmoebaRL.UI
         public static RLColor MembraneInactive = DbMetal;
 
         public static RLColor Cursor = RLColor.LightMagenta;
+        public static RLColor DarkCursor = RLColor.Magenta;
+        public static RLColor SmartCoreInactive = DbOldStone;
     }
 }

@@ -6,13 +6,13 @@ using System.Threading.Tasks;
 
 namespace AmoebaRL.Interfaces
 {
-    public interface ISchedulable
+    public interface IPostMove
     {
-        int Time { get; }
+        void DoPostMove();
     }
 
-    public interface IPostSchedule : ISchedulable
+    public interface IPreMove
     {
-        void DoPostSchedule();
+        void DoPreMove();
     }
 }

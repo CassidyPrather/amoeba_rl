@@ -73,6 +73,8 @@ namespace AmoebaRL.Systems
                     // ISchedulables with no behaviors are very strange indeed...
                     Game.SchedulingSystem.Add(nextUp);
                 }
+                if (nextUp is IPostSchedule post)
+                    post.DoPostSchedule();
             } while (!IsPlayerTurn);
         }
 
@@ -263,12 +265,16 @@ namespace AmoebaRL.Systems
 
         public bool AttackMoveOrganelle(Organelle player, int x, int y)
         {
+            if (player is IPreMove pre)
+                pre.DoPreMove();
             Actor targetActor = Game.DMap.GetActorAt(x, y);
             if (targetActor != null)
             {
                 if (targetActor.Slime == true)
                 { // Swap
                     Game.DMap.Swap(player, targetActor);
+                    if(player is QuantumCore)
+                        player.Speed /= 2;
                     return true;
                 }
                 else if (targetActor is Tank)
@@ -279,9 +285,15 @@ namespace AmoebaRL.Systems
                         EatActor(player, targetActor);
                         return false;
                     }
+                    else if(player is LaserCore)
+                    {
+                        Game.MessageLog.Add($"The {targetActor.Name}'s is melted by the {player.Name}'s laser beam!");
+                        EatActor(player, targetActor);
+                        return false;
+                    }
                     else
                     {
-                        Game.MessageLog.Add($"The {targetActor.Name}'s armor is too strong!");
+                        Game.MessageLog.Add($"The {targetActor.Name}'s armor is too strong for the {player.Name}!");
                         return false;
                     }
                     
@@ -396,6 +408,8 @@ namespace AmoebaRL.Systems
                     Game.DMap.SetActorPosition(path[i], lastPoint.X, lastPoint.Y);
                     lastPoint = buffer;
                 }
+                if (player is IPostMove p)
+                    p.DoPostMove();
                 return true;
             }
 

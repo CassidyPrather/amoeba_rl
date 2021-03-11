@@ -74,6 +74,31 @@ namespace AmoebaRL.Systems
             return _time;
         }
 
+        /// <summary>
+        /// Get the time an <see cref="ISchedulable"/> is going to go.
+        /// </summary>
+        /// <param name="timeFor"></param>
+        /// <returns></returns>
+        public int? ScheduledFor(ISchedulable timeFor)
+        {
+            KeyValuePair<int, List<ISchedulable>> scheduleableListFound
+                = new KeyValuePair<int, List<ISchedulable>>(-1, null);
+
+            foreach (var scheduleablesList in _scheduleables)
+            {
+                if (scheduleablesList.Value.Contains(timeFor))
+                {
+                    scheduleableListFound = scheduleablesList;
+                    break;
+                }
+            }
+            if (scheduleableListFound.Value != null)
+            {
+                return scheduleableListFound.Key;
+            }
+            return null;
+        }
+
         // Reset the time and clear out the schedule
         public void Clear()
         {

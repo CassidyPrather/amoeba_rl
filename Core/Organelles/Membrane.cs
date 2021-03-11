@@ -21,7 +21,7 @@ namespace AmoebaRL.Core.Organelles
             PossiblePaths = new List<UpgradePath>()
             {
                 new UpgradePath(2, CraftingMaterial.Resource.CALCIUM, () => new ReinforcedMembrane()),
-                new UpgradePath(1, CraftingMaterial.Resource.ELECTRONICS, () => new Maw()),
+                new UpgradePath(1, CraftingMaterial.Resource.ELECTRONICS, () => new Maw())
             };
         }
 

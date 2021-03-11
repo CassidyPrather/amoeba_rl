@@ -280,7 +280,14 @@ namespace AmoebaRL.Core
                 frontier.Clear();
             }
             return found;
+        }
 
+
+        internal List<Actor> NearestActors(int x, int y, Func<Actor, bool> filterBy)
+        {
+            IEnumerable<Actor> Candidates = Actors.Where(filterBy);
+            int shortestDistance = Candidates.Min(c => TaxiDistance(GetCell(c.X, c.Y), GetCell(x, y)));
+            return Candidates.Where(c => TaxiDistance(GetCell(c.X, c.Y), GetCell(x, y)) == shortestDistance).ToList();
         }
 
         public List<ICell> AdjacentWalkable(ICell from) => AdjacentWalkable(from.X, from.Y);
@@ -316,6 +323,7 @@ namespace AmoebaRL.Core
 
             return adj;
         }
+
 
         private void AddIfWalkable(ICollection<ICell> addTo, int x, int y)
         {
