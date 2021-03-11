@@ -15,7 +15,7 @@ namespace AmoebaRL.Behaviors
         public int TurnsToSpawn = Game.SpawnRate;
         public int MilitiaWeight = 8;
         public int TankWeight = 2;
-        public int HunterWeight = 100;
+        public int HunterWeight = 1;
 
         public bool Act(TutorialMonster spawner, CommandSystem commandSystem)
         {

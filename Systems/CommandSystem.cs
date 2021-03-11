@@ -100,12 +100,12 @@ namespace AmoebaRL.Systems
                 Actor newVictim = n.Retreat();
                 if(newVictim == null)
                 {
-                    Game.MessageLog.Add($"{victim.Name} could not retreat and was destroyed.");
+                    Game.MessageLog.Add($"{victim.Name} could not retreat and was destroyed");
                     n.Destroy();
                 }
                 else
                 {
-                    Game.MessageLog.Add($"The {victim.Name} retreated into the nearby { newVictim.Name }, thereby avoiding death.");
+                    Game.MessageLog.Add($"The {victim.Name} retreated into the nearby { newVictim.Name }, thereby avoiding death");
                     Attack(monster, newVictim);
                 }
             }
@@ -113,25 +113,56 @@ namespace AmoebaRL.Systems
             {
                 if(i is Tank)
                 {
-                    Game.MessageLog.Add($"The {monster.Name} shrugs off the membrane protiens.");
-                    m.Destroy();
+                    if(victim is ReinforcedMembrane)
+                    {
+                        Game.MessageLog.Add($"The {monster.Name} is impaled by sharp {victim.Name} protiens!");
+                        i.Die();
+                    }
+                    else
+                    {
+                        Game.MessageLog.Add($"The {monster.Name} shrugs off the {victim.Name} protiens");
+                        m.Destroy();
+                    }
                 }
                 else
                 {
-                    Game.MessageLog.Add($"The {monster.Name} is impaled by sharp membrane protiens!");
+                    Game.MessageLog.Add($"The {monster.Name} is impaled by sharp {victim.Name} protiens!");
                     i.Die();
                 }
-                
-                
             }    
             else if(victim is Organelle o)
             {
-                Game.MessageLog.Add($"A { victim.Name } is destroyed.");
-                o.Destroy();
+                // Check for protection.
+                bool saved = false;
+                List<Actor> adj = Game.DMap.AdjacentActors(o.X, o.Y);
+                if(!(monster is Tank))
+                {
+                    saved = adj.Where(a => a is ForceField).Count() > 0;
+                    if(saved)
+                    {
+                        Game.MessageLog.Add($"An energy mantle force protects the {victim.Name} from the {monster.Name}");
+                    }
+                }
+                if(!saved)
+                {
+                    List<NonNewtonianMembrane> nnms = adj.Where(a => a is NonNewtonianMembrane).Cast<NonNewtonianMembrane>().ToList();
+                    if(nnms.Count > 0)
+                    {
+                        saved = true;
+                        NonNewtonianMembrane savior = nnms[Game.Rand.Next(nnms.Count() - 1)];
+                        Game.DMap.Swap(savior, o);
+                        Game.MessageLog.Add($"The { savior.Name } rematerializes and protects the {o.Name} from the {monster.Name}");
+                    }
+                }
+                if (!saved)
+                {
+                    Game.MessageLog.Add($"The { monster.Name } destroys the {victim.Name}");
+                    o.Destroy();
+                }
             }
             else
             {
-                Game.MessageLog.Add($"A { victim.Name } is destroyed.");
+                Game.MessageLog.Add($"A { victim.Name } is destroyed by a {monster.Name}");
                 Game.DMap.RemoveActor(victim);
             }
         }
@@ -149,8 +180,9 @@ namespace AmoebaRL.Systems
             {
                 Game.DMap.RemoveActor(eaten);
             }
-            if (under != null && under is IEatable)
+            if (under != null && under is IEatable && !(under is Nutrient))
             {
+                // We can do two moves is long as long as we don't accidentally eat a nutrient.
                 Ingest(eating, under);
             }
         }
@@ -241,8 +273,18 @@ namespace AmoebaRL.Systems
                 }
                 else if (targetActor is Tank)
                 {
-                    Game.MessageLog.Add($"The {targetActor.Name}'s armor is too strong!");
-                    return false;
+                    if (player is ReinforcedMembrane)
+                    {
+                        Game.MessageLog.Add($"The {targetActor.Name}'s is crushed by the jaws of the {player.Name}!");
+                        EatActor(player, targetActor);
+                        return false;
+                    }
+                    else
+                    {
+                        Game.MessageLog.Add($"The {targetActor.Name}'s armor is too strong!");
+                        return false;
+                    }
+                    
                 }
                 else if (targetActor is IEatable)
                 {

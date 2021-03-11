@@ -13,7 +13,7 @@ namespace AmoebaRL.Core.Organelles
         public Electronics()
         {
             Awareness = 0;
-            Name = "Calcium";
+            Name = "Electronics";
             Color = Palette.Hunter;
             Symbol = '$';
             Slime = true;

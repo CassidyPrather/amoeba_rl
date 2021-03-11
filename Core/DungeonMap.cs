@@ -324,9 +324,33 @@ namespace AmoebaRL.Core
                 addTo.Add(candidate);
         }
 
+        public List<Actor> AdjacentActors(int x, int y)
+        {
+            List<Actor> adj = new List<Actor>();
+
+            if (x > 0)
+                AddActorIfNotNull(adj, x - 1, y);
+            if (x < Width - 1)
+                AddActorIfNotNull(adj, x + 1, y);
+            if (y > 0)
+                AddActorIfNotNull(adj, x, y - 1);
+            if (y < Height - 1)
+                AddActorIfNotNull(adj, x, y + 1);
+
+            return adj;
+        }
+
+        private void AddActorIfNotNull(ICollection<Actor> addTo, int x, int y)
+        {
+            Actor candidate = GetActorAt(x, y);
+            if (candidate != null)
+                addTo.Add(candidate);
+        }
+
         public static int TaxiDistance(ICell from, ICell to) => Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y);
 
         public static int TaxiDistance(IDrawable from, IDrawable to) => Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y);
+
 
         public static Path QuickShortestPath(DungeonMap m, ICell from, ICell to)
         {

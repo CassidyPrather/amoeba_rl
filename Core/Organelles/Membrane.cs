@@ -1,5 +1,6 @@
 ﻿using AmoebaRL.Interfaces;
 using AmoebaRL.UI;
+using RogueSharp;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -60,6 +61,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Maw";
             Slime = true;
             Awareness = 1;
+            Speed = 16;
             PossiblePaths = new List<UpgradePath>()
             {
                 new UpgradePath(3, CraftingMaterial.Resource.CALCIUM, () => new ReinforcedMaw()),
@@ -67,11 +69,33 @@ namespace AmoebaRL.Core.Organelles
             };
         }
 
-        public bool Act()
+        public virtual bool Act()
         {
-            // Eat adjacent militia
-            // throw new NotImplementedException();
-            return false;
+            List<Actor> seenTargets = Seen(Game.DMap.Actors).Where(s=> s is Militia).ToList();
+            if (!seenTargets.All(t => t is Tank))
+                seenTargets = seenTargets.Where(t => !(t is Tank)).ToList();
+            if (seenTargets.Count > 0)
+                ActToTargets(seenTargets);
+            return true;
+        }
+
+        public virtual void ActToTargets(List<Actor> seenTargets)
+        {
+            List<Path> actionPaths = PathsToNearest(seenTargets);
+            if (actionPaths.Count > 0)
+            {
+                int pick = Game.Rand.Next(0, actionPaths.Count - 1);
+                try
+                {
+                    //Formerly: path.Steps.First()
+                    ICell nextStep = actionPaths[pick].StepForward();
+                    Game.CommandSystem.AttackMoveOrganelle(this, nextStep.X, nextStep.Y);
+                }
+                catch (NoMoreStepsException)
+                {
+                    Game.MessageLog.Add($"{Name} wimpers sadly");
+                }
+            } // else, wait a turn.
         }
 
         public override List<Item> OrganelleComponents() => new List<Item>() { new BarbedWire(), new Nutrient(), new SiliconDust() };
@@ -130,6 +154,14 @@ namespace AmoebaRL.Core.Organelles
             Name = "Reinforced Maw";
             Slime = true;
             Awareness = 1;
+            Speed = 16;
+        }
+        public override bool Act()
+        {
+            List<Actor> seenTargets = Seen(Game.DMap.Actors).Where(s => s is Militia).ToList();
+            if (seenTargets.Count > 0)
+                ActToTargets(seenTargets);
+            return true;
         }
 
         public override List<Item> OrganelleComponents()
@@ -149,6 +181,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Tentacle";
             Slime = true;
             Awareness = 3;
+            Speed = 8;
         }
 
         // Eat everything you see that you can. Retreat instead of dying.
