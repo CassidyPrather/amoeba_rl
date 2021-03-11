@@ -57,11 +57,12 @@ namespace AmoebaRL.Core.Organelles
             Game.DMap.AddItem(i);
         }
 
-        public virtual void BecomeActor(Actor a)
+        public virtual Actor BecomeActor(Actor a)
         {
             a.X = X;
             a.Y = Y;
             Game.DMap.AddActor(a);
+            return a;
         }
     }
 }

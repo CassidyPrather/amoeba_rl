@@ -99,7 +99,7 @@ namespace AmoebaRL.Core
             {
                 Path picked;
                 ICell target;
-                bool HasFiringPath = false;
+                bool HasFiringPath;
                 do
                 {
                     int pick = Game.Rand.Next(0, actionPaths.Count - 1);
@@ -125,7 +125,7 @@ namespace AmoebaRL.Core
                         Symbol = (char)30;
                     // Calculate targets
                     Point bullet = new Point(sights.X, sights.Y);
-                    while (!Game.DMap.IsWall(bullet.X, bullet.Y) && Game.DMap.WithinBounds(bullet.X, bullet.Y))
+                    while (Game.DMap.WithinBounds(bullet.X, bullet.Y) && !Game.DMap.IsWall(bullet.X, bullet.Y))
                     {
                         Reticle r = new Reticle()
                         {

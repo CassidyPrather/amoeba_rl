@@ -16,7 +16,7 @@ namespace AmoebaRL.Core
         public Tank()
         {
             Awareness = 3;
-            Color = Palette.Tank;
+            Color = Palette.Calcium;
             Symbol = 't';
             Speed = 16;
             Name = "Tank";
@@ -28,7 +28,7 @@ namespace AmoebaRL.Core
             {     
                 if (ready > 0)
                 {
-                    Color = Palette.Tank;
+                    Color = Palette.Calcium;
                     ready--;
                     return true;
                 }
@@ -68,7 +68,7 @@ namespace AmoebaRL.Core
             {
                 Awareness = 0;
                 Slime = true;
-                Color = Palette.Tank;
+                Color = Palette.Calcium;
                 Name = "Dissolving Tank";
                 Symbol = 't';
                 MaxHP = 24;

@@ -20,6 +20,7 @@ Spawn loot at random, increase rarities.
 Add "c" to "show items only"? Should items not spawn under slime? YES. ITEMS SHOULD NOT SPAWN UNDER SLIME.
 IUpgradables in progress should add the things currently being used in their recipe to their UnSlime pool.
 Give hunters a visual indicator of how close they are to firing
+Need to refactor the crafting system to be more standardized, less busywork.
 
 ## 7DRL Agenda
 Using some libraries to help
