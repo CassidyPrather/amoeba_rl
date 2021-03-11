@@ -4,11 +4,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using AmoebaRL.Core.Organelles;
+using AmoebaRL.Interfaces;
 using AmoebaRL.UI;
 
 namespace AmoebaRL.Core.Organelles
 {
-    public class Nucleus : Organelle
+    public class Nucleus : Upgradable
     {
         public Nucleus()
         {
@@ -21,7 +22,7 @@ namespace AmoebaRL.Core.Organelles
             Slime = true;
             Speed = 16;
         }
-        public override List<Item> Components() => new List<Item>() { new BarbedWire(), new DNA() };
+        public override List<Item> Components() => new List<Item>() { new DNA(), new Nutrient() };
 
 
         public void SetAsActiveNucleus()
@@ -72,6 +73,11 @@ namespace AmoebaRL.Core.Organelles
                 return bestSacrifices[r] as Organelle;
             }
             return null;
+        }
+
+        public override List<Item> OrganelleComponents()
+        {
+            throw new NotImplementedException();
         }
     }
 
