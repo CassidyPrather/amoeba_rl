@@ -23,7 +23,8 @@ namespace AmoebaRL.Core
         public Point FiringDirection { get; protected set; }
 
         public List<Reticle> Targeted { get; protected set; } = new List<Reticle>();
-        
+
+        public virtual char BaseChar { get; protected set; } = 'h';
 
         public Hunter()
         {
@@ -110,12 +111,12 @@ namespace AmoebaRL.Core
                     }
                 }
                 Game.DMap.RemoveVFX(r);
-                Symbol = 'h';
+                Symbol = BaseChar;
             }
             if(hitCount > 0)
                 Game.MessageLog.Add($"The {Name} hit {hitCount} mass.");
             Targeted.Clear();
-            Symbol = 'h';
+            Symbol = BaseChar;
         }
 
         public override void ActToTargets(List<Actor> seenTargets)
@@ -304,6 +305,7 @@ namespace AmoebaRL.Core
             Speed = 16;
             Name = "Scout";
             Range = 3;
+            BaseChar = Symbol;
         }
 
         public override string GetDescription()
