@@ -353,17 +353,15 @@ namespace AmoebaRL.Systems
             if (initialPlayer == null)
             {
                 // Devhack option:
-                initialPlayer = new GravityCore();//new Nucleus();
+                initialPlayer = new Nucleus();
             }
             if(playerMass == null)
             {
                 playerMass = new List<Actor>() { initialPlayer };
                 Game.PlayerMass = playerMass;
                 // Devhack option:
-                //for(int i = 0; i < INITIAL_SLIME; i++)
-                //    playerMass.Add(new Cytoplasm());
-                playerMass.Add(new Cytoplasm());
-                playerMass.Add(new Cytoplasm());
+                for(int i = 0; i < INITIAL_SLIME; i++)
+                    playerMass.Add(new Cytoplasm());
 
             }
 
