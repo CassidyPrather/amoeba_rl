@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace AmoebaRL.Interfaces
 {
-    public interface IPostMove
+    public interface IPostAttackMove
     {
-        void DoPostMove();
+        void DoPostAttackMove();
     }
 
     public interface IPreMove

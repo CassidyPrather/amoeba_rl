@@ -44,8 +44,9 @@ namespace AmoebaRL.Systems
                 if (nextUp is Nucleus n)
                 {
                     IsPlayerTurn = true;
-                    Game.SchedulingSystem.Add(nextUp); // We want the same nucleus to go again, if possible.
+                    //Game.SchedulingSystem.Add(nextUp); // We want the same nucleus to go again, if possible.
                     n.SetAsActiveNucleus();
+                    
                 }
                 else if (nextUp is PostMortem)
                 {
@@ -99,23 +100,27 @@ namespace AmoebaRL.Systems
         {
             if(victim is Nucleus n)
             {
-                Actor newVictim = n.Retreat();
-                if(newVictim == null)
+                bool saved = CheckAndSave(monster, victim);
+                if (!saved)
                 {
-                    Game.MessageLog.Add($"{victim.Name} could not retreat and was destroyed");
-                    n.Destroy();
-                }
-                else
-                {
-                    Game.MessageLog.Add($"The {victim.Name} retreated into the nearby { newVictim.Name }, thereby avoiding death");
-                    Attack(monster, newVictim);
+                    Actor newVictim = n.Retreat();
+                    if (newVictim == null)
+                    {
+                        Game.MessageLog.Add($"{victim.Name} could not retreat and was destroyed");
+                        n.Destroy();
+                    }
+                    else
+                    {
+                        Game.MessageLog.Add($"The {victim.Name} retreated into the nearby { newVictim.Name }, thereby avoiding death");
+                        Attack(monster, newVictim);
+                    }
                 }
             }
             else if(victim is Membrane m && monster is ISlayable i)
             {
                 if(i is Tank)
                 {
-                    if(victim is ReinforcedMembrane)
+                    if(victim is ReinforcedMembrane || victim is ReinforcedMaw)
                     {
                         Game.MessageLog.Add($"The {monster.Name} is impaled by sharp {victim.Name} protiens!");
                         i.Die();
@@ -135,27 +140,7 @@ namespace AmoebaRL.Systems
             else if(victim is Organelle o)
             {
                 // Check for protection.
-                bool saved = false;
-                List<Actor> adj = Game.DMap.AdjacentActors(o.X, o.Y);
-                if(!(monster is Tank))
-                {
-                    saved = adj.Where(a => a is ForceField).Count() > 0;
-                    if(saved)
-                    {
-                        Game.MessageLog.Add($"An energy mantle force protects the {victim.Name} from the {monster.Name}");
-                    }
-                }
-                if(!saved)
-                {
-                    List<NonNewtonianMembrane> nnms = adj.Where(a => a is NonNewtonianMembrane).Cast<NonNewtonianMembrane>().ToList();
-                    if(nnms.Count > 0)
-                    {
-                        saved = true;
-                        NonNewtonianMembrane savior = nnms[Game.Rand.Next(nnms.Count() - 1)];
-                        Game.DMap.Swap(savior, o);
-                        Game.MessageLog.Add($"The { savior.Name } rematerializes and protects the {o.Name} from the {monster.Name}");
-                    }
-                }
+                bool saved = CheckAndSave(monster, victim);
                 if (!saved)
                 {
                     Game.MessageLog.Add($"The { monster.Name } destroys the {victim.Name}");
@@ -167,6 +152,33 @@ namespace AmoebaRL.Systems
                 Game.MessageLog.Add($"A { victim.Name } is destroyed by a {monster.Name}");
                 Game.DMap.RemoveActor(victim);
             }
+        }
+
+        private static bool CheckAndSave(Actor monster, Actor victim)
+        {
+            bool saved = false;
+            List<Actor> adj = Game.DMap.AdjacentActors(victim.X, victim.Y);
+            if (!(monster is Tank))
+            {
+                saved = adj.Where(a => a is ForceField).Count() > 0;
+                if (saved)
+                {
+                    Game.MessageLog.Add($"An energy mantle force protects the {victim.Name} from the {monster.Name}");
+                }
+            }
+            if (!saved)
+            {
+                List<NonNewtonianMembrane> nnms = adj.Where(a => a is NonNewtonianMembrane).Cast<NonNewtonianMembrane>().ToList();
+                if (nnms.Count > 0)
+                {
+                    saved = true;
+                    NonNewtonianMembrane savior = nnms[Game.Rand.Next(nnms.Count() - 1)];
+                    Game.DMap.Swap(savior, victim);
+                    Game.MessageLog.Add($"The { savior.Name } rematerializes and protects the {victim.Name} from the {monster.Name}");
+                }
+            }
+
+            return saved;
         }
 
         public void EatActor(Actor eating, Actor eaten)
@@ -265,6 +277,7 @@ namespace AmoebaRL.Systems
 
         public bool AttackMoveOrganelle(Organelle player, int x, int y)
         {
+            bool success = false;
             if (player is IPreMove pre)
                 pre.DoPreMove();
             Actor targetActor = Game.DMap.GetActorAt(x, y);
@@ -273,28 +286,31 @@ namespace AmoebaRL.Systems
                 if (targetActor.Slime == true)
                 { // Swap
                     Game.DMap.Swap(player, targetActor);
-                    if(player is QuantumCore)
+                    if (player is QuantumCore q)
+                    {
                         player.Speed /= 2;
-                    return true;
+                        q.SetAsActiveNucleus();
+                    }
+                    success = true;
                 }
                 else if (targetActor is Tank)
                 {
-                    if (player is ReinforcedMembrane)
+                    if (player is ReinforcedMaw)
                     {
-                        Game.MessageLog.Add($"The {targetActor.Name}'s is crushed by the jaws of the {player.Name}!");
+                        Game.MessageLog.Add($"The {targetActor.Name} is crushed by the jaws of the {player.Name}!");
                         EatActor(player, targetActor);
-                        return true;
+                        success = true;
                     }
                     else if(player is LaserCore)
                     {
-                        Game.MessageLog.Add($"The {targetActor.Name}'s is melted by the {player.Name}'s laser beam!");
+                        Game.MessageLog.Add($"The {targetActor.Name} is melted by the {player.Name}'s laser beam!");
                         EatActor(player, targetActor);
-                        return true;
+                        success = true;
                     }
                     else
                     {
                         Game.MessageLog.Add($"The {targetActor.Name}'s armor is too strong for the {player.Name}!");
-                        return false;
+                        success = false;
                     }
                     
                 }
@@ -302,7 +318,7 @@ namespace AmoebaRL.Systems
                 {
                     Game.MessageLog.Add($"The {player.Name} consumes the {targetActor.Name}.");
                     EatActor(player, targetActor);
-                    return true;
+                    success = true;
                 }
 
             }
@@ -314,18 +330,20 @@ namespace AmoebaRL.Systems
                     if (targetItem is IEatable)
                     {
                         if(Ingest(player, targetItem))
-                            return true;
-                        return MoveOrganelle(player, x, y);
+                            success = true;
+                        else
+                            success = MoveOrganelle(player, x, y);
                     }
                 }
                 else // No actor and no item; move the player
                 {
-                    return MoveOrganelle(player, x, y);
+                    success = MoveOrganelle(player, x, y);
                 }
             }
 
-
-            return false;
+            if (success && player is IPostAttackMove p)
+                p.DoPostAttackMove();
+            return success;
         }
 
         public Point ApplyDirection(Point basic, Direction dir)
@@ -409,8 +427,6 @@ namespace AmoebaRL.Systems
                     Game.DMap.SetActorPosition(path[i], lastPoint.X, lastPoint.Y);
                     lastPoint = buffer;
                 }
-                if (player is IPostMove p)
-                    p.DoPostMove();
                 return true;
             }
 

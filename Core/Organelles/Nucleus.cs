@@ -33,18 +33,25 @@ namespace AmoebaRL.Core.Organelles
             };
         }
 
+        /// <summary>
+        /// 
+        /// Responsible for scheduling itself.
+        /// </summary>
         public void SetAsActiveNucleus()
         {
             Game.Player = this;
             Color = ActiveColor;
+            Game.SchedulingSystem.Remove(this); // Sometimes this is redundant, but it's good to check anyway.
+            Game.SchedulingSystem.Add(this);
             List<Actor> otherNucleus = Game.PlayerMass.Where(a => a is Nucleus && a != this).ToList();
             foreach (Nucleus n in otherNucleus)
             {
-                n.Color = Palette.PlayerInactive;
+                n.Color = n.InactiveColor; // or Pallette.Player.Inactive
                 Game.SchedulingSystem.Remove(n);
                 int buffer = n.Speed;
                 n.Speed = Speed;
                 Game.SchedulingSystem.Add(n);
+                n.Speed = buffer;
             }
         }
 
@@ -220,9 +227,9 @@ namespace AmoebaRL.Core.Organelles
         }
     }
 
-    public class TerrorCore : EyeCore, IPostMove, IPostSchedule
+    public class TerrorCore : EyeCore, IPostAttackMove, IPostSchedule
     {
-        public override RLColor ActiveColor { get; set; } = Palette.WallFov;
+        public override RLColor ActiveColor { get; set; } = Palette.TerrorCoreActive;
 
         public override RLColor InactiveColor { get; set; } = Palette.Wall;
 
@@ -252,7 +259,7 @@ namespace AmoebaRL.Core.Organelles
             return net;
         }
 
-        public void DoPostMove()
+        public void DoPostAttackMove()
         {
             Terrified.Clear();
             foreach(Actor a in Game.DMap.AdjacentActors(X,Y).Where(a => a is Militia).Cast<Militia>())
@@ -270,14 +277,15 @@ namespace AmoebaRL.Core.Organelles
             {
                 Game.SchedulingSystem.Add(a.Item1);
                 a.Item1.Speed = a.Item2;
+                SetAsActiveNucleus();
             }
         }
     }
 
-    public class GravityCore : SmartCore, IPostMove
+    public class GravityCore : SmartCore, IPostAttackMove
     {
         public override RLColor ActiveColor { get; set; } = Palette.DarkSlime;
-        public override RLColor InactiveColor { get; set; } = Palette.FloorBackground;
+        public override RLColor InactiveColor { get; set; } = Palette.InactiveGravityCore;
 
         public int GravityAttempts { get; protected set; } = 2;
 
@@ -285,7 +293,7 @@ namespace AmoebaRL.Core.Organelles
         {
             Awareness = 3;
             Name = "Gravity Core";
-            Color = Palette.PlayerInactive;
+            Color = Palette.InactiveGravityCore;
             Symbol = '@';
             Slime = true;
             Speed = 8;
@@ -306,7 +314,7 @@ namespace AmoebaRL.Core.Organelles
             return net;
         }
 
-        public void DoPostMove()
+        public void DoPostAttackMove()
         {
             for(int i = 0; i < GravityAttempts; i++)
             {
@@ -338,18 +346,18 @@ namespace AmoebaRL.Core.Organelles
         }
     }
 
-    public class QuantumCore : SmartCore, IPreMove
+    public class QuantumCore : SmartCore, IPreMove, IPostSchedule
     {
         public int BaseSpeed { get; protected set; } = 8;
 
         public override RLColor ActiveColor { get; set; } = Palette.Cursor;
-        public override RLColor InactiveColor { get; set; } = Palette.DarkCursor;
+        public override RLColor InactiveColor { get; set; } = Palette.InactiveQuantumCore;
 
         public QuantumCore()
         {
             Awareness = 3;
             Name = "Quantum Core";
-            Color = Palette.PlayerInactive;
+            Color = Palette.InactiveQuantumCore;
             Symbol = '@';
             Slime = true;
             Speed = 8;
@@ -370,6 +378,11 @@ namespace AmoebaRL.Core.Organelles
         }
 
         public void DoPreMove()
+        {
+            Speed = BaseSpeed;
+        }
+
+        public void DoPostSchedule()
         {
             Speed = BaseSpeed;
         }

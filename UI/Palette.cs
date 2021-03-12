@@ -89,6 +89,10 @@ namespace AmoebaRL.UI
         public static RLColor RootOrganelle = DbBlood;
         public static RLColor OrganelleInactive = DbMetal;
 
+        public static RLColor InactiveGravityCore = DbOldBlood;
+        public static RLColor InactiveQuantumCore = new RLColor(RLColor.Magenta.r * 0.6f, RLColor.Magenta.g, RLColor.Magenta.b * 0.6f);
+        public static RLColor TerrorCoreActive = new RLColor(RLColor.LightGray.r, RLColor.LightGray.g, RLColor.LightGray.b * 1.2f);
+
         public static RLColor Cursor = RLColor.LightMagenta;
         public static RLColor DarkCursor = RLColor.Magenta;
         public static RLColor SmartCoreInactive = DbOldStone;

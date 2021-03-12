@@ -344,22 +344,25 @@ namespace AmoebaRL.Systems
         ///<summary>
         /// Place the nucleus at a random spot.
         /// Surround with slime.
+        /// Insert devhacks here when needed
         /// </summary>
         private void InitalizeNewPlayermassOnMap()
         {
-            // Insert your dev hacks here.
             Nucleus initialPlayer = Game.Player;
             List<Actor> playerMass = Game.PlayerMass;
             if (initialPlayer == null)
             {
-                initialPlayer = new LaserCore();
+                // Devhack option:
+                initialPlayer = new Nucleus();
             }
             if(playerMass == null)
             {
                 playerMass = new List<Actor>() { initialPlayer };
                 Game.PlayerMass = playerMass;
+                // Devhack option:
                 for(int i = 0; i < INITIAL_SLIME; i++)
                     playerMass.Add(new Cytoplasm());
+                
             }
 
             List<ICell> initialSlime;
@@ -378,6 +381,7 @@ namespace AmoebaRL.Systems
                 inMass.Y = initialSlime[i].Y;
                 _map.AddActor(inMass);
             }
+            initialPlayer.SetAsActiveNucleus();
             //_map.AddPlayer(initialPlayer); // Must be called last because updates FOV
             //Game.PlayerMass.Add(player);
         }

@@ -17,7 +17,10 @@ namespace AmoebaRL.Core
 
         public int Awareness { get; set; }
 
-        public int Speed { get; set; } = 1;
+        public int Speed { 
+            get; 
+            set; } 
+            = 1;
 
         public bool Slime { get; set; }
 
@@ -95,17 +98,17 @@ namespace AmoebaRL.Core
             foreach (Actor toIgnore in ignore)
             {
                 wasAlreadyIgnored.Add(Game.DMap.IsWalkable(toIgnore.X, toIgnore.Y));
-                Game.DMap.SetIsWalkable(toIgnore.X, toIgnore.X, true);
+                Game.DMap.SetIsWalkable(toIgnore.X, toIgnore.Y, true);
             }
 
-            PathFinder f = new PathFinder(Game.DMap);
             Path found = null;
             try
             {
-                found = f.ShortestPath(
-                    Game.DMap.GetCell(X, Y),
-                    Game.DMap.GetCell(x, y)
-                );
+                //found = f.ShortestPath(
+                //    Game.DMap.GetCell(X, Y),
+                //    Game.DMap.GetCell(x, y)
+                //);
+                found = DungeonMap.QuickShortestPath(Game.DMap, Game.DMap.GetCell(X, Y), Game.DMap.GetCell(x, y));
             }
             catch (PathNotFoundException)
             {
@@ -116,7 +119,7 @@ namespace AmoebaRL.Core
             foreach (Actor toIgnore in ignore)
             {
                 alreadyIgnored.MoveNext();
-                Game.DMap.SetIsWalkable(toIgnore.X, toIgnore.X, alreadyIgnored.Current);
+                Game.DMap.SetIsWalkable(toIgnore.X, toIgnore.Y, alreadyIgnored.Current);
             }
 
 

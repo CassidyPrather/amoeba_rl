@@ -217,8 +217,8 @@ namespace AmoebaRL.Core
 
         public void AddActor(Actor toAdd)
         {
-            if (!IsWalkable(toAdd.X, toAdd.Y) && !(toAdd is City) && !(toAdd is PostMortem))
-                Game.MessageLog.Add($"Placed actor in an impossible location");
+            //if (!IsWalkable(toAdd.X, toAdd.Y) && !(toAdd is City) && !(toAdd is PostMortem))
+            //    Game.MessageLog.Add($"Placed actor in an impossible location");
             Actors.Add(toAdd);
             SetIsWalkable(toAdd.X, toAdd.Y, false);
             Game.SchedulingSystem.Add(toAdd);

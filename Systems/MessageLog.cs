@@ -49,7 +49,6 @@ namespace AmoebaRL.Systems
             _lines = new Queue<string>();
         }
 
-        // Add a line to the MessageLog queue
         public void Add(string message)
         {
             int maxLen = InfoConsole.INFO_WIDTH - 2;
@@ -104,7 +103,7 @@ namespace AmoebaRL.Systems
             if (toDraw is IDescribable d)
                 Describe(console, d);
             else
-                Console.Clear();
+                console.Clear();
         }
 
         public void DrawExamine(RLConsole console)
@@ -115,10 +114,10 @@ namespace AmoebaRL.Systems
                 if (toDraw != null)
                     Describe(console, toDraw);
                 else
-                    Console.Clear();
+                    console.Clear();
             }
             else
-                Console.Clear();
+                console.Clear();
         }
 
         public void Describe(RLConsole console, IDescribable toDescribe)

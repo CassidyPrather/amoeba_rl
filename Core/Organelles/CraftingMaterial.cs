@@ -51,6 +51,7 @@ namespace AmoebaRL.Core.Organelles
                     Game.PlayerMass.Add(byproduct);
                     Game.DMap.RemoveActor(this);
                     BecomeActor(byproduct);
+                    Game.DMap.UpdatePlayerFieldOfView();
                     break;
                 }
             }

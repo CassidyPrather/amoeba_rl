@@ -16,15 +16,9 @@ Reach 128 mass to win.
 
 # TODO
 
-Add a visual indicator to how close the chloroplast tree is to finishing on the organelle view
-Add context help to the organelle menu to show what pressing different keys will do.
 Spawn loot at random, increase rarities.
-Add "c" to "show items only"? Should items not spawn under slime? YES. ITEMS SHOULD NOT SPAWN UNDER SLIME.
-IUpgradables in progress should add the things currently being used in their recipe to their UnSlime pool.
 Give hunters a visual indicator of how close they are to firing
-Need to refactor the crafting system to be more standardized, less busywork.
 Organelles should downgrade instead of die when possible.
-Press "c" to make items under things blink every second and make examine mode prioritize items.
 
 ## 7DRL Agenda
 Using some libraries to help
@@ -39,6 +33,8 @@ Day 7 (Friday): Polish
 
 ## Post-7DRL Agenda
 
+Press "c" to make items under things blink every second and make examine mode prioritize items.
+Need to refactor the crafting system to be more standardized, less busywork.
 Why do I have to put "PossiblePaths.Clear()" at the end of every organelle's upgrade chain?
 Press shift to see which organelles will be pulled longest.
 Remove tutorial artifacts

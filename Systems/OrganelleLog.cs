@@ -60,15 +60,27 @@ namespace AmoebaRL.Systems
                 Actor target = loggable[i];
                 int row = i + 4 - page * _maxLines;
 
+                if(Game.ExamineCursor != null)
+                {
+                    IDescribable examined = Game.ExamineCursor.Under();
+                    if(examined != null && examined == target)
+                    {
+                        console.Print(1, row, ">", Palette.Cursor);
+                    }
+                }
+
                 if (i == idx && Game.MessageLog.Showing == MessageLog.Mode.ORGANELLE)
                 {
                     Highlighted = target as Organelle;
                     console.Print(1, row, ">", Palette.TextHeading);
                     console.Print(3, row, target.Name, Palette.TextHeading);
                 }
-                else
                 {
-                    console.Print(3, row, target.Name, target.Color);
+                    RLColor nameColor = target.Color;
+                    // if (nameColor.r == Palette.DarkSlime.r && nameColor.g == Palette.DarkSlime.g && nameColor.b == Palette.DarkSlime.b)
+                    if (nameColor.Equals(Palette.DarkSlime))
+                        nameColor = Palette.Slime;
+                    console.Print(3, row, target.Name, nameColor);
                 }
 
                 if(target is Chloroplast c)
@@ -82,14 +94,14 @@ namespace AmoebaRL.Systems
                 {
                     int digestionCutoff = (int)Math.Floor(_nameWidth * (1-((float)dig.HP / (float)dig.MaxHP)));
                     console.SetBackColor(3, row, digestionCutoff, 1, Palette.Slime);
-                    console.SetColor(3, row, digestionCutoff, 1, Palette.RootOrganelle);
+                    console.SetColor(3, row, digestionCutoff, 1, target.Color);
                     console.SetBackColor(3 + digestionCutoff, row, _nameWidth - digestionCutoff, 1, Palette.RootOrganelle);
-                    console.SetColor(3 + digestionCutoff, row, _nameWidth - digestionCutoff, 1, Palette.Militia);
+                    console.SetColor(3 + digestionCutoff, row, _nameWidth - digestionCutoff, 1, target.Color);
                     if(dig.Overfill > 0)
                     { 
-                        int overfullCutoff = (int)Math.Floor(_nameWidth * (1 - ((float)dig.Overfill / (float)(2*dig.MaxHP))));
+                        int overfullCutoff = (int)Math.Floor(_nameWidth * ((float)dig.Overfill / (float)(dig.MaxHP)));
                         console.SetBackColor(3, row, overfullCutoff, 1, Palette.Overfill);
-                        console.SetColor(3, row, overfullCutoff, 1, Palette.RootOrganelle);
+                        console.SetColor(3, row, overfullCutoff, 1, target.Color);
                     }
                 }
                 else if(target is Upgradable up && up.CurrentPath != null)

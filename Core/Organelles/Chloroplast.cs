@@ -66,6 +66,7 @@ namespace AmoebaRL.Core.Organelles
             };
             Game.DMap.AddActor(c);
             Game.PlayerMass.Add(c);
+            Game.DMap.UpdatePlayerFieldOfView();
             return true;
         }
 
@@ -163,9 +164,9 @@ namespace AmoebaRL.Core.Organelles
 
         protected virtual void HandleCaptured(Militia.CapturedMilitia m)
         {
-            // Restore digestable HP by 1
+            // Restore digestable HP by 1 (counteract its own digestion too)
             if (m.HP < m.MaxHP)
-                m.HP++;
+                m.HP += Math.Min(2, m.MaxHP-m.HP);
             // Overfill digestible by 1
             m.Overfill += OverfillRate;
             // Produce from overfull digestibles.
@@ -175,7 +176,7 @@ namespace AmoebaRL.Core.Organelles
         public override string GetDescription()
         {
             return "Forbids adjacent humans from dying, utilizing force-feeding to turn them into cattle. Restores the HP of adjacent dissolving targets. " +
-                "Causes adjacent dissolving targets to produce their loot at half their digestion rates for free without expending them. Be careful, they can " +
+                "Causes adjacent dissolving targets to produce their loot at their digestion rates for free without expending them. Be careful, they can " +
                 "still be rescued!";
         }
 
@@ -188,7 +189,7 @@ namespace AmoebaRL.Core.Organelles
         {
             Color = Palette.Calcium;
             Symbol = 'F';
-            Name = "Bioreactor";
+            Name = "Biometal Forge";
             Slime = true;
             Awareness = 0;
             Delay = 60;
@@ -213,13 +214,14 @@ namespace AmoebaRL.Core.Organelles
             produced.Y = target.Y;
             Game.DMap.AddActor(produced);
             Game.PlayerMass.Add(produced);
+            Game.DMap.UpdatePlayerFieldOfView();
             return true;
         }
 
         public override string GetDescription()
         {
             return $"The extremely dense shell around this bioreactor allows it to produce calcium and electronics. However, it is very slow. " +
-                $"Next product in {NextFood}.";
+                $"Next product in {NextFood} turns.";
         }
 
         public override List<Item> OrganelleComponents()
@@ -265,13 +267,14 @@ namespace AmoebaRL.Core.Organelles
             produced.Y = target.Y;
             Game.DMap.AddActor(produced);
             Game.PlayerMass.Add(produced);
+            Game.DMap.UpdatePlayerFieldOfView();
             return true;
         }
 
         public override string GetDescription()
         {
             return $"By integrating nanomachines into the protien folding process, new organelles can be produced. Rarely, this can result in the production of new DNA!" +
-                $" However, it is very slow. Next product in {NextFood}.";
+                $" However, it is very slow. Next product in {NextFood} turns.";
         }
 
         public override List<Item> OrganelleComponents()
@@ -284,6 +287,7 @@ namespace AmoebaRL.Core.Organelles
 
     public class Extractor : Cultivator
     {
+
         public Extractor()
         {
             Color = Palette.Calcium;
@@ -298,19 +302,21 @@ namespace AmoebaRL.Core.Organelles
         public override bool Act()
         {
             List<Actor> adjUseless = Game.DMap.AdjacentActors(X, Y).Where(a => !(a is IDigestable)).ToList();
-            List<ICell> adjWantToEnter = Game.DMap.AdjacentWalkable(X, Y);
+            List<ICell> adjRaw = Game.DMap.AdjacentWalkable(X, Y);
             foreach (Actor a in adjUseless)
-                adjWantToEnter.Add(Game.DMap.GetCell(a.X, a.Y));
-            foreach(ICell dest in adjWantToEnter)
-            { 
-                List<Organelle> wants = Game.PlayerMass.Where(
-                    c => c is IDigestable && !c.AdjacentTo(X,Y) && c is Organelle
-                    ).Cast<Organelle>().ToList();
-                wants = wants.Where(
-                    w => DungeonMap.TaxiDistance(Game.DMap.GetCell(w.X, w.Y), dest)
-                    == wants.Min(x => DungeonMap.TaxiDistance(Game.DMap.GetCell(w.X, w.Y), dest))
-                    )
-                    .ToList();
+                adjRaw.Add(Game.DMap.GetCell(a.X, a.Y));
+            List<ICell> adjWantToEnter = new List<ICell>();
+            // Randomize order
+            while (!(adjRaw.Count == 0))
+            {
+                int pick = Game.Rand.Next(adjRaw.Count - 1);
+                adjWantToEnter.Add(adjRaw[pick]);
+                adjRaw.RemoveAt(pick);
+            }
+            // Let each cell pull in a candidate.
+            foreach (ICell dest in adjWantToEnter)
+            {
+                List<Organelle> wants = NeedsToReach(dest);
                 if (wants.Count > 0)
                 {
                     bool stuck = false;
@@ -320,16 +326,28 @@ namespace AmoebaRL.Core.Organelles
                     {
                         stuck = false;
                         getsToGo = wants[Game.Rand.Next(wants.Count - 1)];
-                        p = PathIgnoring(x => Game.PlayerMass.Contains(x) && !(x is Extractor), dest.X, dest.Y);
-                        if(p == null)
-                        { 
+                        p = getsToGo.PathIgnoring(x =>
+                                Game.PlayerMass.Contains(x) &&
+                                !(x is Extractor) &&
+                                !(x is Militia.CapturedMilitia && x.AdjacentTo(X, Y)
+                            ), dest.X, dest.Y);
+                        if (p == null)
+                        {
                             stuck = true;
                             wants.Remove(getsToGo);
                         }
                     } while (stuck && wants.Count > 0);
-                    if(p != null)
+                    if (p != null)
                     {
-                        Game.CommandSystem.AttackMoveOrganelle(getsToGo, dest.X, dest.Y);
+                        try
+                        {
+                            ICell step = p.StepForward();
+                            Game.CommandSystem.AttackMoveOrganelle(getsToGo, step.X, step.Y);
+                        }
+                        catch (RogueSharp.NoMoreStepsException)
+                        {
+                            Game.MessageLog.Add($"A dissolving human was pulled into the space it was already in!");
+                        }
                     }
                 }
                 else
@@ -339,11 +357,24 @@ namespace AmoebaRL.Core.Organelles
             return base.Act();
         }
 
+        private List<Organelle> NeedsToReach(ICell dest)
+        {
+            List<Organelle> wants = Game.PlayerMass.Where(
+                c => c is IDigestable && !c.AdjacentTo(X, Y) && c is Organelle
+                ).Cast<Organelle>().ToList();
+            wants = wants.Where(
+                w => DungeonMap.TaxiDistance(Game.DMap.GetCell(w.X, w.Y), dest)
+                == wants.Min(x => DungeonMap.TaxiDistance(Game.DMap.GetCell(w.X, w.Y), dest))
+                )
+                .ToList();
+            return wants;
+        }
+
         public override string GetDescription()
         {
-            return "This cultivator is ravenous and will pull dissolving targets into each adjacent space! This happens once per turn per unoccupied space. " +
+            return "This cultivator is ravenous and will pull dissolving targets into each adjacent space! This happens no more than once per unoccupied space per turn. " +
                 "Restores the HP of adjacent dissolving targets. " +
-                "Causes adjacent dissolving targets to produce their loot at half their digestion rates for free without expending them. Be careful, they can " +
+                "Causes adjacent dissolving targets to produce their loot their digestion rates for free without expending them. Be careful, they can " +
                 "still be rescued!"; ;
         }
 

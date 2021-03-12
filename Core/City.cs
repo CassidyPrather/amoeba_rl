@@ -94,7 +94,7 @@ namespace AmoebaRL.Core
 
         protected virtual int AddNewMilitia(int budget)
         {
-            if(WaveNumber < 3)
+            if (WaveNumber < 3)
             {
                 // In the early waves, may go over-budget to spawn OOD.
                 int gamble = Game.Rand.Next(NotOODWeight + WaveNumber + 1);

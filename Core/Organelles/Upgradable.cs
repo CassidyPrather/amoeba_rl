@@ -80,6 +80,7 @@ namespace AmoebaRL.Core.Organelles
                         Game.DMap.RemoveActor(this);
                         Actor result = BecomeActor(CurrentPath.Result());
                         Game.PlayerMass.Add(result);
+                        Game.DMap.UpdatePlayerFieldOfView();
                     }
                     return true;
                 }

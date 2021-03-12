@@ -39,7 +39,7 @@ namespace AmoebaRL.Core.Organelles
         {
             Color = Palette.Calcium;
             Symbol = 'B';
-            Name = "Reinforced Membrane";
+            Name = "Tough Membrane";
             Slime = true;
             Awareness = 0;
             PossiblePaths = new List<UpgradePath>()
@@ -132,7 +132,7 @@ namespace AmoebaRL.Core.Organelles
         public override string GetDescription()
         {
             return "The high concentration of calcium has resulted in a localized gravity distortion which prevents all adjacent allies other than tanks from attacks."
-                + " It is immune even to tanks itself, but vulnerable to ranged attacks.";
+                + " It is immune even to tanks itself, killing those who engage with it in melee, but vulnerable to ranged attacks.";
         }
 
         public override List<Item> OrganelleComponents()
@@ -148,8 +148,8 @@ namespace AmoebaRL.Core.Organelles
         public NonNewtonianMembrane()
         {
             Color = Palette.Calcium;
-            Symbol = 'B';
-            Name = "Non-Newtonian Membrane";
+            Symbol = 'P';
+            Name = "Phase Membrane";
             Slime = true;
             Awareness = 0;
             PossiblePaths.Clear();
@@ -157,7 +157,8 @@ namespace AmoebaRL.Core.Organelles
 
         public override string GetDescription()
         {
-            return "This slime dances along the lines of reality and imagination. It will phase into existence to block any melee attacks made against its neighbors, and is immune to them." +
+            return "This slime dances along the lines of reality and imagination. It will phase into existence to block any melee " +
+                "attacks made against its neighbors and kills those who attack it directly in melee. " +
                 "While the neighbor might be disoriented by having its location swapped, it will continue to operate as usual.";
         }
 
@@ -229,17 +230,20 @@ namespace AmoebaRL.Core.Organelles
         {
             List<Actor> seenTargets = Seen(Game.DMap.Actors).Where(s => s is Militia).ToList();
             bool brave = true;
-            if (!seenTargets.All(t => t is Tank))
+            if (!seenTargets.All(t => !(t is Tank)))
             {
                 List<Tank> tanks = seenTargets.Where(t => t is Tank).Cast<Tank>().ToList();
-                int nearestTankDistance = tanks.Min(t => DungeonMap.TaxiDistance(t, this));
-                List<Tank> closest = tanks.Where(t => DungeonMap.TaxiDistance(t, this) <= TerrorRadius).ToList(); 
-                if(closest.Count > 0)
-                {
-                    if (MinimizeTerror(tanks.Cast<Actor>()))
-                        brave = false;
+                if(tanks.Count > 0) // might be an unecessary condition
+                { 
+                    int nearestTankDistance = tanks.Min(t => DungeonMap.TaxiDistance(t, this));
+                    List<Tank> closest = tanks.Where(t => DungeonMap.TaxiDistance(t, this) <= TerrorRadius).ToList(); 
+                    if(closest.Count > 0)
+                    {
+                        if (MinimizeTerror(tanks.Cast<Actor>()))
+                            brave = false;
+                    }
                 }
-                if(brave)
+                if (brave)
                     seenTargets = seenTargets.Where(t => !(t is Tank)).ToList();
             }
             if (seenTargets.Count > 0 && brave)

@@ -130,6 +130,8 @@ namespace AmoebaRL.Core
                 HP = MaxHP;
                 Speed = 16;
                 Game.PlayerMass.Add(this);
+                if(Game.DMap != null) // dev hacks sometimes place these
+                    Game.DMap.UpdatePlayerFieldOfView();
             }
 
 
@@ -150,23 +152,27 @@ namespace AmoebaRL.Core
                     transformation.Y = Y;
                     Game.DMap.AddActor(transformation);
                     Game.PlayerMass.Add(transformation);
+                    Game.DMap.UpdatePlayerFieldOfView();
                 }
                 return true;
             }
 
             public bool ProduceIfOverfull()
             {
-                if(Overfill >= MaxHP * 2)
+                if(Overfill >= MaxHP)
                 {
                     List<ICell> drops = Game.DMap.NearestNoActor(X, Y);
                     if(drops.Count > 0)
                     {
                         ICell pick = drops[Game.Rand.Next(drops.Count - 1)];
+                        if (Game.DMap.GetActorAt(pick.X, pick.Y) != null)
+                            Game.MessageLog.Add("A result was instantiated in an occupied space!");
                         Actor bounty = DigestsTo();
                         bounty.X = pick.X;
                         bounty.Y = pick.Y;
                         Game.DMap.AddActor(bounty);
                         Game.PlayerMass.Add(bounty);
+                        Game.DMap.UpdatePlayerFieldOfView();
                         Overfill = 0;
                     }
                 }
@@ -192,7 +198,7 @@ namespace AmoebaRL.Core
                 }
                 else
                 {
-                    return $"Kept alive against its will. It is regenerating up to {MaxHP} HP. After {MaxHP * 2 - Overfill} turns," +
+                    return $"Kept alive against its will. It is regenerating up to {MaxHP} HP. After {MaxHP - Overfill} turns," +
                         $" it will produce {NameOfResult}. Be careful, it can still be rescued!";
                 }
             }
