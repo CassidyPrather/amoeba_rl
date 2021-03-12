@@ -289,6 +289,8 @@ namespace AmoebaRL.Core.Organelles
 
         public int GravityAttempts { get; protected set; } = 2;
 
+        public int MaxRange { get; protected set; } = 2;
+
         public GravityCore()
         {
             Awareness = 3;
@@ -302,9 +304,10 @@ namespace AmoebaRL.Core.Organelles
 
         public override string GetDescription()
         {
-            return "This nucleus is so dense that it pulls slime towards it. After moving, other organelles attempt to fill the spaces adjacent to it. " +
-                " An organelle closest to a random empty adjacent space will try to move towards it, not passing through other slime. This occurs twice per time the Gravity Core moves. " +
-                "Despite its density, this core also moves at twice the speed of a normal core. " + NucleusAddendum();
+            return $"After moving, other organelles attempt to fill the spaces adjacent to it. " +
+                $"This occurs up to {GravityAttempts} times per time the Gravity Core moves " +
+                $"with a maximum range of {MaxRange}. Despite its density, this core also " +
+                $"moves twice per turn. " + NucleusAddendum();
         }
 
         public override List<Item> OrganelleComponents()
@@ -316,33 +319,45 @@ namespace AmoebaRL.Core.Organelles
 
         public void DoPostAttackMove()
         {
+            Anchor = true;
             for(int i = 0; i < GravityAttempts; i++)
             {
                 List<ICell> adj = Game.DMap.AdjacentWalkable(X,Y);
                 if(adj.Count > 0)
-                { 
+                {
+                    bool gravityIgnore(Actor x) => x is Militia && !(x is Tank);
                     ICell gravityTo = adj[Game.Rand.Next(adj.Count - 1)];
-                    List<Organelle> nearest = Game.DMap.NearestActors(X, Y, a => a is Organelle && !(a == this)).Cast<Organelle>().ToList();
-                    if(nearest.Count > 0)
+                    // Find the nearest organelles (other than this or those adjacent to this) to gravityTo
+                    // which can reach it without switching places with slime that is closer.
+                    List<Organelle> nearest = Game.DMap.NearestActors(X, Y, a =>
+                            a is Organelle &&
+                            DungeonMap.TaxiDistance(Game.DMap.GetCell(a.X, a.Y), gravityTo) <= MaxRange && 
+                            !(a == this) &&
+                            a.PathExists(gravityIgnore, gravityTo.X, gravityTo.Y)
+                            ).Cast<Organelle>().ToList();
+                    while(nearest.Count > 0)
                     {
                         Organelle sel = nearest[Game.Rand.Next(nearest.Count - 1)];
+                        nearest.Remove(sel);
                         Path p = null;
                         try
                         {
-                            p = DungeonMap.QuickShortestPath(Game.DMap,
-                                Game.DMap.GetCell(X, Y),
-                                Game.DMap.GetCell(gravityTo.X, gravityTo.Y));
+                            p = sel.PathIgnoring(gravityIgnore, gravityTo.X, gravityTo.Y);
+                            //p = DungeonMap.QuickShortestPath(Game.DMap,
+                            //    Game.DMap.GetCell(X, Y),
+                            //    Game.DMap.GetCell(gravityTo.X, gravityTo.Y));
                         }
                         catch (PathNotFoundException) { }
                         if(p != null)
-                        { 
+                        {
                             ICell next = p.StepForward();
                             Game.CommandSystem.AttackMoveOrganelle(sel, next.X, next.Y);
+                            nearest.Clear();
                         }
                     }
-
                 }
             }
+            Anchor = false;
         }
     }
 

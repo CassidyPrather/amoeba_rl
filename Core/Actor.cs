@@ -165,6 +165,11 @@ namespace AmoebaRL.Core
             }
         }
 
+        public bool PathExists(Func<Actor, bool> ignoreIf, int x, int y)
+        {
+            return PathIgnoring(ignoreIf, x, y) != null;
+        }
+
         public Path PathIgnoring(Func<Actor,bool> ignoreIf, int x, int y)
         {
             IEnumerable<Actor> ignore = Game.DMap.Actors.Where(ignoreIf);

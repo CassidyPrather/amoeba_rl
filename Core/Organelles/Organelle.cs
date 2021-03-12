@@ -5,11 +5,17 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using AmoebaRL.Systems;
 
 namespace AmoebaRL.Core.Organelles
 {
     public abstract class Organelle : Actor, IOrganelle, IDescribable
     {
+        /// <summary>
+        /// Whether this organelle can move. Most relevant in <see cref="CommandSystem.MoveOrganelle(Organelle, int, int)"/>
+        /// </summary>
+        public bool Anchor { get; set; } = false;
+
         /// <summary>
         /// Returns a new list of the <see cref="Item"/>s which were used to create this organelle.
         /// </summary>

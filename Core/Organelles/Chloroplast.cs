@@ -326,8 +326,8 @@ namespace AmoebaRL.Core.Organelles
                         p = getsToGo.PathIgnoring(x =>
                                 Game.PlayerMass.Contains(x) &&
                                 !(x is Extractor) &&
-                                !(x is Militia.CapturedMilitia && x.AdjacentTo(X, Y)
-                            ), dest.X, dest.Y);
+                                !(x is Militia.CapturedMilitia && x.AdjacentTo(X, Y)),
+                            dest.X, dest.Y);
                         if (p == null)
                         {
                             stuck = true;

@@ -291,6 +291,8 @@ namespace AmoebaRL.Core
         public List<Actor> NearestActors(int x, int y, Func<Actor, bool> filterBy)
         {
             IEnumerable<Actor> Candidates = Actors.Where(filterBy);
+            if (Candidates.Count() == 0)
+                return Candidates.ToList();
             int shortestDistance = Candidates.Min(c => TaxiDistance(GetCell(c.X, c.Y), GetCell(x, y)));
             return Candidates.Where(c => TaxiDistance(GetCell(c.X, c.Y), GetCell(x, y)) == shortestDistance).ToList();
         }

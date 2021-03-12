@@ -204,6 +204,7 @@ namespace AmoebaRL.Systems
         public bool Ingest(Actor eating, Item eaten)
         {
             Point mealLocation = new Point(eaten.X, eaten.Y);
+            bool moveAndTransform = false;
             if (eaten is Nutrient n)
             { 
                 // Nutrients are the only IEatable which do not require cytoplasm hosts (is this good?)
@@ -218,7 +219,10 @@ namespace AmoebaRL.Systems
                 List<Actor> frontier = new List<Actor>();
                 List<Cytoplasm> selection = new List<Cytoplasm>();
                 if (eating is Cytoplasm)
+                {
                     selection.Add(eating as Cytoplasm);
+                    moveAndTransform = true;
+                }
                 while (selection.Count == 0)
                 {
                     // Find the nearest cytoplasm.
@@ -240,16 +244,19 @@ namespace AmoebaRL.Systems
                 int pick = Game.Rand.Next(0, selection.Count - 1);
                 Actor recepient = selection[pick];
                 Point newOrganellePos = new Point(recepient.X, recepient.Y);
+                
                 Game.DMap.RemoveActor(recepient);
-                eaten.X = recepient.X;
-                eaten.Y = recepient.Y;
+                eaten.X = newOrganellePos.X;
+                eaten.Y = newOrganellePos.Y;
                 e.OnEaten();
+                if(moveAndTransform)
+                    eating = Game.DMap.GetActorAt(newOrganellePos.X, newOrganellePos.Y);
             }
             else
             {
                 Game.DMap.RemoveItem(eaten);
             }
-            if(eating is Organelle o)
+            if(eating != null && eating is Organelle o)
                 AttackMoveOrganelle(o, mealLocation.X, mealLocation.Y);
             return true;
         }
@@ -385,6 +392,7 @@ namespace AmoebaRL.Systems
                 foreach (SlimePathfind l in last)
                 {
                     List<Actor> pullIn = Game.DMap.Actors.Where(a => a.Slime == true
+                                                                && (!(a is Organelle o) || !o.Anchor)
                                                                 && a.AdjacentTo(l.current.X, l.current.Y)
                                                                 && !accountedFor.Where(t => t.current == a).Any()).ToList();
                     for (int i = 0; i < pullIn.Count; i++)
