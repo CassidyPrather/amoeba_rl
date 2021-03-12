@@ -304,7 +304,7 @@ namespace AmoebaRL.Core.Organelles
         public override string GetDescription()
         {
             return "An eye of this size is unnatural, and when it enters a space adjacent to a human, that human wastes a turn cowering in fear. " +
-                "It maintains the vision boost of its predecessor. " + NucleusAddendum();
+                "It maintains the vision boost of its predecessor and it has a chance to act before enemies it terrified recover. " + NucleusAddendum();
         }
 
         public override List<Item> OrganelleComponents()
@@ -319,10 +319,16 @@ namespace AmoebaRL.Core.Organelles
             Terrified.Clear();
             foreach(Actor a in Game.DMap.AdjacentActors(X,Y).Where(a => a is Militia).Cast<Militia>())
             {
-                int untilTurn = Game.SchedulingSystem.ScheduledFor(a).Value - Game.SchedulingSystem.GetTime();
-                Game.SchedulingSystem.Remove(a);
-                Terrified.Add(new Tuple<Actor,int>(a, a.Speed));
-                a.Speed += untilTurn;
+                int? scheduledForTime = Game.SchedulingSystem.ScheduledFor(a);
+                if (scheduledForTime.HasValue)
+                {
+                    int untilTurn = scheduledForTime.Value - Game.SchedulingSystem.GetTime();
+                    Game.SchedulingSystem.Remove(a);
+                    Terrified.Add(new Tuple<Actor, int>(a, a.Speed));
+                    a.Speed += untilTurn;
+                }
+                else
+                    Game.MessageLog.Add($"{a.Name} is already terrified");
             }
         }
 

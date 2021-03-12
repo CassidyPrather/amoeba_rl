@@ -114,8 +114,14 @@ namespace AmoebaRL
             
             // Create a new MessageLog and print the random seed used to generate the level
             MessageLog = new MessageLog();
-            MessageLog.Add("Reach 128 mass to win.");
-            MessageLog.Add($"Level created with seed '{seed}'");
+            MessageLog.Add("Arrow keys: Move / Select");
+            MessageLog.Add("Space: Wait");
+            MessageLog.Add("X: Toggle examine mode");
+            MessageLog.Add("Z: Toggle organelle mode");
+            MessageLog.Add("ESC: Back to player mode");
+            MessageLog.Add("A, D: Cycle active nucleus");
+            MessageLog.Add("Reach 128 mass to win");
+            MessageLog.Add("Consult the \"README\" file to review these instructions and more");
             OrganelleLog = new OrganelleLog();
 
             // Launch the game!
@@ -148,6 +154,8 @@ namespace AmoebaRL
 
             if (ExamineCursor != null)
                 didPlayerAct = UserInputExamine(keyPress);
+            else if (MessageLog.Showing == MessageLog.Mode.ORGANELLE)
+                didPlayerAct = UserInputOrganellePane(keyPress);
             else if (Player != null)
                 didPlayerAct = UserInputLive(keyPress);
             else
@@ -187,6 +195,14 @@ namespace AmoebaRL
                     DMap.RemoveVFX(ExamineCursor);
                     ExamineCursor = null;
                     MessageLog.Toggle();
+                    // Exit examine mode
+                }
+                else if (keyPress.Key == RLKey.Z)
+                {
+                    DMap.RemoveVFX(ExamineCursor);
+                    ExamineCursor = null;
+                    MessageLog.Toggle();
+                    MessageLog.Toggle(); // toggle 2x = go to organelle inspection mode
                     // Exit examine mode
                 }
                 else if (keyPress.Key == RLKey.Escape)
@@ -240,22 +256,6 @@ namespace AmoebaRL
                 {
                     CommandSystem.NextNucleus(1);
                 }
-                else if(keyPress.Key == RLKey.W)
-                {
-                    OrganelleLog.Scroll(-1);
-                }
-                else if (keyPress.Key == RLKey.S)
-                {
-                    OrganelleLog.Scroll(1);
-                }
-                else if (keyPress.Key == RLKey.Q)
-                {
-                    OrganelleLog.Page(-1);
-                }
-                else if (keyPress.Key == RLKey.E)
-                {
-                    OrganelleLog.Page(1);
-                }
                 else if (keyPress.Key == RLKey.Z)
                 {
                     MessageLog.Toggle();
@@ -276,6 +276,51 @@ namespace AmoebaRL
                 {
                     if (MessageLog.Showing == MessageLog.Mode.ORGANELLE)
                         MessageLog.Toggle();
+                }
+            }
+            return false;
+        }
+
+        private bool UserInputOrganellePane(RLKeyPress keyPress)
+        {
+            if (keyPress != null)
+            {
+                if (keyPress.Key == RLKey.Up || keyPress.Key == RLKey.Left)
+                {
+                    OrganelleLog.Scroll(-1);
+                }
+                else if (keyPress.Key == RLKey.Down || keyPress.Key == RLKey.Right)
+                {
+                    OrganelleLog.Scroll(1);
+                }
+                else if (keyPress.Key == RLKey.Q)
+                {
+                    OrganelleLog.Page(-1);
+                }
+                else if (keyPress.Key == RLKey.E)
+                {
+                    OrganelleLog.Page(1);
+                }
+                else if (keyPress.Key == RLKey.Z)
+                {
+                    MessageLog.Toggle();
+                    // Toggle Information Pane (Organelle/Log)
+                }
+                else if (keyPress.Key == RLKey.X)
+                {
+                    ExamineCursor = new Cursor()
+                    {
+                        X = OrganelleLog.Highlighted.X,
+                        Y = OrganelleLog.Highlighted.Y
+                    };
+                    DMap.AddVFX(ExamineCursor);
+                    MessageLog.ExamineMode();
+                    // Enter Examine Mode
+                }
+                else if (keyPress.Key == RLKey.Escape)
+                {
+                    MessageLog.Toggle();
+                    // Go back to play mode
                 }
             }
             return false;

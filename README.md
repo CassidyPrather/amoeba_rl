@@ -7,8 +7,8 @@
 Arrow keys: Move
 Space: Wait
 A, D: Go to previous/next nucleus
-Z: Toggle Organelle Descriptions or Message Log
-    W, S: Scroll through Organelle menu
+Z: Organelle mode toggle
+    Arrow keys (Organelle mode): Select organelle
 X: Examine mode toggle
     Arrow keys (Examine mode): Move examine cursor
 Reach 128 mass to win.
@@ -16,7 +16,6 @@ Reach 128 mass to win.
 # TODO
 
 Spawn loot at random, increase rarities.
-Give hunters a visual indicator of how close they are to firing
 Organelles should downgrade instead of die when possible.
 
 ## 7DRL Agenda

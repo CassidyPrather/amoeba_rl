@@ -25,7 +25,9 @@ namespace AmoebaRL.Core
 
         public virtual string GetDescription()
         {
-            return "A meager human who took up arms to defend its pitiful life. Nothing special about it.";
+            return "A meager human who took up arms to defend its pitiful life. Nothing special about it. " +
+                "Like all humans, it always tries to attack the nearest organelle. " +
+                "Also like all humans, it can only see up to 3 cells away has no memory of anything it can't see.";
         }
 
         public virtual void Die()
@@ -92,7 +94,7 @@ namespace AmoebaRL.Core
                 }
                 catch (NoMoreStepsException)
                 {
-                    Game.MessageLog.Add($"Help me JackNine, this should never happen! My name is {Name}, and I am on the same tile as another actor.");
+                    Game.MessageLog.Add($"The {Name} contemplates the irrationality of its existence.");
                 }
             } // else, wait a turn.
         }
