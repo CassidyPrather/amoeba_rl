@@ -182,9 +182,9 @@ namespace AmoebaRL.Core
 
             public override Actor DigestsTo() => new Calcium();
 
-            public override void OnUnslime() => BecomeActor(new Tank());
+            public override void OnUnslime() => BecomeActor(new Mech());
 
-            public override void OnDestroy() => BecomeActor(new Tank());
+            public override void OnDestroy() => BecomeActor(new Mech());
         }
     }
 
