@@ -18,6 +18,8 @@ namespace AmoebaRL.Core
 
         public int Firing { get; protected set; } = _firingTime;
 
+        public FiringTimer FireGraphic { get; protected set; } = null;
+
         public Point FiringDirection { get; protected set; }
 
         public List<Reticle> Targeted { get; protected set; } = new List<Reticle>();
@@ -34,22 +36,27 @@ namespace AmoebaRL.Core
 
         public override string GetDescription()
         {
-            return $"H-69 model robotic troop with a penetrating kinetic gun. If it sees a hostile within {Range} tiles orthogonally, " +
-                $"it will line up a shot, which is fired in {_firingTime} more turns if it isn't killed in that time. This shot penetrates all" +
+            string msg = $"H-69 model robotic troop with a penetrating kinetic gun. If it sees a hostile within {Range} tiles orthogonally, " +
+                $"it will line up a shot, which is fired after {_firingTime} turns if it isn't killed. This shot penetrates all" +
                 $"tiles until it hits a wall, killing friendlies and enemies alike. Fortunately, its high salvage value means organelles destroyed " +
                 $"by this shot will be able to be rebuilt from their remains.";
+            if (Firing < _firingTime)
+                msg += $" Fires in {Firing}";
+            return msg;
         }
 
         public override bool Act()
         {
-            if(!Engulf())
-            { 
-                if(Firing <= 0)
+            if (!Engulf())
+            {
+                if (Firing <= 0)
                 {
                     Fire();
                 }
-                else if(Firing < _firingTime)
+                else if (Firing < _firingTime)
                 {
+                    if (FireGraphic != null)
+                        FireGraphic.T = Firing;
                     Firing--;
                     return true;
                 }
@@ -58,11 +65,21 @@ namespace AmoebaRL.Core
                     return base.Act();
                 }
             }
+            else
+            {
+                if (FireGraphic != null)
+                    Game.DMap.RemoveVFX(FireGraphic);
+            }
             return true;
         }
 
         public virtual void Fire()
         {
+            if(FireGraphic != null)
+            {
+                Game.DMap.RemoveVFX(FireGraphic);
+                FireGraphic = null;
+            }
             Firing = _firingTime;
             int hitCount = 0;
             foreach(Reticle r in Targeted)
@@ -121,6 +138,17 @@ namespace AmoebaRL.Core
 
                 if (HasFiringPath)
                 {
+                    if (FireGraphic == null)
+                    {
+                        FireGraphic = new FiringTimer
+                        {
+                            T = _firingTime,
+                            X = X,
+                            Y = Y
+                        };
+                        Game.DMap.AddVFX(FireGraphic);
+                        
+                    }
                     ICell sights = picked.StepForward();
                     // Calculate direction of firing
                     FiringDirection = new Point(sights.X - X, sights.Y - Y);
@@ -158,8 +186,7 @@ namespace AmoebaRL.Core
 
         public override void Die()
         {
-            foreach (Reticle r in Targeted)
-                Game.DMap.RemoveVFX(r);
+            CleanVFX();
             Game.DMap.RemoveActor(this);
             ICell drop = Game.DMap.NearestLootDrop(X, Y);
             SiliconDust transformation = new SiliconDust()
@@ -170,10 +197,17 @@ namespace AmoebaRL.Core
             Game.DMap.AddItem(transformation);
         }
 
-        public override void OnEaten()
+        private void CleanVFX()
         {
+            if (FireGraphic != null)
+                Game.DMap.RemoveVFX(FireGraphic);
             foreach (Reticle r in Targeted)
                 Game.DMap.RemoveVFX(r);
+        }
+
+        public override void OnEaten()
+        {
+            CleanVFX();
             Game.DMap.RemoveActor(this);
             CapturedHunter transformation = new CapturedHunter
             {
@@ -227,6 +261,29 @@ namespace AmoebaRL.Core
 
             public override void SetFrame(int idx)
             {
+                if (idx == 0)
+                    Transparent = false;
+                else
+                    Transparent = true;
+            }
+        }
+
+        public class FiringTimer : Animation
+        {
+            public int T { get; set; } = 2;
+
+            public FiringTimer()
+            {
+                Symbol = '2';
+                Color = Palette.Hunter;
+                BackgroundColor = Palette.FloorBackground;
+                Speed = 3;
+                Frames = 2;
+            }
+
+            public override void SetFrame(int idx)
+            {
+                Symbol = T.ToString()[0];
                 if (idx == 0)
                     Transparent = false;
                 else

@@ -52,7 +52,7 @@ namespace AmoebaRL.Systems
 
             List<Actor> loggable = GetLoggable();
             console.Clear();
-            console.SetBackColor(0, 0, console.Width, console.Height, Palette.DarkSlime);
+            console.SetBackColor(0, 0, console.Width, console.Height, Palette.OrganelleConsoleBG);
             console.Print(1, 1, "Organelles", Palette.TextHeading);
             console.Print(1, 2, $"Mass: {Game.PlayerMass.Count}", Palette.TextBody);
             for (int i = page * _maxLines; i < loggable.Count(); i++)

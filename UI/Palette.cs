@@ -97,5 +97,7 @@ namespace AmoebaRL.UI
         public static RLColor DarkCursor = RLColor.Magenta;
         public static RLColor SmartCoreInactive = DbOldStone;
         public static RLColor Overfill = DbSky;
+
+        public static RLColor OrganelleConsoleBG = new RLColor(6, 26, 0);
     }
 }

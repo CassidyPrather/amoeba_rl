@@ -77,6 +77,19 @@ namespace AmoebaRL
             _rootConsole.Render += OnRootConsoleRender;
         }
 
+        static public void Clean()
+        {
+            Rand = null;
+            DMap = null;
+            Player = null;
+            PlayerMass = null;
+            CommandSystem = null;
+            SchedulingSystem = null;
+            MessageLog = null;
+            OrganelleLog = null;
+            ExamineCursor = null;
+        }
+
         /// <summary>
         /// Called once when the game is launched..
         /// </summary>
@@ -272,6 +285,11 @@ namespace AmoebaRL
             {
                 if(keyPress.Key == RLKey.Escape)
                 {
+                    _rootConsole.Close();
+                }
+                else if (keyPress.Key == RLKey.R)
+                {
+                    Program.PlayAgain = true;
                     _rootConsole.Close();
                 }
                 return true; // Let the user idle after their death I guess.

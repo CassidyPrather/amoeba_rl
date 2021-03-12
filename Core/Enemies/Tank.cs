@@ -11,7 +11,9 @@ namespace AmoebaRL.Core
 {
     public class Tank : Militia
     {
-        int ready = 1;
+        int StaminaPoolSize = 2;
+
+        int Stamina = 2;
 
         public Tank()
         {
@@ -24,24 +26,30 @@ namespace AmoebaRL.Core
 
         public override string GetDescription()
         {
-            return "A terrifying fortress wrapped in strong armor. It cannot be killed or eaten by most means. " +
-                "However, it will still be engulfed if surrounded on all four sides with slime and it is not immune to friendly fire." +
-                " And fortunately, all that armor means it can only act every other turn.";
+            return "A terrifying fortress wrapped in strong armor. It cannot be killed or eaten by most means, although all that armor means it can only act every other turn. " +
+                "Fortunately, friendly fire is not conventional means, and it is vulnerable to it. It can also be engulfed by surrounding it on all sides with slime or walls." +
+                "Cities and humans will not help to engulf tanks!";
         }
 
         public override bool Act()
         {
             if(!Engulf())
-            {     
-                if (ready > 0)
+            {
+                
+                if (Stamina == 1)
                 {
                     Color = Palette.Calcium;
-                    ready--;
-                    return true;
                 }
-                Color = Palette.RestingTank;
-                ready++;
-                return base.Act();
+                if (Stamina > 0)
+                {
+                    Stamina--;
+                }
+                else
+                {
+                    Color = Palette.RestingTank;
+                    Stamina = StaminaPoolSize;
+                    return base.Act();
+                }
             }
             return true;
         }

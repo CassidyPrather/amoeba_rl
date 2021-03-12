@@ -7,9 +7,8 @@
 Arrow keys: Move
 Space: Wait
 A, D: Go to previous/next nucleus
-W, S: Go to previous/next organelle in menu
-    Q, E: Page up, down through menu
 Z: Toggle Organelle Descriptions or Message Log
+    W, S: Scroll through Organelle menu
 X: Examine mode toggle
     Arrow keys (Examine mode): Move examine cursor
 Reach 128 mass to win.
