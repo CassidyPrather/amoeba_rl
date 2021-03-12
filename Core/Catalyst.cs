@@ -20,7 +20,6 @@ namespace AmoebaRL.Core
             transformation.Y = Y;
             Game.DMap.AddActor(transformation);
             Game.PlayerMass.Add(transformation);
-            Game.DMap.UpdatePlayerFieldOfView();
         }
     }
 }

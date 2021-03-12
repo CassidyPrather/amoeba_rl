@@ -120,7 +120,7 @@ namespace AmoebaRL.Core
         public Mech()
         {
             Awareness = 3;
-            Color = Palette.Calcium;
+            Color = Palette.RestingTank;
             Symbol = 'M';
             Speed = 16;
             Name = "Mech";
@@ -268,7 +268,7 @@ namespace AmoebaRL.Core
             {
                 Awareness = 0;
                 Slime = true;
-                Color = Palette.Calcium;
+                Color = Palette.Militia;
                 Name = "Dissolving Caravan";
                 Symbol = 'v';
                 MaxHP = 24;

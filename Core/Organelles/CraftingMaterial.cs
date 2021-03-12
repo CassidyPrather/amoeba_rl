@@ -47,11 +47,14 @@ namespace AmoebaRL.Core.Organelles
                 adjUpg.Remove(picked);
                 if(picked.Upgrade(Provides))
                 {
-                    Cytoplasm byproduct = new Cytoplasm();
+                    Cytoplasm byproduct = new Cytoplasm
+                    {
+                        X = X,
+                        Y = Y
+                    };
                     Game.PlayerMass.Add(byproduct);
                     Game.DMap.RemoveActor(this);
                     BecomeActor(byproduct);
-                    Game.DMap.UpdatePlayerFieldOfView();
                     break;
                 }
             }

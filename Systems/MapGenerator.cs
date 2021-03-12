@@ -379,8 +379,9 @@ namespace AmoebaRL.Systems
                 Actor inMass = playerMass[i];
                 inMass.X = initialSlime[i].X;
                 inMass.Y = initialSlime[i].Y;
-                _map.AddActor(inMass);
             }
+            foreach(Actor a in Game.PlayerMass)
+                _map.AddActor(a);
             initialPlayer.SetAsActiveNucleus();
             //_map.AddPlayer(initialPlayer); // Must be called last because updates FOV
             //Game.PlayerMass.Add(player);

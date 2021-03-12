@@ -66,7 +66,6 @@ namespace AmoebaRL.Core.Organelles
             };
             Game.DMap.AddActor(c);
             Game.PlayerMass.Add(c);
-            Game.DMap.UpdatePlayerFieldOfView();
             return true;
         }
 
@@ -214,7 +213,6 @@ namespace AmoebaRL.Core.Organelles
             produced.Y = target.Y;
             Game.DMap.AddActor(produced);
             Game.PlayerMass.Add(produced);
-            Game.DMap.UpdatePlayerFieldOfView();
             return true;
         }
 
@@ -267,7 +265,6 @@ namespace AmoebaRL.Core.Organelles
             produced.Y = target.Y;
             Game.DMap.AddActor(produced);
             Game.PlayerMass.Add(produced);
-            Game.DMap.UpdatePlayerFieldOfView();
             return true;
         }
 

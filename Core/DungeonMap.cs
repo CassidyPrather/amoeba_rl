@@ -222,6 +222,8 @@ namespace AmoebaRL.Core
             Actors.Add(toAdd);
             SetIsWalkable(toAdd.X, toAdd.Y, false);
             Game.SchedulingSystem.Add(toAdd);
+            if (toAdd is Organelle)
+                UpdatePlayerFieldOfView();
         }
 
         public void AddItem(Item toAdd) => Items.Add(toAdd);

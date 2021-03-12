@@ -130,8 +130,6 @@ namespace AmoebaRL.Core
                 HP = MaxHP;
                 Speed = 16;
                 Game.PlayerMass.Add(this);
-                if(Game.DMap != null) // dev hacks sometimes place these
-                    Game.DMap.UpdatePlayerFieldOfView();
             }
 
 
@@ -152,7 +150,6 @@ namespace AmoebaRL.Core
                     transformation.Y = Y;
                     Game.DMap.AddActor(transformation);
                     Game.PlayerMass.Add(transformation);
-                    Game.DMap.UpdatePlayerFieldOfView();
                 }
                 return true;
             }
@@ -172,7 +169,6 @@ namespace AmoebaRL.Core
                         bounty.Y = pick.Y;
                         Game.DMap.AddActor(bounty);
                         Game.PlayerMass.Add(bounty);
-                        Game.DMap.UpdatePlayerFieldOfView();
                         Overfill = 0;
                     }
                 }
