@@ -80,6 +80,7 @@ namespace AmoebaRL.UI
 
         public static RLColor City = DbMetal;
         public static RLColor Militia = DbBrightWood;
+        public static RLColor RestingMilitia = DbWood;
         public static RLColor Calcium = DbWater;
         public static RLColor RestingTank = DbDeepWater;
         public static RLColor Hunter = DbSun;

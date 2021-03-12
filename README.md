@@ -32,6 +32,7 @@ Day 7 (Friday): Polish
 
 ## Post-7DRL Agenda
 
+The methods of Militia and a lot of its subclasses OnEaten() and Die() violate "don't repeat yourself
 Press "c" to make items under things blink every second and make examine mode prioritize items.
 Need to refactor the crafting system to be more standardized, less busywork.
 Why do I have to put "PossiblePaths.Clear()" at the end of every organelle's upgrade chain?

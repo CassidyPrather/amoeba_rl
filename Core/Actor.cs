@@ -91,6 +91,80 @@ namespace AmoebaRL.Core
             return seenTargets;
         }
 
+        /// <summary>
+        /// Take a single step to be as far away as possible from sources of terror.
+        /// </summary>
+        /// <param name="terrorizers">Things to be afraid of.</param>
+        /// <returns>Whether the source of terror was escaped.</returns>
+        public ICell MinimizeTerrorStep(IEnumerable<Actor> terrorizers, bool canTakeSacrifices)
+        {
+            int mySafety = 0;
+            foreach (Actor t in terrorizers)
+                mySafety += DungeonMap.TaxiDistance(t, this);
+
+
+            // Find the safest sacrifice.
+            int safestSacrificeVal = -1;
+            List<Actor> safestSacrifices = new List<Actor>();
+            List<Actor> sacrifices = null;
+            if (canTakeSacrifices)
+            {
+                sacrifices = Game.DMap.AdjacentActors(X, Y).Where(a => !terrorizers.Contains(a) && !(a is City)).ToList();
+                foreach (Actor s in sacrifices)
+                {
+                    int safety = 0;
+                    foreach (Actor t in terrorizers)
+                        safety += DungeonMap.TaxiDistance(t, s);
+                    if (safety >= safestSacrificeVal)
+                    {
+                        safestSacrificeVal = safety;
+                        safestSacrifices.Add(s);
+                    }
+                }
+            }
+
+            // Find the safest place to walk to.
+            List<ICell> freeSpaces = Game.DMap.AdjacentWalkable(X, Y);
+            List<ICell> safestFreeSpaces = new List<ICell>();
+            int safestFreeSpaceVal = 0;
+            foreach (ICell s in freeSpaces)
+            {
+                int safety = 0;
+                foreach (Actor t in terrorizers)
+                    safety += DungeonMap.TaxiDistance(Game.DMap.GetCell(t.X, t.Y), s);
+                if (safety >= safestFreeSpaceVal)
+                {
+                    safestFreeSpaceVal = safety;
+                    safestFreeSpaces.Add(s);
+                }
+            }
+
+            // TODO Make this method a part of the "Actor" class.
+
+
+            // If waiting is the safest option, return false.
+            if (mySafety >= safestSacrificeVal && mySafety >= safestFreeSpaceVal)
+                return Game.DMap.GetCell(X, Y);
+
+            // Otherwise, move to the safest spot and return true.
+            bool takeSacrifice = safestSacrificeVal > safestFreeSpaceVal;
+            if (safestFreeSpaceVal == safestSacrificeVal)
+            {
+                takeSacrifice = Game.Rand.Next(1) == 0;
+            }
+            if (takeSacrifice)
+            {
+                Actor picked = safestSacrifices[Game.Rand.Next(safestSacrifices.Count - 1)];
+                ICell targ = Game.DMap.GetCell(picked.X, picked.Y);
+                return targ; // Game.CommandSystem.AttackMoveOrganelle(this, targ.X, targ.Y);
+            }
+            else
+            {
+                ICell targ = safestFreeSpaces[Game.Rand.Next(safestFreeSpaces.Count - 1)];
+                return targ; // Game.CommandSystem.AttackMoveOrganelle(this, targ.X, targ.Y);
+            }
+        }
+
         public Path PathIgnoring(Func<Actor,bool> ignoreIf, int x, int y)
         {
             IEnumerable<Actor> ignore = Game.DMap.Actors.Where(ignoreIf);

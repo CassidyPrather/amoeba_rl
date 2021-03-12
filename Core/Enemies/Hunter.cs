@@ -10,9 +10,9 @@ using System.Threading.Tasks;
 
 namespace AmoebaRL.Core
 {
-    class Hunter : Militia
+    public class Hunter : Militia
     {
-        public int Range = 3;
+        public int Range { get; protected set; } = 64;
 
         public static readonly int _firingTime = 2;
 
@@ -36,7 +36,7 @@ namespace AmoebaRL.Core
 
         public override string GetDescription()
         {
-            string msg = $"H-69 model robotic troop with a penetrating kinetic gun. If it sees a hostile within {Range} tiles orthogonally, " +
+            string msg = $"H-69 model robotic troop with a penetrating kinetic gun. If it sees a hostile within {Awareness} tiles orthogonally, " +
                 $"it will line up a shot, which is fired after {_firingTime} turns if it isn't killed. This shot penetrates all" +
                 $"tiles until it hits a wall, killing friendlies and enemies alike. Fortunately, its high salvage value means organelles destroyed " +
                 $"by this shot will be able to be rebuilt from their remains.";
@@ -162,8 +162,10 @@ namespace AmoebaRL.Core
                         Symbol = (char)30;
                     // Calculate targets
                     Point bullet = new Point(sights.X, sights.Y);
-                    while (Game.DMap.WithinBounds(bullet.X, bullet.Y) && !Game.DMap.IsWall(bullet.X, bullet.Y))
+                    int distanceTravelled = 0;
+                    while (Game.DMap.WithinBounds(bullet.X, bullet.Y) && !Game.DMap.IsWall(bullet.X, bullet.Y) && distanceTravelled < Range)
                     {
+                        distanceTravelled ++;
                         Reticle r = new Reticle()
                         {
                             X = bullet.X,
@@ -197,7 +199,7 @@ namespace AmoebaRL.Core
             Game.DMap.AddItem(transformation);
         }
 
-        private void CleanVFX()
+        protected void CleanVFX()
         {
             if (FireGraphic != null)
                 Game.DMap.RemoveVFX(FireGraphic);
@@ -289,6 +291,83 @@ namespace AmoebaRL.Core
                 else
                     Transparent = true;
             }
+        }
+    }
+
+    public class Scout : Hunter
+    {
+        public Scout()
+        {
+            Awareness = 4;
+            Color = Palette.Hunter;
+            Symbol = 's';
+            Speed = 16;
+            Name = "Scout";
+            Range = 3;
+        }
+
+        public override string GetDescription()
+        {
+            string msg = $"Forward reconassiance sent by the humans to assess a threat. It has binoculars and can see {Awareness} tiles orthogonally. " +
+                $"If it sees an enemy, it lines up a shot which is fired after {_firingTime} turns if it isn't killed. This shot penetrates all" +
+                $"tiles until it hits a wall or travels {Range} tiles, killing friendlies and enemies alike. Organelles destroyed " +
+                $"by this shot will be able to be fully rebuilt from their remains.";
+            if (Firing < _firingTime)
+                msg += $" Fires in {Firing}";
+            return msg;
+        }
+
+        public override void Die()
+        {
+            CleanVFX();
+            Game.DMap.RemoveActor(this);
+            ICell drop = Game.DMap.NearestLootDrop(X, Y);
+            SiliconDust transformation = new SiliconDust()
+            {
+                X = drop.X,
+                Y = drop.Y
+            };
+            Game.DMap.AddItem(transformation);
+        }
+
+        public override void OnEaten()
+        {
+            CleanVFX();
+            Game.DMap.RemoveActor(this);
+            CapturedHunter transformation = new CapturedScout
+            {
+                X = X,
+                Y = Y
+            };
+            Game.DMap.AddActor(transformation);
+        }
+
+        public class CapturedScout : CapturedHunter
+        {
+            public CapturedScout()
+            {
+                Awareness = 0;
+                Slime = true;
+                Color = Palette.Hunter;
+                Name = "Dissolving Scout";
+                Symbol = 's';
+                MaxHP = 16;
+                HP = MaxHP;
+                Speed = 16;
+            }
+
+            public override string GetDescription()
+            {
+                return $"It can't do much scouting from there. Its equipment looks high-tech, though. " + DissolvingAddendum();
+            }
+
+            public override string NameOfResult { get; set; } = "electronics";
+
+            public override Actor DigestsTo() => new Electronics();
+
+            public override void OnUnslime() => BecomeActor(new Scout());
+
+            public override void OnDestroy() => BecomeActor(new Scout());
         }
     }
 }

@@ -17,31 +17,21 @@ namespace AmoebaRL.Core
     /// </summary>
     public class City : Actor, IProactive, IDescribable
     {
-        public int SpawnRate { get; set; } = Game.DefaultSpawnRate;
+        public int WaveRate { get; set; } = Game.DefaultSpawnRate;
 
-        public int TurnsToSpawn { get; set; } = Game.DefaultSpawnRate;
+        public int TurnsToNextWave { get; set; } = Game.DefaultSpawnRate;
 
+        public int ScoutCost { get; set; } = 2;
+        
         public int HunterCost { get; set; } = 3;
 
-        public int TankCost { get; set; } = 3;
+        public int TankCost { get; set; } = 2;
 
-        public int NotOODWeight = 12;
-
-
-        protected int Phase { get
-            {
-                if (WaveNumber >= Phase2Begin)
-                    return 1;
-                else
-                    return 0;
-            }
-        }
-
-        public int Phase2Begin { get; set; } = 5;
+        public int MechCost { get; set; } = 3;
 
         public int WaveNumber { get; set; } = 0;
 
-        public int WaveIntensity { get; set; } = 1;
+        public int CityLevel { get; set; } = 1;
 
         Queue<Actor> SpawnQueue { get; set; } = new Queue<Actor>();
 
@@ -51,7 +41,7 @@ namespace AmoebaRL.Core
         {
             Awareness = 0;
             Symbol = 'C';
-            Name = "City";
+            Name = "City Gate";
             Color = Palette.City;
             Speed = 16;
             Unforgettable = true;
@@ -59,21 +49,16 @@ namespace AmoebaRL.Core
 
         public bool Act()
         {
-            TurnsToSpawn--;
+            TurnsToNextWave--;
             ConfigureTimer();
-            if (TurnsToSpawn <= 0)
+            if (TurnsToNextWave <= 0)
             {
-                int currentWaveStock = WaveIntensity;
-                while(currentWaveStock > 0)
-                    currentWaveStock = AddNewMilitia(currentWaveStock);
-                WaveNumber++;
-                if (WaveNumber <= 2)
-                    WaveIntensity = 2;
-                else
-                    WaveIntensity = 2 + (WaveNumber)/3;
-                TurnsToSpawn += SpawnRate;
+                // Dispatch wave wave #
+                SpawnNextWave(CityLevel);
+                // Set the city level based on the wave number
+                CityLevel = (WaveNumber / 4) + 2;
             }
-            if(SpawnQueue.Count > 0)
+            if (SpawnQueue.Count > 0)
             {
                 List<ICell> spawnAreas = Game.DMap.AdjacentWalkable(X, Y);
                 if (spawnAreas.Count > 0)
@@ -92,53 +77,74 @@ namespace AmoebaRL.Core
             return true;
         }
 
+        public void SpawnNextWave(int budget)
+        {
+            int currentWaveStock = budget;
+            while (currentWaveStock > 0)
+                currentWaveStock = AddNewMilitia(currentWaveStock);
+            // Roll for caravan
+            bool waveHasCaravan;
+            if (WaveNumber == 0)
+                waveHasCaravan = Game.Rand.Next(3) == 0;
+            else if(WaveNumber < 4)
+                waveHasCaravan = Game.Rand.Next(19) <= 2;
+            else
+                waveHasCaravan = Game.Rand.Next(19) == 0;
+            if (waveHasCaravan)
+                SpawnQueue.Enqueue(new Caravan());
+            WaveNumber++;
+            TurnsToNextWave += WaveRate;
+
+        }
+
+
         protected virtual int AddNewMilitia(int budget)
         {
-            if (WaveNumber < 3)
+            List<int> allowedSpawnTypes = new List<int>() { 0 };
+            if (budget >= MechCost)
+                allowedSpawnTypes.Add(1);
+            else if (budget >= TankCost)
+                allowedSpawnTypes.Add(2);
+            if (budget >= HunterCost)
+                allowedSpawnTypes.Add(3);
+            else if (budget >= ScoutCost)
+                allowedSpawnTypes.Add(4);
+            int spawnType = allowedSpawnTypes[Game.Rand.Next(allowedSpawnTypes.Count - 1)];
+            if(spawnType == 0)
             {
-                // In the early waves, may go over-budget to spawn OOD.
-                int gamble = Game.Rand.Next(NotOODWeight + WaveNumber + 1);
-                if(gamble > NotOODWeight)
-                {
-                    int pick = Game.Rand.Next(1);
-                    if (pick == 0)
-                        SpawnQueue.Enqueue(new Tank());
-                    else
-                        SpawnQueue.Enqueue(new Hunter());
-                    return 0; // Use up all of the budget if this is done.
-                }
-                else
-                {
+                for (int i = 0; i < Math.Min(budget, MechCost); i++)
                     SpawnQueue.Enqueue(new Militia());
-                    return budget - 1;
-                }
-            }
-
-            int mostExpensive = Math.Max(TankCost, HunterCost);
-            int spawnType = Game.Rand.Next(2);
-            if(spawnType == 0 || budget < mostExpensive)
-            {
-                for(int i = 0; i < Math.Min(budget, mostExpensive); i++)
-                    SpawnQueue.Enqueue(new Militia());
-                return Math.Max(budget - mostExpensive, 0);
+                return budget - Math.Min(budget, MechCost);
             }
             else if(spawnType == 1)
+            {
+                SpawnQueue.Enqueue(new Mech());
+                return budget - MechCost;
+            }
+            else if (spawnType == 2)
             {
                 SpawnQueue.Enqueue(new Tank());
                 return budget - TankCost;
             }
-            else if(spawnType == 2)
+            else if (spawnType == 3)
             {
                 SpawnQueue.Enqueue(new Hunter());
                 return budget - HunterCost;
             }
+            else if (spawnType == 4)
+            {
+                SpawnQueue.Enqueue(new Scout());
+                return budget - ScoutCost;
+            }
+
+
 
             return 0; // Nothing spawned???
         }
 
         private void ConfigureTimer()
         {
-            if (TurnsToSpawn < 10 || SpawnQueue.Count > 0)
+            if (TurnsToNextWave < 10 || SpawnQueue.Count > 0)
             {
                 if (Timer == null)
                 {
@@ -152,7 +158,7 @@ namespace AmoebaRL.Core
                 if (!(SpawnQueue.Count > 0))
                 {
                     Timer.HasQueue = false;
-                    Timer.T = TurnsToSpawn;
+                    Timer.T = TurnsToNextWave;
                 }
                 else
                 {
@@ -162,15 +168,11 @@ namespace AmoebaRL.Core
             }
         }
 
-        protected void Evolve()
-        {
-            WaveNumber++;
-        }
 
         public string GetDescription()
         {
             StringBuilder desc = new StringBuilder();
-            desc.Append("One of the last bastions of humanity. It is protected by advanced technology and can never be destroyed. ");
+            desc.Append("A doorway to one of the last bastions of humanity. It is protected by advanced technology and can never be destroyed. ");
             if (SpawnQueue.Count > 0)
             {
                 if (SpawnQueue.Count == 1)
@@ -178,24 +180,19 @@ namespace AmoebaRL.Core
                 else
                     desc.Append($"{SpawnQueue.Count} humans are in line to emerge onto ajacent tiles as soon as one becomes available. ");
 
-                if (WaveIntensity == 1)
-                    desc.Append($"A human will join the queue in {TurnsToSpawn}. ");
-                else if (WaveIntensity < Math.Max(HunterCost, TankCost))
-                    desc.Append($"In {TurnsToSpawn} more turns, up to {WaveIntensity} humans will join the queue.");
+                if (CityLevel == 1)
+                    desc.Append($"A human will join the queue in {TurnsToNextWave}. ");
                 else
-                    desc.Append($"In {TurnsToSpawn} more turns, Between {WaveIntensity / Math.Max(HunterCost, TankCost)} and {WaveIntensity} humans will join the queue. ");
+                    desc.Append($"In {TurnsToNextWave} more turns, up to {CityLevel} humans will join the queue.");
             }
             else
             {
-                if (WaveIntensity == 1)
-                    desc.Append($"A human will try to emerge in {TurnsToSpawn} turns. ");
-                else if (WaveIntensity < Math.Max(HunterCost, TankCost))
-                    desc.Append($"Up to {WaveIntensity} humans will begin to emerge in {TurnsToSpawn} turns. ");
+                if (CityLevel == 1)
+                    desc.Append($"A human will try to emerge in {TurnsToNextWave} turns. ");
                 else
-                    desc.Append($"Between {WaveIntensity / Math.Max(HunterCost, TankCost)} and {WaveIntensity} humans will begin to emerge in {TurnsToSpawn} turns. ");
-
+                    desc.Append($"Up to {CityLevel} humans will begin to emerge in {TurnsToNextWave} turns. ");
             }
-            desc.Append("As time goes on, the humans will grow more frequent and deadly...");
+            desc.Append("As time goes on, the humans will become more frequent and deadly...");
             return desc.ToString();
         }
 
