@@ -232,6 +232,7 @@ namespace AmoebaRL.Core
                 MaxHP = 16;
                 HP = MaxHP;
                 Speed = 16;
+                // Game.DMap.UpdatePlayerFieldOfView();
                 // Already called by parent?
                 // Game.PlayerMass.Add(this);
             }
@@ -356,6 +357,7 @@ namespace AmoebaRL.Core
                 MaxHP = 16;
                 HP = MaxHP;
                 Speed = 16;
+                // Game.DMap.UpdatePlayerFieldOfView();
             }
 
             public override string GetDescription()
