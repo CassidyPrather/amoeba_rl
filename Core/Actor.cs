@@ -22,7 +22,7 @@ namespace AmoebaRL.Core
             set; } 
             = 1;
 
-        public bool Slime { get; set; }
+        public int Slime { get; set; }
 
         public bool Unforgettable { get; set; } = false;
 
@@ -46,8 +46,11 @@ namespace AmoebaRL.Core
             // Only draw the actor with the color and symbol when they are in field-of-view
             if (map.IsInFov(X, Y) || Unforgettable)
             {
-                if(Slime)
-                    console.Set(X, Y, Color, Palette.Slime, Symbol);
+                // TODO invert these slime colors???
+                if(Slime == 1)
+                    console.Set(X, Y, Color, Palette.BodySlime, Symbol);
+                else if(Slime == 2)
+                    console.Set(X, Y, Color, Palette.PathSlime, Symbol);
                 else
                     console.Set(X, Y, Color, Palette.FloorBackgroundFov, Symbol);
             }

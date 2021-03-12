@@ -75,8 +75,18 @@ namespace AmoebaRL.UI
 
         public static RLColor Player = DbLight;
         public static RLColor PlayerInactive = DbDark;
+
         public static RLColor Slime = DbGrass;
         public static RLColor DarkSlime = DbVegetation;
+
+        // Main playermass slime
+        // public static RLColor DbGrass = new RLColor(109, 170, 44);
+        // public static RLColor DbVegetation = new RLColor(52, 101, 36);
+
+        // Slime on the path
+        public static RLColor PathSlime = new RLColor(132, 190, 56);
+        public static RLColor BodySlime = new RLColor(PathSlime.r * 0.75f, PathSlime.g * 0.75f, PathSlime.b * 0.75f);
+
 
         public static RLColor City = DbMetal;
         public static RLColor Militia = DbBrightWood;

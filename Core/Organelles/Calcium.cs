@@ -17,7 +17,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Calcium";
             Color = Palette.Calcium;
             Symbol = '$';
-            Slime = true;
+            Slime = 1;
             Speed = 1;
         }
 

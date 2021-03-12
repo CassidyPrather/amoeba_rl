@@ -10,7 +10,7 @@ namespace AmoebaRL.Interfaces
     {
         int Awareness { get; set; }
 
-        bool Slime { get; set; }
+        int Slime { get; set; }
 
         int Speed { get; set; }
     }

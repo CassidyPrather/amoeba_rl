@@ -194,7 +194,7 @@ namespace AmoebaRL.Core
             a.Y = b.Y;
             b.X = buffer.X;
             b.Y = buffer.Y;
-            if ((a.Slime == true && a.Awareness != 0) || (b.Slime == true && b.Awareness != 0))
+            if ((a.Slime > 0 && a.Awareness != 0) || (b.Slime > 0 && b.Awareness != 0))
                 UpdatePlayerFieldOfView();
         }
 

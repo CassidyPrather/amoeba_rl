@@ -89,7 +89,7 @@ namespace AmoebaRL.Core
             public CapturedTank()
             {
                 Awareness = 0;
-                Slime = true;
+                Slime = 1;
                 Color = Palette.Calcium;
                 Name = "Dissolving Tank";
                 Symbol = 't';
@@ -162,7 +162,7 @@ namespace AmoebaRL.Core
             public CapturedMech()
             {
                 Awareness = 0;
-                Slime = true;
+                Slime = 1;
                 Color = Palette.Calcium;
                 Name = "Dissolving Mech";
                 Symbol = 'M';
@@ -267,7 +267,7 @@ namespace AmoebaRL.Core
             public CapturedCaravan()
             {
                 Awareness = 0;
-                Slime = true;
+                Slime = 1;
                 Color = Palette.Militia;
                 Name = "Dissolving Caravan";
                 Symbol = 'v';

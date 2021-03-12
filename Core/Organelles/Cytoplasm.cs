@@ -15,7 +15,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Cytoplasm";
             Color = Palette.Slime;
             Symbol = ' ';
-            Slime = true;
+            Slime = 1;
             Speed = 10000; // aaa
         }
 

@@ -16,7 +16,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.RootOrganelle;
             Symbol = 'B';
             Name = "Membrane";
-            Slime = true;
+            Slime = 1;
             Awareness = 0;
             PossiblePaths = new List<UpgradePath>()
             {
@@ -40,7 +40,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.Calcium;
             Symbol = 'B';
             Name = "Tough Membrane";
-            Slime = true;
+            Slime = 1;
             Awareness = 0;
             PossiblePaths = new List<UpgradePath>()
             {
@@ -67,9 +67,9 @@ namespace AmoebaRL.Core.Organelles
         public Maw()
         {
             Color = Palette.Hunter;
-            Symbol = 'M';
+            Symbol = 'W';
             Name = "Maw";
-            Slime = true;
+            Slime = 1;
             Awareness = 1;
             Speed = 16;
             PossiblePaths = new List<UpgradePath>()
@@ -124,7 +124,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.Calcium;
             Symbol = 'F';
             Name = "Force Field";
-            Slime = true;
+            Slime = 1;
             Awareness = 0;
             PossiblePaths.Clear();
         }
@@ -150,7 +150,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.Calcium;
             Symbol = 'P';
             Name = "Phase Membrane";
-            Slime = true;
+            Slime = 1;
             Awareness = 0;
             PossiblePaths.Clear();
         }
@@ -175,9 +175,9 @@ namespace AmoebaRL.Core.Organelles
         public ReinforcedMaw()
         {
             Color = Palette.Calcium;
-            Symbol = 'M';
+            Symbol = 'W';
             Name = "Reinforced Maw";
-            Slime = true;
+            Slime = 1;
             Awareness = 1;
             Speed = 16;
             PossiblePaths.Clear();
@@ -213,7 +213,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.Hunter;
             Symbol = 'T';
             Name = "Tentacle";
-            Slime = true;
+            Slime = 1;
             Awareness = 3;
             Speed = 4;
             PossiblePaths.Clear();

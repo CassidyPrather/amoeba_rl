@@ -127,7 +127,7 @@ namespace AmoebaRL.Systems
                     }
                     else
                     {
-                        Game.MessageLog.Add($"The {monster.Name} shrugs off the {victim.Name} protiens");
+                        Game.MessageLog.Add($"The {monster.Name} shrugs off the {victim.Name}'s protiens");
                         m.Destroy();
                     }
                 }
@@ -290,7 +290,7 @@ namespace AmoebaRL.Systems
             Actor targetActor = Game.DMap.GetActorAt(x, y);
             if (targetActor != null)
             {
-                if (targetActor.Slime == true)
+                if (targetActor.Slime > 0)
                 { // Swap
                     Game.DMap.Swap(player, targetActor);
                     if (player is QuantumCore q)
@@ -391,7 +391,7 @@ namespace AmoebaRL.Systems
                 List<SlimePathfind> frontier = new List<SlimePathfind>();
                 foreach (SlimePathfind l in last)
                 {
-                    List<Actor> pullIn = Game.DMap.Actors.Where(a => a.Slime == true
+                    List<Actor> pullIn = Game.DMap.Actors.Where(a => a.Slime > 0
                                                                 && (!(a is Organelle o) || !o.Anchor)
                                                                 && a.AdjacentTo(l.current.X, l.current.Y)
                                                                 && !accountedFor.Where(t => t.current == a).Any()).ToList();
@@ -415,7 +415,7 @@ namespace AmoebaRL.Systems
             int randSelect = Game.Rand.Next(0, best.Count - 1);
             SlimePathfind selected = best[randSelect];
             List<Actor> path = new List<Actor>();
-            bool looping = true; // why can't you come up with better namescl
+            bool looping = true; // why can't you come up with better name
             while (looping)
             {
                 path.Add(selected.current);

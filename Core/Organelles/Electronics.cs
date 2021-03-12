@@ -16,7 +16,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Electronics";
             Color = Palette.Hunter;
             Symbol = '$';
-            Slime = true;
+            Slime = 1;
             Speed = 1;
         }
 

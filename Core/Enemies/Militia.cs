@@ -122,7 +122,7 @@ namespace AmoebaRL.Core
             public CapturedMilitia()
             {
                 Awareness = 1;
-                Slime = true;
+                Slime = 1;
                 Color = Palette.Militia;
                 Name = "Dissolving Militia";
                 Symbol = 'm';

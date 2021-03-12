@@ -8,6 +8,7 @@ using AmoebaRL.Interfaces;
 using AmoebaRL.UI;
 using RLNET;
 using RogueSharp;
+using static AmoebaRL.Systems.CommandSystem;
 
 namespace AmoebaRL.Core.Organelles
 {
@@ -24,7 +25,7 @@ namespace AmoebaRL.Core.Organelles
             Symbol = '@';
             X = 10;
             Y = 10;
-            Slime = true;
+            Slime = 1;
             Speed = 16;
             PossiblePaths = new List<UpgradePath>()
             {
@@ -53,6 +54,60 @@ namespace AmoebaRL.Core.Organelles
                 Game.SchedulingSystem.Add(n);
                 n.Speed = buffer;
             }
+
+            ColorMovingSlime();
+        }
+
+        public void ColorMovingSlime()
+        {
+            if (Game.DMap == null)
+                return; // this check shouldn't be necessary
+            foreach (Actor already in Game.PlayerMass)
+                already.Slime = 1;
+            int counter = 1;
+            int max = 0;
+            bool done = false;
+            SlimePathfind root = new SlimePathfind(this, null, 0);
+            List<SlimePathfind> last = new List<SlimePathfind>() { root };
+            List<SlimePathfind> accountedFor = new List<SlimePathfind>() { root };
+            while (!done)
+            {
+                List<SlimePathfind> frontier = new List<SlimePathfind>();
+                foreach (SlimePathfind l in last)
+                {
+                    List<Actor> pullIn = Game.DMap.Actors.Where(a => a.Slime > 0
+                                                                && (!(a is Organelle o) || !o.Anchor)
+                                                                && a.AdjacentTo(l.current.X, l.current.Y)
+                                                                && !accountedFor.Where(t => t.current == a).Any()).ToList();
+                    for (int i = 0; i < pullIn.Count; i++)
+                    {
+                        max = counter;
+                        SlimePathfind node = new SlimePathfind(pullIn[i], l, counter);
+                        accountedFor.Add(node);
+                        frontier.Add(node);
+                    }
+                }
+
+                counter++;
+                last = frontier;
+                if (frontier.Count == 0)
+                    done = true;
+            }
+
+            IEnumerable<SlimePathfind> best = accountedFor.Where(p => p.dist == max);
+
+            foreach(SlimePathfind tails in best)
+            {
+                SlimePathfind current = tails;
+                bool looping = true; // why can't you come up with better name
+                while (looping)
+                {
+                    current.current.Slime = 2;
+                    current = current.dest;
+                    if (current == null)
+                        looping = false;
+                }
+            }    
         }
 
         public override void OnUnslime()
@@ -142,7 +197,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Eye Core";
             Color = InactiveColor;
             Symbol = '@';
-            Slime = true;
+            Slime = 1;
             Speed = 16;
             PossiblePaths = new List<UpgradePath>()
             {
@@ -175,7 +230,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Smart Core";
             Color = InactiveColor;
             Symbol = '@';
-            Slime = true;
+            Slime = 1;
             Speed = 8;
             PossiblePaths = new List<UpgradePath>()
             {
@@ -208,7 +263,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Laser Core";
             Color = Palette.PlayerInactive;
             Symbol = '@';
-            Slime = true;
+            Slime = 1;
             Speed = 16;
             PossiblePaths.Clear();
         }
@@ -241,7 +296,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Terror Core";
             Color = Palette.PlayerInactive;
             Symbol = '@';
-            Slime = true;
+            Slime = 1;
             Speed = 16;
             PossiblePaths.Clear();
         }
@@ -297,7 +352,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Gravity Core";
             Color = Palette.InactiveGravityCore;
             Symbol = '@';
-            Slime = true;
+            Slime = 1;
             Speed = 8;
             PossiblePaths.Clear();
         }
@@ -374,7 +429,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Quantum Core";
             Color = Palette.InactiveQuantumCore;
             Symbol = '@';
-            Slime = true;
+            Slime = 1;
             Speed = 8;
             PossiblePaths.Clear();
         }

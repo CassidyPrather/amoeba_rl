@@ -225,7 +225,7 @@ namespace AmoebaRL.Core
             public CapturedHunter()
             {
                 Awareness = 0;
-                Slime = true;
+                Slime = 1;
                 Color = Palette.Hunter;
                 Name = "Dissolving Hunter";
                 Symbol = 'h';
@@ -349,7 +349,7 @@ namespace AmoebaRL.Core
             public CapturedScout()
             {
                 Awareness = 0;
-                Slime = true;
+                Slime = 1;
                 Color = Palette.Hunter;
                 Name = "Dissolving Scout";
                 Symbol = 's';

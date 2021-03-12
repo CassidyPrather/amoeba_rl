@@ -28,7 +28,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.RootOrganelle;
             Symbol = 'H';
             Name = "Chloroplast";
-            Slime = true;
+            Slime = 1;
             Awareness = 0;
             Speed = 16;
             PossiblePaths = new List<UpgradePath>()
@@ -102,7 +102,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.Calcium;
             Symbol = 'R';
             Name = "Bioreactor";
-            Slime = true;
+            Slime = 1;
             Awareness = 0;
             Delay = 10;
             Speed = 16;
@@ -137,7 +137,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.Hunter;
             Symbol = 'U';
             Name = "Cultivator";
-            Slime = true;
+            Slime = 1;
             Awareness = 0;
             Speed = 16;
             PossiblePaths = new List<UpgradePath>()
@@ -189,7 +189,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.Calcium;
             Symbol = 'F';
             Name = "Biometal Forge";
-            Slime = true;
+            Slime = 1;
             Awareness = 0;
             Delay = 60;
             Speed = 16;
@@ -237,7 +237,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.Hunter;
             Symbol = 'P';
             Name = "Primordial Soup";
-            Slime = true;
+            Slime = 1;
             Awareness = 0;
             Delay = 60;
             Speed = 16;
@@ -290,7 +290,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.Calcium;
             Symbol = 'U';
             Name = "Extractor";
-            Slime = true;
+            Slime = 1;
             Awareness = 0;
             Speed = 16;
             PossiblePaths.Clear();
@@ -390,7 +390,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.Hunter;
             Symbol = 'K';
             Name = "Butcher";
-            Slime = true;
+            Slime = 1;
             Awareness = 0;
             Speed = 16;
         }
