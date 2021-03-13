@@ -323,7 +323,7 @@ namespace AmoebaRL.Systems
                     }
                     else if(player is LaserCore)
                     {
-                        Game.MessageLog.Add($"The {targetActor.Name} is melted by the {player.Name}'s laser beam!");
+                        Game.MessageLog.Add($"The {targetActor.Name} is obliterated by the {player.Name}'s laser beam!");
                         EatActor(player, targetActor);
                         success = true;
                     }

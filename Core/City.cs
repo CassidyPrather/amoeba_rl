@@ -53,7 +53,7 @@ namespace AmoebaRL.Core
             if (TurnsToNextWave <= 0)
             {
                 // Dispatch wave wave #
-                SpawnNextWave(CityLevel);
+                SpawnNextWave(Math.Min(Game.MaxBudget, CityLevel));
                 // Set the city level based on the wave number
                 CityLevel = (WaveNumber / Game.EvolutionRate) + 2;
             }

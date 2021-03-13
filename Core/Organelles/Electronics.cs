@@ -46,7 +46,7 @@ namespace AmoebaRL.Core.Organelles
 
         public override Actor NewOrganelle()
         {
-            return new Calcium();
+            return new Electronics();
         }
     }
 }

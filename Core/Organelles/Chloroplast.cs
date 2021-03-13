@@ -143,7 +143,7 @@ namespace AmoebaRL.Core.Organelles
             PossiblePaths = new List<UpgradePath>()
             {
                 new UpgradePath(2, CraftingMaterial.Resource.CALCIUM, () => new Extractor()),
-                new UpgradePath(1, CraftingMaterial.Resource.ELECTRONICS, () => new Butcher())
+                new UpgradePath(2, CraftingMaterial.Resource.ELECTRONICS, () => new Butcher())
             };
         }
 

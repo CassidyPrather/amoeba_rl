@@ -273,8 +273,8 @@ namespace AmoebaRL.Core.Organelles
 
         public override string GetDescription()
         {
-            return "It built strong bones, and the bones were eyeballs capable of shooting tank-melting lasers. Unlike a regular nucleus, " +
-                "this one can attack tanks directly. It also retains its predecessor's visual range. " + NucleusAddendum();
+            return "It built strong bones, and the bones were eyeballs capable of shooting armor-melting lasers. Unlike a regular nucleus, " +
+                "this one can attack caravans, tanks, and mechs directly. It also retains its predecessor's visual range. " + NucleusAddendum();
         }
 
         public override List<Item> OrganelleComponents()

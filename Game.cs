@@ -40,7 +40,9 @@ namespace AmoebaRL
         #region Settings
         public static int DefaultSpawnRate = 50;
 
-        public static int EvolutionRate = 5;
+        public static int EvolutionRate = 6;
+
+        public static int MaxBudget = 5;
 
         public static int CityArmor = 100;
         #endregion

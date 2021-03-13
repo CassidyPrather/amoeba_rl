@@ -229,7 +229,7 @@ namespace AmoebaRL.Core
             return results;
         }
 
-        protected static bool IgnoreNone(Actor a) => true;
+        protected static bool IgnoreNone(Actor a) => false;
 
         public List<Path> PathsToNearest(List<Actor> potentialTargets) => PathsToNearest(potentialTargets, IgnoreNone);
 
