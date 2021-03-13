@@ -15,8 +15,11 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="terminal8x8.png">
+    <None Update="terminal12x12_gs_ro.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="terminal8x8.png">
+      <CopyToOutputDirectory>Never</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 

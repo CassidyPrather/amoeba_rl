@@ -27,7 +27,8 @@ namespace AmoebaRL.Core.Organelles
 
         public override string GetDescription()
         {
-            return "Barbed wire integrated into the cytoplasm membrane is quite frightful for anybody who tries to directly attack it. Unless they were a literal tank, of course.";
+            return "Barbed wire integrated into the cytoplasm membrane is quite frightful for anybody who tries to directly attack it. " +
+                "Unless they were a literal tank, of course. Goodness forbid a tank with legs.";
         }
 
         public override List<Item> OrganelleComponents() => new List<Item>() { new BarbedWire(), new Nutrient() };
@@ -51,7 +52,7 @@ namespace AmoebaRL.Core.Organelles
 
         public override string GetDescription()
         {
-            return "It menaces with spikes of calcium, and will kill even the mightiest of tanks who try to attack it.";
+            return "It menaces with spikes of calcium, and will kill even the mightiest of tanks or mechs who try to attack it.";
         }
 
         public override List<Item> OrganelleComponents()
@@ -81,8 +82,8 @@ namespace AmoebaRL.Core.Organelles
 
         public override string GetDescription()
         {
-            return "A mouth in the side of the ooze welcomes in any delicious meal which gets too close to it. Immune to melee attacks, other than those from tanks." +
-                " Automatically attacks adjacent enemies, except for tanks.";
+            return "A mouth in the side of the ooze welcomes in any delicious meal which gets too close to it. Immune to melee attacks, other than those from tanks and mechs." +
+                " Automatically attacks adjacent enemies, except for caravans, tanks, and mechs.";
         }
 
         public virtual bool Act()
@@ -95,9 +96,11 @@ namespace AmoebaRL.Core.Organelles
             return true;
         }
 
-        public virtual void ActToTargets(List<Actor> seenTargets)
+        public virtual void ActToTargets(List<Actor> seenTargets) => ActToTargets(seenTargets, IgnoreNone);
+
+        public virtual void ActToTargets(List<Actor> seenTargets, Func<Actor,bool> ignoring)
         {
-            List<Path> actionPaths = PathsToNearest(seenTargets);
+            List<Path> actionPaths = PathsToNearest(seenTargets, ignoring);
             if (actionPaths.Count > 0)
             {
                 int pick = Game.Rand.Next(0, actionPaths.Count - 1);
@@ -131,8 +134,8 @@ namespace AmoebaRL.Core.Organelles
 
         public override string GetDescription()
         {
-            return "The high concentration of calcium has resulted in a localized gravity distortion which prevents all adjacent allies other than tanks from attacks."
-                + " It is immune even to tanks itself, killing those who engage with it in melee, but vulnerable to ranged attacks.";
+            return "The high concentration of calcium has resulted in a localized gravity distortion which protects all adjacent allies from melee attacks, except those made by tanks and mechs."
+                + " It is immune tanks and mechs itself, killing those who engage with it in melee, but it is vulnerable to ranged attacks.";
         }
 
         public override List<Item> OrganelleComponents()
@@ -185,7 +188,7 @@ namespace AmoebaRL.Core.Organelles
 
         public override string GetDescription()
         {
-            return "Built strong bones, and the bones were teeth. Automatically attacks adjacent enemies, including tanks. Immune to melee.";
+            return "Built strong bones, and the bones were teeth. Automatically attacks adjacent enemies, including caravans, tanks, and mechs. Immune to melee.";
         }
 
         public override bool Act()
@@ -222,17 +225,18 @@ namespace AmoebaRL.Core.Organelles
         public override string GetDescription()
         {
             return "This reckless pseudopod thrashes about in hunger. It is very fast and can see very far, and will approach and attack any enemies it sees for free four times per turn." +
-                "However, it will try to avoid placing itself adjacent to tanks, which it cannot defeat. It is immune to other melee attacks, though.";
+                "However, it will try to avoid placing itself adjacent to tanks and mechs, which it cannot defeat. It is immune to other melee attacks, though.";
         }
 
         // Eat everything you see that you can. Retreat from tanks. Don't commit suicide.
         public override bool Act()
         {
-            List<Actor> seenTargets = Seen(Game.DMap.Actors).Where(s => s is Militia).ToList();
+            List<Actor> seenTargets = Seen(Game.DMap.Actors).Where(s => s is Militia && !(s is Caravan)).ToList();
             bool brave = true;
-            if (!seenTargets.All(t => !(t is Tank)))
+            // Future checks to see if t is caravan occur in this function, but I don't think they're needed.
+            if (!seenTargets.All(t => !(!(t is Caravan) && t is Tank)))
             {
-                List<Tank> tanks = seenTargets.Where(t => t is Tank).Cast<Tank>().ToList();
+                List<Tank> tanks = seenTargets.Where(t => !(t is Caravan) && t is Tank).Cast<Tank>().ToList();
                 if(tanks.Count > 0) // might be an unecessary condition
                 { 
                     int nearestTankDistance = tanks.Min(t => DungeonMap.TaxiDistance(t, this));
@@ -247,7 +251,7 @@ namespace AmoebaRL.Core.Organelles
                     seenTargets = seenTargets.Where(t => !(t is Tank)).ToList();
             }
             if (seenTargets.Count > 0 && brave)
-                ActToTargets(seenTargets);
+                ActToTargets(seenTargets, x => x.Slime > 0);
             return true;
         }
 

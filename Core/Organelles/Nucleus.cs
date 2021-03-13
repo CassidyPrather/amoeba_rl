@@ -127,7 +127,9 @@ namespace AmoebaRL.Core.Organelles
             if (Game.DMap.Actors.Where(a => a is Nucleus).Count() == 0)
             {
                 Game.MessageLog.Add($"You lose. Final Score: {Game.PlayerMass.Count}.");
+                Game.SchedulingSystem.Clear();
                 Game.DMap.AddActor(new PostMortem());
+                Game.DMap.UpdatePlayerFieldOfView();
             }
         }
 
@@ -423,7 +425,7 @@ namespace AmoebaRL.Core.Organelles
         }
     }
 
-    public class QuantumCore : SmartCore, IPreMove, IPostSchedule
+    public class QuantumCore : SmartCore, IPreMove, IPostAttackMove
     {
         public int BaseSpeed { get; protected set; } = 8;
 
@@ -459,7 +461,7 @@ namespace AmoebaRL.Core.Organelles
             Speed = BaseSpeed;
         }
 
-        public void DoPostSchedule()
+        public void DoPostAttackMove()
         {
             Speed = BaseSpeed;
         }

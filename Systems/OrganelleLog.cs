@@ -16,6 +16,8 @@ namespace AmoebaRL.Systems
         private static readonly int _maxLines = PlayerConsole.PLAYER_HEIGHT - 4;
         private static readonly int _nameWidth = PlayerConsole.PLAYER_WIDTH - 4;
 
+        public float NiceTurnBuffer { get; protected set; } = 0;
+
         public int idx = 0; // Select an organelle
         public int page = 0; // Scroll through huge organelle lists
 
@@ -56,6 +58,8 @@ namespace AmoebaRL.Systems
             console.Print(1, 1, "Organelles", Palette.TextHeading);
             console.Print(1, 2, $"Mass: {Game.PlayerMass.Count}", Palette.TextBody);
             float niceturn = ((float)Game.SchedulingSystem.GetTime()) / (16f);
+            niceturn = Math.Max(niceturn, NiceTurnBuffer);
+            NiceTurnBuffer = niceturn;
             console.Print(1, 3, $"Turn: {niceturn}", Palette.TextBody);
             for (int i = page * _maxLines; i < loggable.Count(); i++)
             {
@@ -108,7 +112,7 @@ namespace AmoebaRL.Systems
                 }
                 else if(target is Upgradable up && up.CurrentPath != null)
                 {
-                    int upgradeCutoff = (int)Math.Floor(_nameWidth * (1 - ((float)up.Progress / (float)up.CurrentPath.AmountRequired)));
+                    int upgradeCutoff = (int)Math.Floor(_nameWidth * ((float)up.Progress / (float)up.CurrentPath.AmountRequired));
                     RLColor barBG = Palette.RootOrganelle;
                     RLColor bar = Palette.Slime;
                     RLColor text = Palette.Militia;

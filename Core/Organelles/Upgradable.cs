@@ -75,13 +75,18 @@ namespace AmoebaRL.Core.Organelles
                 if(CurrentPath.TypeRequired == material)
                 {
                     Progress++;
-                    if(Progress >= CurrentPath.AmountRequired)
+                    if (Progress >= CurrentPath.AmountRequired)
                     {
+                        string tmp = Name;
+                        
                         Game.DMap.RemoveActor(this);
                         Actor result = BecomeActor(CurrentPath.Result());
                         Game.PlayerMass.Add(result);
                         Game.DMap.UpdatePlayerFieldOfView(); // Otherwise crafted material might not be shown.
+                        Game.MessageLog.Add($"The {tmp} absorbs the {CraftingMaterial.ResourceName(material)} and transforms into a {result.Name}!");
                     }
+                    else
+                        Game.MessageLog.Add($"The {Name} absorbs the {CraftingMaterial.ResourceName(material)}");
                     return true;
                 }
                 // Wrong material.

@@ -18,11 +18,11 @@ namespace AmoebaRL
         // Constants may need to be fiddled with, should be automated where possible.
         #region Constants
         #region Sizes
-        private static readonly int _fontWidth = 8;
-        private static readonly int _fontHeight = 8;
+        private static readonly int _fontWidth = 12;
+        private static readonly int _fontHeight = 12;
         #endregion
 
-        private static readonly string _fontFileName = "terminal8x8.png";
+        private static readonly string _fontFileName = "terminal12x12_gs_ro.png";
 
         private static readonly string _winTitle = "Amoeba RL";
         #endregion
@@ -42,7 +42,7 @@ namespace AmoebaRL
 
         public static int EvolutionRate = 5;
 
-        public static int CityArmor = 128;
+        public static int CityArmor = 100;
         #endregion
 
         #region Static Handles

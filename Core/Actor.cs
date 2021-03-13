@@ -229,7 +229,11 @@ namespace AmoebaRL.Core
             return results;
         }
 
-        public List<Path> PathsToNearest(List<Actor> potentialTargets)
+        protected static bool IgnoreNone(Actor a) => true;
+
+        public List<Path> PathsToNearest(List<Actor> potentialTargets) => PathsToNearest(potentialTargets, IgnoreNone);
+
+        public List<Path> PathsToNearest(List<Actor> potentialTargets, Func<Actor, bool> ignoring)
         {
             List<Path> nearestPaths = new List<Path>();
             Path attempt;
@@ -239,9 +243,10 @@ namespace AmoebaRL.Core
                 attempt = null;
                 try
                 {
-                    attempt = DungeonMap.QuickShortestPath(Game.DMap,
+                    attempt = PathIgnoring(ignoring, candidate.X, candidate.Y);
+                    /*attempt = DungeonMap.QuickShortestPath(Game.DMap,
                     Game.DMap.GetCell(X, Y),
-                    Game.DMap.GetCell(candidate.X, candidate.Y));
+                    Game.DMap.GetCell(candidate.X, candidate.Y));*/
                 }
                 catch (PathNotFoundException) { }
                 if (attempt != null)
