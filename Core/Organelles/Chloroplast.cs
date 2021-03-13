@@ -191,7 +191,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Biometal Forge";
             Slime = 1;
             Awareness = 0;
-            Delay = 60;
+            Delay = 45;
             Speed = 16;
             NextFood = Delay;
             PossiblePaths.Clear();
@@ -218,7 +218,7 @@ namespace AmoebaRL.Core.Organelles
 
         public override string GetDescription()
         {
-            return $"The extremely dense shell around this bioreactor allows it to produce calcium and electronics. However, it is very slow. " +
+            return $"The extremely dense shell around this bioreactor allows it to produce calcium and electronics. However, it is somewhat slow. " +
                 $"Next product in {NextFood} turns.";
         }
 

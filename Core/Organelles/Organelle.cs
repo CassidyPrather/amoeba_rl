@@ -33,10 +33,11 @@ namespace AmoebaRL.Core.Organelles
         /// </summary>
         public virtual void OnUnslime()
         {
-            foreach(Item drop in Components())
-            {
-                BecomeItem(drop);
-            }
+            BecomeItems(Components());
+            // foreach(Item drop in Components())
+            // {
+            //    BecomeItem(drop);
+            // }
         }
 
         public void Destroy()
@@ -61,6 +62,25 @@ namespace AmoebaRL.Core.Organelles
             i.X = lands.X;
             i.Y = lands.Y;
             Game.DMap.AddItem(i);
+        }
+
+        public void BecomeItems(IEnumerable<Item> items)
+        {
+            List<ICell> buffer = new List<ICell>();
+            Queue<ICell> nextAvailable = new Queue<ICell>(); // this should be a queue
+            foreach(Item i in items)
+            {
+                if (nextAvailable.Count == 0)
+                {
+                    nextAvailable = new Queue<ICell>(Game.DMap.NearestLootDropsBuffered(buffer, X, Y));
+                    if (nextAvailable.Count == 0)
+                        return; // Remaining items crushed.
+                }
+                ICell lands = nextAvailable.Dequeue();
+                i.X = lands.X;
+                i.Y = lands.Y;
+                Game.DMap.AddItem(i);
+            }
         }
 
         public virtual Actor BecomeActor(Actor a)

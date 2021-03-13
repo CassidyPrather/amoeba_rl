@@ -314,6 +314,39 @@ namespace AmoebaRL.Core
             return found;
         }
 
+        /// <summary>
+        /// Emergency fix for 7drl, should work on this later
+        /// </summary>
+        /// <param name="x"></param>
+        /// <param name="y"></param>
+        /// <param name="LegalLootDrop"></param>
+        /// <returns></returns>
+        public List<ICell> NearestLootDropsBuffered(List<ICell> ignoreWhileSearching, int x, int y)
+        {
+            Func<ICell, bool> LegalLootDrop = NotUnderPlayer;
+            List<ICell> frontier = new List<ICell>();
+            List<ICell> candidates = new List<ICell>() { GetCell(x, y) };
+            List<ICell> found = new List<ICell>();
+            while (found.Count == 0 && candidates.Count > 0)
+            {
+                foreach (ICell c in candidates)
+                {
+                    ignoreWhileSearching.Add(c);
+                    if (GetItemAt(c.X, c.Y) == null && !IsWall(c) && !Cities.Contains(GetActorAt(c.X, c.Y)) && LegalLootDrop(c))
+                        found.Add(c);
+                    else
+                    {
+                        foreach (ICell adj in Adjacent(c.X, c.Y).Where(a => !ignoreWhileSearching.Contains(a) && !IsWall(a)))
+                            frontier.Add(adj);
+                    }
+                }
+                candidates.Clear();
+                candidates.AddRange(frontier);
+                frontier.Clear();
+            }
+            return found;
+        }
+
 
         public List<Actor> NearestActors(int x, int y, Func<Actor, bool> filterBy)
         {
