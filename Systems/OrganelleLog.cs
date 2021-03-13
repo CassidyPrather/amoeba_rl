@@ -25,7 +25,7 @@ namespace AmoebaRL.Systems
 
         public Organelle Highlighted { get; private set; }
 
-        public List<Actor> GetLoggable() => Game.PlayerMass.Where(a => !(a is Cytoplasm)).ToList();
+        public List<Actor> GetLoggable() => Game.PlayerMass.Where(a => !(a is Cytoplasm) && !(a is CraftingMaterial)).ToList();
 
         // Draw each line of the MessageLog queue to the console
         public void Draw(RLConsole console)
