@@ -1,6 +1,8 @@
 # Amoeba Roguelike
 
-7DRL 2021 submission by Vectis.
+Play as a giant, constantly evolving amoeba and fight off intensifying waves of humans trying to protect their cities. Craft new organelles and cores to respond to escalating threats. Can you destroy all 16 city gates and escape to the surface?
+
+2021 7 Day Roguelike Submission
 
 # How to Play
 
@@ -13,46 +15,20 @@ X: Examine mode toggle
     Arrow keys (Examine mode): Move examine cursor
 Reach 128 mass to win.
 
-# TODO
+## Tips
 
-Spawn loot at random, increase rarities.
-Organelles should downgrade instead of die when possible.
+Stuck? Try reviewing the following information:
 
-## 7DRL Agenda
-Using some libraries to help
-
-Day 1 (Saturday): Mapgen, movement, ~~map scrolling~~
-Day 2 (Sunday): Slime physics, movement, growth
-Day 3 (Monday): Enemies, organelles
-Day 4 (Tuesday): 2 more enemies, crafting // Almost done
-Day 5 (Wednesday): Inspection menu; playtest release (have a few more organs first?)
-Day 6 (Thursday): Polish, balance
-Day 7 (Friday): Polish
-
-## Post-7DRL Agenda
-
-The methods of Militia and a lot of its subclasses OnEaten() and Die() violate "don't repeat yourself
-Press "c" to make items under things blink every second and make examine mode prioritize items.
-Need to refactor the crafting system to be more standardized, less busywork.
-Why do I have to put "PossiblePaths.Clear()" at the end of every organelle's upgrade chain?
-Press shift to see which organelles will be pulled longest.
-Remove tutorial artifacts
-Remove static references wherever possible
-Optimize
-More monsters
-More organelles
-More crafting materials
-Environmental hazards and boons
-More mapgen types
-Overworld infinite-scroll map
-Within-map pipes
-Scratch this, too OP: ~~Enemies should panic before being engulfed if they can't pathfind out w/o running into slime.~~
-See if we can build to .NET 5.0 because I like it.
-Keybinding config would be nice
+* When you move (not swap), you drag a path of organelles behind you. The highlighted slime shows which tiles will be dragged! This can be used to position organelles strategically and quickly.
+* To learn what something is, e[x]amine it.
+* Pressing space to pass a turn or luring enemies can break an otherwise impenetrable formation.
+* In the early game, it is easy to find new base organelles but hard to find crafting materials. This inverts as time goes on.
+* Find the right balance between combat, exploration, and organelle management for your play-style; all of these cost time and come with different risks and rewards.
 
 # Credits
 
-Vectis you'd better fix this up by release.
-.NET 5.0 by Microsoft
-Engine by RLNet and RogueSharp
-Font by RogueSharp
+Extensive playtesting, design, and support from JackNine
+Further playtesting from Qu and Decinym
+Engine: https://github.com/FaronBracy/RogueSharp
+Font: https://github.com/libtcod/libtcod/blob/develop/data/fonts/terminal12x12_gs_ro.png
+.NET 4.6.1 by Microsoft

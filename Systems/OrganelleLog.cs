@@ -146,7 +146,7 @@ namespace AmoebaRL.Systems
                 if(target is Nucleus n)
                 {
                     List<Actor> nuclei = Game.PlayerMass.Where(a => a is Nucleus).ToList();
-                    if(nuclei.Count > 2)
+                    if(nuclei.Count >= 2)
                     { 
                         int curIdx = nuclei.IndexOf(Game.Player);
                         int listedIdx = nuclei.IndexOf(n);
