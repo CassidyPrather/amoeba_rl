@@ -150,7 +150,18 @@ namespace AmoebaRL.Core
                         Game.DMap.AddVFX(FireGraphic);
                         
                     }
-                    ICell sights = picked.StepForward();
+                    // This line caused hunters to fire sideways sometimes, e.g. when an ally was in the way.
+                    // ICell sights = picked.StepForward();
+                    // Funny story, I accidentally coded in diagonal firing while working on this.
+                    Point sights = new Point(X, Y);
+                    if (target.X > X)
+                        sights.X++;
+                    else if (target.X < X)
+                        sights.X--;
+                    else if (target.Y > Y)
+                        sights.Y++;
+                    else
+                        sights.Y--;
                     // Calculate direction of firing
                     FiringDirection = new Point(sights.X - X, sights.Y - Y);
                     if (FiringDirection.X > 0)
