@@ -16,6 +16,7 @@ namespace AmoebaRL.Core
         public List<Actor> Actors;
         public List<Item> Items;
         public List<Rectangle> Boulders;
+        public List<City> Cities;
         public List<IDrawable> Effects;
 
         
@@ -31,6 +32,7 @@ namespace AmoebaRL.Core
             Actors = new List<Actor>();
             Items = new List<Item>();
             Effects = new List<IDrawable>();
+            Cities = new List<City>();
         }
 
         // The Draw method will be called each time the map is updated
@@ -230,6 +232,11 @@ namespace AmoebaRL.Core
 
         public void AddVFX(VFX toAdd) => Effects.Add(toAdd);
 
+        public void AddCity(City toAdd)
+        {
+            Cities.Add(toAdd);
+            AddActor(toAdd);
+        }
 
         public void RemoveActor(Actor a)
         {
@@ -251,6 +258,14 @@ namespace AmoebaRL.Core
         }
 
         public void RemoveVFX(VFX toRemove) => Effects.Remove(toRemove);
+
+        public void RemoveCity(City c)
+        {
+            RemoveActor(c);
+            SetCellProperties(c.X, c.Y, true, true, true);
+            Cities.Remove(c);
+            UpdatePlayerFieldOfView();
+        }
 
         // Helpers
         public ICell NearestLootDrop(int x, int y)

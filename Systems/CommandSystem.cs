@@ -34,6 +34,14 @@ namespace AmoebaRL.Systems
             IsPlayerTurn = false;
         }
 
+        public void Win()
+        {
+            // TODO
+            Game.SchedulingSystem.Clear();
+            Game.DMap.AddActor(new PostMortem());
+
+        }
+
         public void AdvanceTurn()
         {
             // Why was the original design for this recursive? Just asking
@@ -290,8 +298,9 @@ namespace AmoebaRL.Systems
             Actor targetActor = Game.DMap.GetActorAt(x, y);
             if (targetActor != null)
             {
+                // Swap with slimed tiles
                 if (targetActor.Slime > 0)
-                { // Swap
+                {
                     Game.DMap.Swap(player, targetActor);
                     if (player is QuantumCore q)
                     {
@@ -300,6 +309,7 @@ namespace AmoebaRL.Systems
                     }
                     success = true;
                 }
+                // Do complicated damage calculations for tanks.
                 else if (targetActor is Tank)
                 {
                     if (player is ReinforcedMaw)
@@ -321,6 +331,20 @@ namespace AmoebaRL.Systems
                     }
                     
                 }
+                // Destroy cities only if their armor can be overcome
+                else if(targetActor is City c)
+                {
+                    if(Game.PlayerMass.Count >= Game.CityArmor)
+                    {
+                        c.Destroy();
+                        success = true;
+                    }
+                    else
+                    {
+                        Game.MessageLog.Add($"There is not enough mass to destroy the {targetActor.Name}! (Have {Game.PlayerMass.Count}, need {Game.CityArmor})");
+                    }
+                }
+                // Eat anything else that can be eaten.
                 else if (targetActor is IEatable)
                 {
                     Game.MessageLog.Add($"The {player.Name} consumes the {targetActor.Name}.");
@@ -427,7 +451,7 @@ namespace AmoebaRL.Systems
             path.Reverse();
 
             Point lastPoint = new Point(player.X, player.Y);
-            if (Game.DMap.SetActorPosition(player, x, y))
+            if (Game.DMap.WithinBounds(x,y) && Game.DMap.SetActorPosition(player, x, y))
             {// Player was moved; cascade vaccume
                 for (int i = 1; i < path.Count; i++)
                 {

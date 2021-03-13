@@ -22,7 +22,7 @@ namespace AmoebaRL.Core
         public int TurnsToNextWave { get; set; } = Game.DefaultSpawnRate;
 
         public int ScoutCost { get; set; } = 2;
-        
+
         public int HunterCost { get; set; } = 3;
 
         public int TankCost { get; set; } = 2;
@@ -67,7 +67,7 @@ namespace AmoebaRL.Core
                     baby.X = spawnAreas[0].X;
                     baby.Y = spawnAreas[0].Y;
                     Game.DMap.AddActor(baby);
-                    if(SpawnQueue.Count == 0)
+                    if (SpawnQueue.Count == 0)
                     {
                         Game.DMap.RemoveVFX(Timer);
                         Timer = null;
@@ -86,7 +86,7 @@ namespace AmoebaRL.Core
             bool waveHasCaravan;
             if (WaveNumber == 0)
                 waveHasCaravan = Game.Rand.Next(3) == 0;
-            else if(WaveNumber < 4)
+            else if (WaveNumber < 4)
                 waveHasCaravan = Game.Rand.Next(19) <= 2;
             else
                 waveHasCaravan = Game.Rand.Next(19) == 0;
@@ -110,13 +110,13 @@ namespace AmoebaRL.Core
             else if (budget >= ScoutCost)
                 allowedSpawnTypes.Add(4);
             int spawnType = allowedSpawnTypes[Game.Rand.Next(allowedSpawnTypes.Count - 1)];
-            if(spawnType == 0)
+            if (spawnType == 0)
             {
                 for (int i = 0; i < Math.Min(budget, MechCost); i++)
                     SpawnQueue.Enqueue(new Militia());
                 return budget - Math.Min(budget, MechCost);
             }
-            else if(spawnType == 1)
+            else if (spawnType == 1)
             {
                 SpawnQueue.Enqueue(new Mech());
                 return budget - MechCost;
@@ -172,7 +172,8 @@ namespace AmoebaRL.Core
         public string GetDescription()
         {
             StringBuilder desc = new StringBuilder();
-            desc.Append("A doorway to one of the last bastions of humanity. It is protected by advanced technology and can never be destroyed. ");
+            desc.Append($"A doorway to one of the last bastions of humanity. It is protected by advanced " +
+                $"technology and can only be destroyed when the amoeba mass is at least {Game.CityArmor}. ");
             if (SpawnQueue.Count > 0)
             {
                 if (SpawnQueue.Count == 1)
@@ -194,6 +195,29 @@ namespace AmoebaRL.Core
             }
             desc.Append("As time goes on, the humans will become more frequent and deadly...");
             return desc.ToString();
+        }
+
+        public void Destroy()
+        {
+            if(Timer != null)
+            {
+                Game.DMap.RemoveVFX(Timer);
+                Timer = null;
+            }
+            Game.DMap.RemoveCity(this);
+            if(Game.DMap.Cities.Count == 0)
+            {
+                Game.MessageLog.Add("The humans try to trigger a cave-in, but you slip through just in time! You escape to the surface and live out the rest of your days in peace. ");
+                Game.MessageLog.Add($"Final score: {Game.PlayerMass.Count}. Time to win (A turn is 16 time units): {Game.SchedulingSystem.GetTime()}.");
+                Game.MessageLog.Add($"Thanks for playing!.");
+                Game.CommandSystem.Win();
+                // Player wins! Throw confetti!
+            }
+            else
+            {
+                Game.MessageLog.Add("The humans trigger a cave-in, blocking off this exit to the surface!");
+                Game.MessageLog.Add($"{Game.DMap.Cities.Count} cities remain...");
+            }
         }
 
         public class SpawnTimer : Animation

@@ -41,6 +41,8 @@ namespace AmoebaRL
         public static int DefaultSpawnRate = 50;
 
         public static int EvolutionRate = 5;
+
+        public static int CityArmor = 128;
         #endregion
 
         #region Static Handles
@@ -120,7 +122,7 @@ namespace AmoebaRL
             MessageLog.Add("Z: Toggle organelle mode");
             MessageLog.Add("ESC: Back to player mode");
             MessageLog.Add("A, D: Cycle active nucleus");
-            MessageLog.Add("Reach 128 mass to win");
+            MessageLog.Add("Destroy all cities to win");
             MessageLog.Add("Consult the \"README\" file to review these instructions and more");
             OrganelleLog = new OrganelleLog();
 

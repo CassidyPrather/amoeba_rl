@@ -362,7 +362,6 @@ namespace AmoebaRL.Systems
                 // Devhack option:
                 for(int i = 0; i < INITIAL_SLIME; i++)
                     playerMass.Add(new Cytoplasm());
-
             }
 
             List<ICell> initialSlime;
@@ -413,7 +412,7 @@ namespace AmoebaRL.Systems
                 } while (src.IsWalkable || !_map.IsEmpty(c.X, c.Y));
                 adjacent = AdjacentWalkable(src);
             }
-            _map.AddActor(c);
+            _map.AddCity(c);
         }
 
         public bool TryFluidSelect(out List<ICell> result, ICell from, int count)

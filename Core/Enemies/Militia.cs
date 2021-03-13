@@ -12,7 +12,7 @@ using RogueSharp;
 
 namespace AmoebaRL.Core
 {
-    public class Militia : Actor, IProactive, IEatable, ISlayable, IDescribable
+    public class Militia : Actor, IProactive, IEatable, ISlayable, IDescribable, IEngulfable
     {
         public Militia()
         {
@@ -65,20 +65,57 @@ namespace AmoebaRL.Core
             }
             return true;
         }
-        
+
         public virtual bool Engulf()
         {
-            List<ICell> adj = Game.DMap.Adjacent(X,Y);
-            if(adj.Where(a => !Game.DMap.IsWall(a) 
-                    && !Game.PlayerMass.Contains(Game.DMap.GetActorAt(a.X, a.Y)))
-                .Count() == 0)
+            HashSet<IEngulfable> toEngulf = new HashSet<IEngulfable>() { this };
+            if(CanEngulf(toEngulf))
             {
-                Game.MessageLog.Add($"The {Name} is engulfed!");
-                OnEaten();
+                foreach (IEngulfable i in toEngulf)
+                    i.ProcessEngulf();
                 return true;
             }
             return false;
-            
+        }
+
+        public virtual bool CanEngulf(HashSet<IEngulfable> engulfing = null)
+        {
+            if (engulfing == null)
+                engulfing = new HashSet<IEngulfable>() { this };
+            else
+                engulfing.Add(this);
+            List<ICell> adj = Game.DMap.Adjacent(X, Y);
+            if (adj.Where(a => Game.DMap.IsWalkable(a.X, a.Y)).Count() > 0)
+                return false; // An escape route exists.
+            List<Actor> adjActors = new List<Actor>();
+            foreach (ICell a in adj)
+            {
+                Actor adjacentActor = Game.DMap.GetActorAt(a.X, a.Y);
+                if (adjacentActor != null)
+                {
+                    if (adjacentActor is City)
+                        return false; // Cities will not help to engulf their friends! We can escape!
+                    adjActors.Add(adjacentActor);
+                }
+            }
+            // The only remaining places to check are adjacent actors.
+            bool hasEscape = false; // Assume each actor locks us in unless it specifically won't.
+            foreach (Actor a in adjActors)
+            {
+                if (a is IEngulfable e && !engulfing.Contains(e))
+                {
+                    // We cannot ignore e, which could mean we are sealed in
+                    if (!e.CanEngulf(engulfing))
+                        hasEscape = true; // Since a neighbor was able to escape, we can too.
+                }
+            }
+            return !hasEscape;
+        }
+
+        public virtual void ProcessEngulf()
+        {
+            Game.MessageLog.Add($"The {Name} is engulfed!");
+            OnEaten();
         }
 
         public virtual void ActToTargets(List<Actor> seenTargets)
@@ -193,7 +230,7 @@ namespace AmoebaRL.Core
 
             public virtual string DissolvingAddendum()
             {
-                if(Overfill == 0)
+                if(!Game.DMap.AdjacentActors(X,Y).Where(a => a is Cultivator).Any())
                 { 
                     return $"After {HP} turns, it will become {NameOfResult}. Be careful, it can still be rescued!";
                 }

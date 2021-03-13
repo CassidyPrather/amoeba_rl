@@ -365,7 +365,7 @@ namespace AmoebaRL.Core.Organelles
 
         public override string GetDescription()
         {
-            return $"After moving, other organelles attempt to fill the spaces adjacent to it. " +
+            return $"After moving outside the bounds of your organelles, other organelles attempt to fill the spaces adjacent to it. " +
                 $"This occurs up to {GravityAttempts} times per time the Gravity Core moves " +
                 $"with a maximum range of {MaxRange}. Despite its density, this core also " +
                 $"moves twice per turn. " + NucleusAddendum();

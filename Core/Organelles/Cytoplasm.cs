@@ -23,7 +23,10 @@ namespace AmoebaRL.Core.Organelles
 
         public override string GetDescription()
         {
-            return "A terrifying, viscious mass. Not very useful on its own.";
+            return "A terrifying, viscious mass, and your most basic organelle. Not very useful on its own, so it is not listed in the Organelle view." +
+                "Like every other organelle, nuclei can swap positions with it. Also like other organelles, if something moves (not swaps), " +
+                "this will be pulled along behind it if it is a part of the path to the furthest organelle in the mass. " +
+                "This path is visualized as a brigher shade when a nucleus is selected.";
         }
 
         public override void OnDestroy()
