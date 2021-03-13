@@ -99,6 +99,11 @@ namespace AmoebaRL.Systems
         }
         public void DrawOrganelle(RLConsole console)
         {
+            List<Actor> toDrawSet = Game.OrganelleLog.GetLoggable();
+            if (toDrawSet.Count == 0)
+                return;
+            if (Game.OrganelleLog.idx >= toDrawSet.Count)
+                Game.OrganelleLog.idx = 0;
             Actor toDraw = Game.OrganelleLog.GetLoggable()[Game.OrganelleLog.idx];
             if (toDraw is IDescribable d)
                 Describe(console, d);

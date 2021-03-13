@@ -362,6 +362,7 @@ namespace AmoebaRL.Systems
                 // Devhack option:
                 for(int i = 0; i < INITIAL_SLIME; i++)
                     playerMass.Add(new Cytoplasm());
+                playerMass.Add(new NonNewtonianMembrane());
             }
 
             List<ICell> initialSlime;

@@ -33,8 +33,9 @@ namespace AmoebaRL.Core
 
         protected string ArmorAddendum()
         {
-            return "Fortunately, it is not expecting friendly fire, and it is vulnerable to it. It can " +
-                "also be engulfed by surrounding it on all sides with slime or walls. Cities and humans will not help to engulf it! " +
+            return "It is vulnerable to friendly fire. It can " +
+                "also be engulfed by surrounding it on all sides with slime or walls. Cities and humans will not " +
+                "help to engulf it, but any humans can be engulfed in contiguous groups! " +
                 $"It will act in {Stamina} turns.";
         }
 

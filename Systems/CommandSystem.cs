@@ -301,7 +301,10 @@ namespace AmoebaRL.Systems
                 // Swap with slimed tiles
                 if (targetActor.Slime > 0)
                 {
+
                     Game.DMap.Swap(player, targetActor);
+                    if (targetActor is CraftingMaterial c)
+                        c.TryUpgrade(player);
                     if (player is QuantumCore q)
                     {
                         player.Speed /= 2;

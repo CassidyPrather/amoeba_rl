@@ -38,7 +38,7 @@ namespace AmoebaRL.Core.Organelles
             foreach (ICell a in adj)
             { 
                 Actor act = Game.DMap.GetActorAt(a.X, a.Y);
-                if (act != null && act is IUpgradable u)
+                if (act != null && act is IUpgradable u && !(act is Nucleus))
                     adjUpg.Add(u);
             }
             while(adjUpg.Count > 0)
@@ -60,6 +60,28 @@ namespace AmoebaRL.Core.Organelles
                 }
             }
             return true;
+        }
+
+        public virtual bool TryUpgrade(Actor recepient)
+        {
+            if(recepient is IUpgradable u)
+            {
+                if (u.Upgrade(Provides))
+                {
+                    Cytoplasm byproduct = new Cytoplasm
+                    {
+                        X = X,
+                        Y = Y
+                    };
+                    Game.PlayerMass.Add(byproduct);
+                    Game.DMap.RemoveActor(this);
+                    BecomeActor(byproduct);
+                    Game.DMap.UpdatePlayerFieldOfView();
+                    return true;
+                }
+                return false;
+            }
+            return false;
         }
     }
 }

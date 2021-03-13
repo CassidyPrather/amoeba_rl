@@ -55,10 +55,12 @@ namespace AmoebaRL.Systems
             console.SetBackColor(0, 0, console.Width, console.Height, Palette.OrganelleConsoleBG);
             console.Print(1, 1, "Organelles", Palette.TextHeading);
             console.Print(1, 2, $"Mass: {Game.PlayerMass.Count}", Palette.TextBody);
+            float niceturn = ((float)Game.SchedulingSystem.GetTime()) / (16f);
+            console.Print(1, 3, $"Turn: {niceturn}", Palette.TextBody);
             for (int i = page * _maxLines; i < loggable.Count(); i++)
             {
                 Actor target = loggable[i];
-                int row = i + 4 - page * _maxLines;
+                int row = i + 5 - page * _maxLines;
 
                 if(Game.ExamineCursor != null)
                 {

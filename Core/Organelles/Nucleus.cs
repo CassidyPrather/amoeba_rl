@@ -152,12 +152,13 @@ namespace AmoebaRL.Core.Organelles
         public override string GetDescription()
         {
             return "Might as well be the powerhouse of the cell. Can eat from the ground, attack, and move freely. However, they are very competitive, " +
-                "and as such only one can move per turn. They are also cowards, and will retreat rather than be destroyed.";
+                "and as such only one can move per turn. They are also cowards, and will retreat rather than be destroyed. They also won't upgrade unless " +
+                "they move into a crafting material, unlike other organelles.";
         }
 
         protected string NucleusAddendum()
         {
-            return "As a nucleus, it conducts actions when active and retreats when it would ordinarily be destroyed when possible.";
+            return "As a nucleus, it conducts actions when active and retreats when it would ordinarily be destroyed when possible, and must step into materials to upgrade.";
         }
     }
 

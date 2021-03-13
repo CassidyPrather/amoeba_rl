@@ -33,7 +33,7 @@ namespace AmoebaRL.Core.Organelles
             Speed = 16;
             PossiblePaths = new List<UpgradePath>()
             {
-                new UpgradePath(2, CraftingMaterial.Resource.CALCIUM, () => new Bioreactor()),
+                new UpgradePath(1, CraftingMaterial.Resource.CALCIUM, () => new Bioreactor()),
                 new UpgradePath(1, CraftingMaterial.Resource.ELECTRONICS, () => new Cultivator())
             };
         }

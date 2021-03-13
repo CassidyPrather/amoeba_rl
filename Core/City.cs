@@ -50,7 +50,6 @@ namespace AmoebaRL.Core
         public bool Act()
         {
             TurnsToNextWave--;
-            ConfigureTimer();
             if (TurnsToNextWave <= 0)
             {
                 // Dispatch wave wave #
@@ -74,6 +73,7 @@ namespace AmoebaRL.Core
                     }
                 }
             }
+            ConfigureTimer();
             return true;
         }
 

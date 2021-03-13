@@ -267,16 +267,28 @@ namespace AmoebaRL.Core
             UpdatePlayerFieldOfView();
         }
 
-        // Helpers
-        public ICell NearestLootDrop(int x, int y)
+        private bool NotUnderPlayer(ICell lootSpot)
         {
-            List<ICell> candidates = NearestLootDrops(x, y);
-            if (candidates.Count == 0)
-                return null;
-            return candidates[Game.Rand.Next(0, candidates.Count - 1)];
+            Actor actAt = Game.DMap.GetActorAt(lootSpot.X, lootSpot.Y);
+            if (actAt == null)
+                return true;
+            return !Game.PlayerMass.Contains(actAt);
         }
 
-        public List<ICell> NearestLootDrops(int x, int y)
+        public ICell NearestLootDrop(int x, int y) => NearestLootDrop(x, y, NotUnderPlayer);
+
+        public List<ICell> NearestLootDrops(int x, int y) => NearestLootDrops(x, y, NotUnderPlayer);
+
+        // Helpers
+        public ICell NearestLootDrop(int x, int y, Func<ICell, bool> LegalLootDrop)
+        {
+            List<ICell> candidates = NearestLootDrops(x, y, LegalLootDrop);
+            if (candidates.Count == 0)
+                return null;
+              return candidates[Game.Rand.Next(0, candidates.Count - 1)];
+        }
+
+        public List<ICell> NearestLootDrops(int x, int y, Func<ICell, bool> LegalLootDrop)
         {
             List<ICell> seen = new List<ICell>();
             List<ICell> frontier = new List<ICell>();
@@ -287,7 +299,7 @@ namespace AmoebaRL.Core
                 foreach(ICell c in candidates)
                 {
                     seen.Add(c);
-                    if(GetItemAt(c.X, c.Y) == null && !IsWall(c))
+                    if(GetItemAt(c.X, c.Y) == null && !IsWall(c) && !Cities.Contains(GetActorAt(c.X, c.Y)) && LegalLootDrop(c))
                         found.Add(c);
                     else
                     {
