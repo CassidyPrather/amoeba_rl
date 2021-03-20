@@ -1,0 +1,6 @@
+[submodule "rlnet"]
+	path = rlnet
+	url = https://github.com/Vectis99/rlnet
+[submodule "FloodSpill-CSharp"]
+	path = FloodSpill-CSharp
+	url = https://github.com/Vectis99/FloodSpill-CSharp
