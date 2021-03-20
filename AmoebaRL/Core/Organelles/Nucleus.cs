@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using AmoebaRL.Core.Enemies;
 using AmoebaRL.Core.Organelles;
 using AmoebaRL.Interfaces;
 using AmoebaRL.UI;
@@ -150,13 +151,10 @@ namespace AmoebaRL.Core.Organelles
         }
 
         public override List<Item> OrganelleComponents() => new List<Item>() { new DNA(), new Nutrient() };
-        
-        public override string GetDescription()
-        {
-            return "Might as well be the powerhouse of the cell. Can eat from the ground, attack, and move freely. However, they are very competitive, " +
+
+        public override string Description => "Might as well be the powerhouse of the cell. Can eat from the ground, attack, and move freely. However, they are very competitive, " +
                 "and as such only one can move per turn. They are also cowards, and will retreat rather than be destroyed. They also won't upgrade unless " +
                 "they move into a crafting material, unlike other organelles.";
-        }
 
         protected string NucleusAddendum()
         {
@@ -173,10 +171,7 @@ namespace AmoebaRL.Core.Organelles
             Symbol = 'X';
         }
 
-        public override string GetDescription()
-        {
-            return "Short for Deoxyribonucleic Acid. It would be possible to fasion a new nucleus out of this.";
-        }
+        public override string Description => "Short for Deoxyribonucleic Acid. It would be possible to fasion a new nucleus out of this.";
 
         public override Actor NewOrganelle() => new Nucleus();
     }
@@ -209,10 +204,7 @@ namespace AmoebaRL.Core.Organelles
             };
         }
 
-        public override string GetDescription()
-        {
-            return "A huge eye grants additional sight beyond that of a regular nucleus. " + NucleusAddendum();
-        }
+        public override string Description => "A huge eye grants additional sight beyond that of a regular nucleus. " + NucleusAddendum();
 
         public override List<Item> OrganelleComponents()
         {
@@ -242,10 +234,7 @@ namespace AmoebaRL.Core.Organelles
             };
         }
 
-        public override string GetDescription()
-        {
-            return "Stealing optimization algorithms from the humans has caused this nucleus to move twice as fast. " + NucleusAddendum();
-        }
+        public override string Description => "Stealing optimization algorithms from the humans has caused this nucleus to move twice as fast. " + NucleusAddendum();
 
         public override List<Item> OrganelleComponents()
         {
@@ -271,11 +260,8 @@ namespace AmoebaRL.Core.Organelles
             PossiblePaths.Clear();
         }
 
-        public override string GetDescription()
-        {
-            return "It built strong bones, and the bones were eyeballs capable of shooting armor-melting lasers. Unlike a regular nucleus, " +
+        public override string Description => "It built strong bones, and the bones were eyeballs capable of shooting armor-melting lasers. Unlike a regular nucleus, " +
                 "this one can attack caravans, tanks, and mechs directly. It also retains its predecessor's visual range. " + NucleusAddendum();
-        }
 
         public override List<Item> OrganelleComponents()
         {
@@ -304,11 +290,8 @@ namespace AmoebaRL.Core.Organelles
             PossiblePaths.Clear();
         }
 
-        public override string GetDescription()
-        {
-            return "An eye of this size is unnatural, and when it enters a space adjacent to a human, that human wastes a turn cowering in fear. " +
+        public override string Description => "An eye of this size is unnatural, and when it enters a space adjacent to a human, that human wastes a turn cowering in fear. " +
                 "It maintains the vision boost of its predecessor and it has a chance to act before enemies it terrified recover. " + NucleusAddendum();
-        }
 
         public override List<Item> OrganelleComponents()
         {
@@ -366,13 +349,10 @@ namespace AmoebaRL.Core.Organelles
             PossiblePaths.Clear();
         }
 
-        public override string GetDescription()
-        {
-            return $"After moving outside the bounds of your organelles, other organelles attempt to fill the spaces adjacent to it. " +
+        public override string Description => $"After moving outside the bounds of your organelles, other organelles attempt to fill the spaces adjacent to it. " +
                 $"This occurs up to {GravityAttempts} times per time the Gravity Core moves " +
                 $"with a maximum range of {MaxRange}. Despite its density, this core also " +
                 $"moves twice per turn. " + NucleusAddendum();
-        }
 
         public override List<Item> OrganelleComponents()
         {
@@ -443,11 +423,8 @@ namespace AmoebaRL.Core.Organelles
             PossiblePaths.Clear();
         }
 
-        public override string GetDescription()
-        {
-            return "This nucleus is quantum-entangled with all of the slime! If it is moving to the space of a fellow organelle (including cytoplasm), its does so twice as quickly. " +
+        public override string Description => "This nucleus is quantum-entangled with all of the slime! If it is moving to the space of a fellow organelle (including cytoplasm), its does so twice as quickly. " +
                 "This is in addition to the speed bonus of the smart core. " + NucleusAddendum();
-        }
 
         public override List<Item> OrganelleComponents()
         {

@@ -25,10 +25,7 @@ namespace AmoebaRL.Core.Organelles
 
         public override List<Item> Components() => new List<Item> { new CalciumDust(), new Nutrient() };
 
-        public override string GetDescription()
-        {
-            return "Builds strong bones. Automatically consumed by adjacent organelles when an upgrade is possible.";
-        }
+        public override string Description => "Builds strong bones. Automatically consumed by adjacent organelles when an upgrade is possible.";
     }
 
     public class CalciumDust : Catalyst
@@ -40,10 +37,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Calcium Dust";
         }
 
-        public override string GetDescription()
-        {
-            return "This precious powder could be used to build strong bones.";
-        }
+        public override string Description => "This precious powder could be used to build strong bones.";
 
         public override Actor NewOrganelle()
         {

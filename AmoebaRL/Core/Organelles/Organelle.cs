@@ -56,41 +56,10 @@ namespace AmoebaRL.Core.Organelles
                 BecomeItem(components[0]);
         }
 
-        public void BecomeItem(Item i)
-        {
-            ICell lands = Game.DMap.NearestLootDrop(X, Y);
-            i.X = lands.X;
-            i.Y = lands.Y;
-            Game.DMap.AddItem(i);
-        }
+        public virtual string Description => $"{DescBody} {Flavor}";
 
-        public void BecomeItems(IEnumerable<Item> items)
-        {
-            List<ICell> buffer = new List<ICell>();
-            Queue<ICell> nextAvailable = new Queue<ICell>(); // this should be a queue
-            foreach(Item i in items)
-            {
-                if (nextAvailable.Count == 0)
-                {
-                    nextAvailable = new Queue<ICell>(Game.DMap.NearestLootDropsBuffered(buffer, X, Y));
-                    if (nextAvailable.Count == 0)
-                        return; // Remaining items crushed.
-                }
-                ICell lands = nextAvailable.Dequeue();
-                i.X = lands.X;
-                i.Y = lands.Y;
-                Game.DMap.AddItem(i);
-            }
-        }
+        public virtual string DescBody => "";
 
-        public virtual Actor BecomeActor(Actor a)
-        {
-            a.X = X;
-            a.Y = Y;
-            Game.DMap.AddActor(a);
-            return a;
-        }
-
-        public abstract string GetDescription();
+        public virtual string Flavor => "";
     }
 }

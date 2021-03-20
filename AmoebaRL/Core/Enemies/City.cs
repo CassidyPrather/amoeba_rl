@@ -1,4 +1,4 @@
-﻿using AmoebaRL.Behaviors;
+﻿
 using AmoebaRL.Interfaces;
 using AmoebaRL.Systems;
 using AmoebaRL.UI;
@@ -10,7 +10,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AmoebaRL.Core
+namespace AmoebaRL.Core.Enemies
 {
     /// <summary>
     /// Spawns hostiles into the map. The fact that these get progressively harder is the game's "clock".
@@ -47,7 +47,7 @@ namespace AmoebaRL.Core
             Unforgettable = true;
         }
 
-        public bool Act()
+        public void Act()
         {
             TurnsToNextWave--;
             if (TurnsToNextWave <= 0)
@@ -74,7 +74,6 @@ namespace AmoebaRL.Core
                 }
             }
             ConfigureTimer();
-            return true;
         }
 
         public void SpawnNextWave(int budget)
@@ -169,32 +168,35 @@ namespace AmoebaRL.Core
         }
 
 
-        public string GetDescription()
+        public string Description
         {
-            StringBuilder desc = new StringBuilder();
-            desc.Append($"A doorway to one of the last bastions of humanity. It is protected by advanced " +
-                $"technology and can only be destroyed when the amoeba mass is at least {Game.CityArmor}. ");
-            if (SpawnQueue.Count > 0)
+            get
             {
-                if (SpawnQueue.Count == 1)
-                    desc.Append("One human is waiting to emerge onto an adjacent space as soon as one becomes available. ");
-                else
-                    desc.Append($"{SpawnQueue.Count} humans are in line to emerge onto ajacent tiles as soon as one becomes available. ");
+                StringBuilder desc = new StringBuilder();
+                desc.Append($"A doorway to one of the last bastions of humanity. It is protected by advanced " +
+                    $"technology and can only be destroyed when the amoeba mass is at least {Game.CityArmor}. ");
+                if (SpawnQueue.Count > 0)
+                {
+                    if (SpawnQueue.Count == 1)
+                        desc.Append("One human is waiting to emerge onto an adjacent space as soon as one becomes available. ");
+                    else
+                        desc.Append($"{SpawnQueue.Count} humans are in line to emerge onto ajacent tiles as soon as one becomes available. ");
 
-                if (CityLevel == 1)
-                    desc.Append($"A human will join the queue in {TurnsToNextWave}. ");
+                    if (CityLevel == 1)
+                        desc.Append($"A human will join the queue in {TurnsToNextWave}. ");
+                    else
+                        desc.Append($"In {TurnsToNextWave} more turns, up to {CityLevel} humans will join the queue.");
+                }
                 else
-                    desc.Append($"In {TurnsToNextWave} more turns, up to {CityLevel} humans will join the queue.");
+                {
+                    if (CityLevel == 1)
+                        desc.Append($"A human will try to emerge in {TurnsToNextWave} turns. ");
+                    else
+                        desc.Append($"Up to {CityLevel} humans will begin to emerge in {TurnsToNextWave} turns. ");
+                }
+                desc.Append("As time goes on, the humans will become more frequent and deadly...");
+                return desc.ToString();
             }
-            else
-            {
-                if (CityLevel == 1)
-                    desc.Append($"A human will try to emerge in {TurnsToNextWave} turns. ");
-                else
-                    desc.Append($"Up to {CityLevel} humans will begin to emerge in {TurnsToNextWave} turns. ");
-            }
-            desc.Append("As time goes on, the humans will become more frequent and deadly...");
-            return desc.ToString();
         }
 
         public void Destroy()

@@ -1,4 +1,5 @@
-﻿using AmoebaRL.Interfaces;
+﻿using AmoebaRL.Core.Enemies;
+using AmoebaRL.Interfaces;
 using AmoebaRL.UI;
 using RLNET;
 using RogueSharp;

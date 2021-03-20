@@ -1,4 +1,5 @@
-﻿using AmoebaRL.Interfaces;
+﻿using AmoebaRL.Core.Enemies;
+using AmoebaRL.Interfaces;
 using AmoebaRL.UI;
 using RogueSharp;
 using System;
@@ -38,20 +39,16 @@ namespace AmoebaRL.Core.Organelles
             };
         }
 
-        public override string GetDescription()
-        {
-            return $"Converts solar radiation into nutrition. Next product in {NextFood}.";
-        }
+        public override string Description => $"Converts solar radiation into nutrition. Next product in {NextFood}.";
 
         public override List<Item> OrganelleComponents() => new List<Item>() { new Plant(), new Nutrient() };
 
-        public virtual bool Act()
+        public virtual void Act()
         {
             NextFood--;
             if(NextFood <= 0)
                 if(Produce())
                     NextFood = Delay;
-            return true;
         }
 
         public virtual bool Produce()
@@ -87,10 +84,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Plant";
         }
 
-        public override string GetDescription()
-        {
-            return "A cute green plant. Its ability to use the sun to produce food is fascinating and could be exploited.";
-        }
+        public override string Description => "A cute green plant. Its ability to use the sun to produce food is fascinating and could be exploited.";
 
         public override Actor NewOrganelle() => new Chloroplast();
     }
@@ -114,11 +108,8 @@ namespace AmoebaRL.Core.Organelles
             };
         }
 
-        public override string GetDescription()
-        {
-            return "A strong bone shell around this chloroplast has enabled a variety of physical and chemcial processes. " +
+        public override string Description => "A strong bone shell around this chloroplast has enabled a variety of physical and chemcial processes. " +
                 "It is twice as fast at producing cytoplasm as its predecessor.";
-        }
 
         public override List<Item> OrganelleComponents()
         {
@@ -147,21 +138,20 @@ namespace AmoebaRL.Core.Organelles
             };
         }
 
-        public virtual bool Act()
+        public virtual void Act()
         {
             // Check adjacent digestibles.
-            List<Militia.CapturedMilitia> adj = Game.DMap.AdjacentActors(X, Y)
-                .Where(a => a is Militia.CapturedMilitia)
-                .Cast<Militia.CapturedMilitia>().ToList();
+            List<DissolvingNPC> adj = Game.DMap.AdjacentActors(X, Y)
+                .Where(a => a is DissolvingNPC)
+                .Cast<DissolvingNPC>().ToList();
 
-            foreach(Militia.CapturedMilitia m in adj)
+            foreach(DissolvingNPC m in adj)
             {
                 HandleCaptured(m);
             }
-            return true;
         }
 
-        protected virtual void HandleCaptured(Militia.CapturedMilitia m)
+        protected virtual void HandleCaptured(DissolvingNPC m)
         {
             // Restore digestable HP by 1 (counteract its own digestion too)
             if (m.HP < m.MaxHP)
@@ -172,12 +162,9 @@ namespace AmoebaRL.Core.Organelles
             m.ProduceIfOverfull();
         }
 
-        public override string GetDescription()
-        {
-            return "Forbids adjacent humans from dying, utilizing force-feeding to turn them into cattle. Restores the HP of adjacent dissolving targets. " +
+        public override string Description => "Forbids adjacent humans from dying, utilizing force-feeding to turn them into cattle. Restores the HP of adjacent dissolving targets. " +
                 "Causes adjacent dissolving targets to produce their loot at their digestion rates for free without expending them. Be careful, they can " +
                 "still be rescued!";
-        }
 
         public override List<Item> OrganelleComponents() => new List<Item>() { new Plant(), new Nutrient(), new SiliconDust() };
     }
@@ -216,11 +203,8 @@ namespace AmoebaRL.Core.Organelles
             return true;
         }
 
-        public override string GetDescription()
-        {
-            return $"The extremely dense shell around this bioreactor allows it to produce calcium and electronics. However, it is somewhat slow. " +
+        public override string Description => $"The extremely dense shell around this bioreactor allows it to produce calcium and electronics. However, it is somewhat slow. " +
                 $"Next product in {NextFood} turns.";
-        }
 
         public override List<Item> OrganelleComponents()
         {
@@ -268,11 +252,8 @@ namespace AmoebaRL.Core.Organelles
             return true;
         }
 
-        public override string GetDescription()
-        {
-            return $"By integrating nanomachines into the protien folding process, new organelles can be produced. Rarely, this can result in the production of new DNA!" +
+        public override string Description => $"By integrating nanomachines into the protien folding process, new organelles can be produced. Rarely, this can result in the production of new DNA!" +
                 $" However, it is very slow. Next product in {NextFood} turns.";
-        }
 
         public override List<Item> OrganelleComponents()
         {
@@ -296,7 +277,7 @@ namespace AmoebaRL.Core.Organelles
             PossiblePaths.Clear();
         }
 
-        public override bool Act()
+        public override void Act()
         {
             List<Actor> adjUseless = Game.DMap.AdjacentActors(X, Y).Where(a => !(a is IDigestable)).ToList();
             List<ICell> adjRaw = Game.DMap.AdjacentWalkable(X, Y);
@@ -326,7 +307,7 @@ namespace AmoebaRL.Core.Organelles
                         p = getsToGo.PathIgnoring(x =>
                                 Game.PlayerMass.Contains(x) &&
                                 !(x is Extractor) &&
-                                !(x is Militia.CapturedMilitia && x.AdjacentTo(X, Y)),
+                                !(x is DissolvingNPC && x.AdjacentTo(X, Y)),
                             dest.X, dest.Y);
                         if (p == null)
                         {
@@ -351,7 +332,7 @@ namespace AmoebaRL.Core.Organelles
                     break;
 
             }
-            return base.Act();
+            base.Act();
         }
 
         private List<Organelle> NeedsToReach(ICell dest)
@@ -367,12 +348,15 @@ namespace AmoebaRL.Core.Organelles
             return wants;
         }
 
-        public override string GetDescription()
+        public override string Description
         {
-            return "This cultivator is ravenous and will pull dissolving targets into each adjacent space! This happens no more than once per unoccupied space per turn. " +
-                "Restores the HP of adjacent dissolving targets. " +
-                "Causes adjacent dissolving targets to produce their loot their digestion rates for free without expending them. Be careful, they can " +
-                "still be rescued!"; ;
+            get
+            {
+                return "This cultivator is ravenous and will pull dissolving targets into each adjacent space! This happens no more than once per unoccupied space per turn. " +
+                    "Restores the HP of adjacent dissolving targets. " +
+                    "Causes adjacent dissolving targets to produce their loot their digestion rates for free without expending them. Be careful, they can " +
+                    "still be rescued!"; ;
+            }
         }
 
         public override List<Item> OrganelleComponents()
@@ -395,10 +379,7 @@ namespace AmoebaRL.Core.Organelles
             Speed = 16;
         }
 
-        public override string GetDescription()
-        {
-            return "This butcher processes dissolved corpses efficiently. Every time a corpse is fully dissolved, it produces an extra product.";
-        }
+        public override string Description => "This butcher processes dissolved corpses efficiently. Every time a corpse is fully dissolved, it produces an extra product.";
 
         public override List<Item> Components() => new List<Item>() { new Plant(), new Nutrient(), new SiliconDust(), new SiliconDust(), new SiliconDust() };
     }

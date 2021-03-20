@@ -9,7 +9,8 @@ namespace AmoebaRL.Core
 {
     public abstract class Catalyst : Item, IEatable, IDescribable
     {
-        public abstract string GetDescription();
+        public abstract string Description { get; }
+
         public abstract Actor NewOrganelle();
 
         public virtual void OnEaten()

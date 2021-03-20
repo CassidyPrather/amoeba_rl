@@ -7,33 +7,31 @@ using RLNET;
 using RogueSharp;
 using AmoebaRL.Interfaces;
 using AmoebaRL.UI;
+using AmoebaRL.Core.Enemies;
 
 namespace AmoebaRL.Core
 {
     public class Actor : IActor, IDrawable, ISchedulable
     {
         // IActor
-        public string Name { get; set; }
+        public string Name { get; set; } = "Actor";
 
-        public int Awareness { get; set; }
+        public int Awareness { get; set; } = 0;
 
-        public int Speed { 
-            get; 
-            set; } 
-            = 1;
+        public int Speed { get; set; } = 1;
 
-        public int Slime { get; set; }
+        public int Slime { get; set; } = 0;
 
         public bool Unforgettable { get; set; } = false;
 
         // IDrawable
-        public RLColor Color { get; set; }
+        public RLColor Color { get; set; } = Palette.Cursor;
 
-        public char Symbol { get; set; }
+        public char Symbol { get; set; } = '?';
 
-        public int X { get; set; }
+        public int X { get; set; } = 0;
 
-        public int Y { get; set; }
+        public int Y { get; set; } = 0;
 
         public void Draw(RLConsole console, IMap map)
         {
@@ -71,6 +69,47 @@ namespace AmoebaRL.Core
         }
 
         #region Helpers
+        public void BecomeItem(Item i)
+        {
+            ICell lands = Game.DMap.NearestLootDrop(X, Y);
+            i.X = lands.X;
+            i.Y = lands.Y;
+            Game.DMap.AddItem(i);
+        }
+
+        public void BecomeItems(IEnumerable<Item> items)
+        {
+            List<ICell> alreadyTriedDrop = new List<ICell>();
+            List<ICell> alreadyTriedDropPerimeter = new List<ICell>();
+            List<ICell> nextAvailable = new List<ICell>();
+            foreach (Item i in items)
+            {
+                if (nextAvailable.Count == 0)
+                    nextAvailable = Game.DMap.NearestLootDrops(X, Y, alreadyTriedDrop, alreadyTriedDropPerimeter);
+                if (nextAvailable.Count > 0)
+                {
+                    int picker = Game.Rand.Next(nextAvailable.Count - 1);
+                    ICell lands = nextAvailable[picker];
+                    nextAvailable.RemoveAt(picker);
+                    i.X = lands.X;
+                    i.Y = lands.Y;
+                    Game.DMap.AddItem(i);
+                }
+                else
+                {
+                    Game.MessageLog.Add($"The {i.Name} had nowhere is crushed!");
+                }
+            }
+        }
+
+        public virtual Actor BecomeActor(Actor a)
+        {
+            a.X = X;
+            a.Y = Y;
+            Game.DMap.AddActor(a);
+            return a;
+        }
+
         public FieldOfView FOV()
         {
             // When replacing static handles, Instances of Game.DMap

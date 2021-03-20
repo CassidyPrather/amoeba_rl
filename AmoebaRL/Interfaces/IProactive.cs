@@ -10,6 +10,6 @@ namespace AmoebaRL.Interfaces
 {
     public interface IProactive
     {
-        bool Act();
+        void Act();
     }
 }

@@ -30,7 +30,7 @@ namespace AmoebaRL.Core.Organelles
 
         public abstract Resource Provides { get; set; }
 
-        public virtual bool Act()
+        public virtual void Act()
         {
             // Craft with adjacent organelles when allowed.
             List<ICell> adj = Game.DMap.Adjacent(X, Y);
@@ -59,7 +59,6 @@ namespace AmoebaRL.Core.Organelles
                     break;
                 }
             }
-            return true;
         }
 
         public virtual bool TryUpgrade(Actor recepient)

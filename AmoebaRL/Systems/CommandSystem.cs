@@ -8,6 +8,7 @@ using RLNET;
 using AmoebaRL.Core;
 using AmoebaRL.Interfaces;
 using AmoebaRL.Core.Organelles;
+using AmoebaRL.Core.Enemies;
 
 namespace AmoebaRL.Systems
 {
@@ -62,14 +63,6 @@ namespace AmoebaRL.Systems
                     Game.Player = null;
                     Game.SchedulingSystem.Add(nextUp);
                 }
-                else if (nextUp is TutorialMonster monster)
-                {
-                    // The "monster" archetype is an artifact from the tutorial I'd like to move away from.
-                    monster.PerformAction(this);
-                    // Bandaid for cases where things self-destruct: Could use global class "alive" variable?
-                    if (Game.DMap.Actors.Contains(nextUp))
-                        Game.SchedulingSystem.Add(nextUp);
-                }
                 else if (nextUp is IProactive behavior)
                 {
                     behavior.Act();
@@ -87,7 +80,7 @@ namespace AmoebaRL.Systems
             } while (!IsPlayerTurn);
         }
 
-        public void AttackMove(Actor monster, ICell cell)
+        public void AttackMove(NPC monster, ICell cell)
         {
             if (!Game.DMap.SetActorPosition(monster, cell.X, cell.Y))
             {
@@ -104,7 +97,7 @@ namespace AmoebaRL.Systems
         /// </summary>
         /// <param name="monster"></param>
         /// <param name="victim"></param>
-        public void Attack(Actor monster, Actor victim)
+        public void Attack(NPC monster, Actor victim)
         {
             if(victim is Nucleus n)
             {
@@ -126,7 +119,7 @@ namespace AmoebaRL.Systems
             }
             else if(victim is Membrane m && monster is ISlayable i)
             {
-                if(i is Tank)
+                if(monster.Armor > 0)
                 {
                     if(victim is ReinforcedMembrane || victim is ReinforcedMaw)
                     {
@@ -269,11 +262,9 @@ namespace AmoebaRL.Systems
             return true;
         }
 
-
-
         public bool Wait()
         {
-            return true; // may need to do more stuff here.
+            return true;
         }
 
         // Return value is true if the player was able to move
@@ -312,8 +303,8 @@ namespace AmoebaRL.Systems
                     }
                     success = true;
                 }
-                // Do complicated damage calculations for tanks.
-                else if (targetActor is Tank)
+                // Do complicated damage calculations for targets with armor.
+                else if (targetActor is NPC n && n.Armor > 0)
                 {
                     if (player is ReinforcedMaw)
                     {

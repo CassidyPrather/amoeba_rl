@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using AmoebaRL.Core;
+using AmoebaRL.Core.Enemies;
 using AmoebaRL.Core.Organelles;
 using AmoebaRL.Interfaces;
 using AmoebaRL.UI;
@@ -137,7 +138,7 @@ namespace AmoebaRL.Systems
                 nameColor = Palette.RootOrganelle;
             console.Print(1, 1, toDescribe.Name, nameColor);
             int maxLen = InfoConsole.INFO_WIDTH - 2;
-            string desc = toDescribe.GetDescription();
+            string desc = toDescribe.Description;
             int row = 3;
             List<string> wrapped = WrapText(desc, maxLen);
             foreach (string s in wrapped)

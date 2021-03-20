@@ -8,6 +8,7 @@ using RLNET;
 using AmoebaRL.Core;
 using System.ComponentModel.DataAnnotations;
 using AmoebaRL.Core.Organelles;
+using AmoebaRL.Core.Enemies;
 
 namespace AmoebaRL.Systems
 {

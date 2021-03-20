@@ -11,7 +11,7 @@ Z: Organelle mode toggle
     Arrow keys (Organelle mode): Select organelle
 X: Examine mode toggle
     Arrow keys (Examine mode): Move examine cursor
-Reach 128 mass to win.
+Destroy all cities to win.
 
 ## Tips
 

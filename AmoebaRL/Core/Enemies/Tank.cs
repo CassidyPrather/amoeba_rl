@@ -7,16 +7,17 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AmoebaRL.Core
+namespace AmoebaRL.Core.Enemies
 {
     public class Tank : Militia
     {
-        public int StaminaPoolSize { get; set; } = 3 ;
+        public int StaminaPoolSize { get; set; } = 3;
 
-        public int Stamina { get; set; } = 3;
+        public int Exhaustion { get; set; } = 3;
 
-        public Tank()
+        public override void Init()
         {
+            Armor = 1;
             Awareness = 3;
             Color = Palette.RestingTank;
             Symbol = 't';
@@ -24,140 +25,79 @@ namespace AmoebaRL.Core
             Name = "Tank";
         }
 
-        public override string GetDescription()
-        {
-            return $"A terrifying fortress wrapped in strong armor. It cannot be killed or eaten " +
-                $"by most means, although all that armor means it can only act every {StaminaPoolSize} turns. " + ArmorAddendum();
-                
-        }
+        public override string Flavor => $"A terrifying moving fortress wrapped in strong armor.";
 
-        protected string ArmorAddendum()
+        public override string DescBody => SlowArmorAddendum();
+
+        protected string SlowArmorAddendum()
         {
-            return "It is vulnerable to friendly fire. It can " +
-                "also be engulfed by surrounding it on all sides with slime or walls. Cities and humans will not " +
+            return "It cannot be killed or eaten by most means. It is vulnerable to friendly fire. It can " +
+                "be engulfed by surrounding it on all sides with slime or walls. Cities and humans will not " +
                 "help to engulf it, but any humans can be engulfed in contiguous groups! " +
-                $"It will act in {Stamina} turns.";
+                $"It acts every {StaminaPoolSize} turns ({Exhaustion} remaining).";
         }
 
-        public override bool Act()
+        public override void Act()
         {
-            if(!Engulf())
+            if (!Engulf())
             {
-                
-                if (Stamina == 1)
-                {
+                if (Exhaustion == 1)
                     Color = Palette.Calcium;
-                }
-                if (Stamina > 0)
-                {
-                    Stamina--;
-                }
+                if (Exhaustion > 0)
+                    Exhaustion--;
                 else
                 {
                     Color = Palette.RestingTank;
-                    Stamina = StaminaPoolSize;
-                    return base.Act();
+                    Exhaustion = StaminaPoolSize;
+                    base.Act();
                 }
             }
-            return true;
         }
 
-        public override void Die()
-        {
-            Game.DMap.RemoveActor(this);
-            ICell drop = Game.DMap.NearestLootDrop(X, Y);
-            CalciumDust transformation = new CalciumDust
-            {
-                X = drop.X,
-                Y = drop.Y
-            };
-            Game.DMap.AddItem(transformation);
-        }
+        public override List<Item> BecomesOnDie => new List<Item>() { new CalciumDust() };
 
-        public override void OnEaten()
-        {
-            Game.DMap.RemoveActor(this);
-            CapturedTank transformation = new CapturedTank
-            {
-                X = X,
-                Y = Y
-            };
-            Game.DMap.AddActor(transformation);
-        }
+        public override Actor BecomesOnEaten => new CapturedTank();
 
-        public class CapturedTank : CapturedMilitia
+        public class CapturedTank : DissolvingNPC
         {
-            public CapturedTank()
+            public override void Init()
             {
-                Awareness = 0;
-                Slime = 1;
                 Color = Palette.Calcium;
                 Name = "Dissolving Tank";
                 Symbol = 't';
                 MaxHP = 24;
                 HP = MaxHP;
                 Speed = 16;
-                // Game.DMap.UpdatePlayerFieldOfView();
-                // Already called by parent?
-                // Game.PlayerMass.Add(this);
+                Awareness = 0;
+                Slime = 1;
             }
 
-            public override string GetDescription()
-            {
-                return $"Much less scary now that its armor has been overcome. " + DissolvingAddendum();
-            }
+            public override string Flavor => $"Much less scary now that its armor has been overcome.";
 
-            public override string NameOfResult { get; set; } = "calcium";
+            public override Actor DigestsTo => new Calcium();
 
-            public override Actor DigestsTo() => new Calcium();
-
-            public override void OnUnslime() => BecomeActor(new Tank());
-
-            public override void OnDestroy() => BecomeActor(new Tank());
+            public override Actor RescuesTo => new Tank();
         }
     }
 
     public class Mech : Tank
     {
-        public Mech()
+        public override void Init()
         {
+            Armor = 1;
             Awareness = 3;
             Color = Palette.RestingTank;
             Symbol = 'M';
             Speed = 16;
             Name = "Mech";
-            Stamina = 1;
+            Exhaustion = 1;
             StaminaPoolSize = 1;
         }
 
-        public override string GetDescription()
-        {
-            return "The humans attached legs to this tank to respond to the growing threat, " +
-                "making it faster. It now acts once every two turns. " + ArmorAddendum();
-        }
+        public override string Flavor => "The humans attached legs to this tank to respond to the growing threat, " +
+                "making it faster.";
 
-        public override void Die()
-        {
-            Game.DMap.RemoveActor(this);
-            ICell drop = Game.DMap.NearestLootDrop(X, Y);
-            Item transformation = Drops();
-            transformation.X = drop.X;
-            transformation.Y = drop.Y;
-            Game.DMap.AddItem(transformation);
-        }
-
-        public override void OnEaten()
-        {
-            Game.DMap.RemoveActor(this);
-            Actor transformation = new CapturedMech
-            {
-                X = X,
-                Y = Y
-            };
-            Game.DMap.AddActor(transformation);
-        }
-
-        public Item Drops() => new CalciumDust();
+        public override Actor BecomesOnEaten => new CapturedMech();
 
         public class CapturedMech : CapturedTank
         {
@@ -171,68 +111,39 @@ namespace AmoebaRL.Core
                 MaxHP = 24;
                 HP = MaxHP;
                 Speed = 16;
-                // Game.DMap.UpdatePlayerFieldOfView();
-                // Already called by parent?
-                // Game.PlayerMass.Add(this);
             }
 
-            public override string GetDescription()
-            {
-                return $"You can't just attach legs to a tank and expect it to go faster. " + DissolvingAddendum();
-            }
+            public override string Flavor => "You can't just attach legs to a tank and expect it to go faster.";
 
-            public override string NameOfResult { get; set; } = "calcium";
+            public override Actor DigestsTo => new Calcium();
 
-            public override Actor DigestsTo() => new Calcium();
-
-            public override void OnUnslime() => BecomeActor(new Mech());
-
-            public override void OnDestroy() => BecomeActor(new Mech());
+            public override Actor RescuesTo => new Mech(); 
         }
     }
 
     public class Caravan : Tank
     {
-        public Caravan()
+        public override void Init()
         {
+            Armor = 1;
             Awareness = 3;
             Color = Palette.RestingMilitia;
             Symbol = 'v';
             Speed = 16;
             Name = "Caravan";
-            Stamina = 1;
+            Exhaustion = 1;
             StaminaPoolSize = 1;
         }
 
-        public override string GetDescription()
-        {
-            return "It wants to be very far away from danger, so it probably has some precious cargo " +
+        public override string Flavor => "It wants to be very far away from danger, so it probably has some precious cargo " +
                 "inside of it. It was hastily retrofitted with armor and as such is much slower than it " +
-                "was supposed to be, acting only every third turn. " + ArmorAddendum();
-        }
+                "was supposed to be.";
 
-        public override void Die()
-        {
-            Game.DMap.RemoveActor(this);
-            ICell drop = Game.DMap.NearestLootDrop(X, Y);
-            Item transformation = Drops();
-            transformation.X = drop.X;
-            transformation.Y = drop.Y;
-            Game.DMap.AddItem(transformation);
-        }
+        public override List<Item> BecomesOnDie => new List<Item>() { Cargo() };
 
-        public override void OnEaten()
-        {
-            Game.DMap.RemoveActor(this);
-            Actor transformation = new CapturedCaravan
-            {
-                X = X,
-                Y = Y
-            };
-            Game.DMap.AddActor(transformation);
-        }
+        public override Actor BecomesOnEaten => new CapturedCaravan();
 
-        public Item Drops()
+        public Item Cargo()
         {
             if (Game.Rand.Next(1) == 0)
                 return new CalciumDust();
@@ -240,18 +151,18 @@ namespace AmoebaRL.Core
                 return new SiliconDust();
         }
 
-        public override bool Act()
+        public override void Act()
         {
             if(!Engulf())
             {
-                if (Stamina == 1)
+                if (Exhaustion == 1)
                     Color = Palette.Militia;
-                if (Stamina > 0)
-                    Stamina--;
+                if (Exhaustion > 0)
+                    Exhaustion--;
                 else
                 {
                     Color = Palette.RestingMilitia;
-                    Stamina = StaminaPoolSize;
+                    Exhaustion = StaminaPoolSize;
                     List<Actor> seenTargets = Seen(Game.PlayerMass);
                     if (seenTargets.Count > 0)
                     {
@@ -262,45 +173,36 @@ namespace AmoebaRL.Core
                         Wander();
                 }
             }
-            return true;
         }
 
-        public class CapturedCaravan : CapturedTank
+        public class CapturedCaravan : DissolvingNPC
         {
-            public CapturedCaravan()
+            public override void Init()
             {
-                Awareness = 0;
-                Slime = 1;
                 Color = Palette.Militia;
                 Name = "Dissolving Caravan";
                 Symbol = 'v';
                 MaxHP = 24;
                 HP = MaxHP;
                 Speed = 16;
-                // Game.DMap.UpdatePlayerFieldOfView();
-                // Already called by parent?
-                // Game.PlayerMass.Add(this);
+                Awareness = 0;
+                Slime = 1;
             }
 
-            public override string GetDescription()
+            public override string Flavor => $"A glimmer of loot is visible beneath the cracking armor.";
+
+            public override Actor DigestsTo
             {
-                return $"A glimmer of loot is visible beneath the cracking armor. " + DissolvingAddendum();
+                get
+                {
+                    if (Game.Rand.Next(1) == 0)
+                        return new Calcium();
+                    else
+                        return new Electronics();
+                }
             }
 
-            public override string NameOfResult { get; set; } = "calcium or electronics (50% chance of each)";
-
-            public override Actor DigestsTo()
-            {
-                if (Game.Rand.Next(1) == 0)
-                    return new Calcium();
-                else
-                    return new Electronics();
-            }
-
-            public override void OnUnslime() => BecomeActor(new Caravan());
-
-
-            public override void OnDestroy() => BecomeActor(new Caravan());
+            public override Actor RescuesTo => new Caravan();
         }
     }
 }

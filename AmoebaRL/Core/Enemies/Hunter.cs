@@ -8,7 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace AmoebaRL.Core
+namespace AmoebaRL.Core.Enemies
 {
     public class Hunter : Militia
     {
@@ -26,7 +26,7 @@ namespace AmoebaRL.Core
 
         public virtual char BaseChar { get; protected set; } = 'h';
 
-        public Hunter()
+        public override void Init()
         {
             Awareness = 3;
             Color = Palette.Hunter;
@@ -35,18 +35,24 @@ namespace AmoebaRL.Core
             Name = "Hunter";
         }
 
-        public override string GetDescription()
+        public override string Flavor => "H-69 model robotic troop with a penetrating kinetic gun.";
+
+        public override string DescBody
         {
-            string msg = $"H-69 model robotic troop with a penetrating kinetic gun. If it sees a hostile within {Awareness} tiles orthogonally, " +
-                $"it will line up a shot, which is fired after {_firingTime} turns if it isn't killed. This shot penetrates all" +
-                $"tiles until it hits a wall, killing friendlies and enemies alike. Fortunately, its high salvage value means organelles destroyed " +
-                $"by this shot will be able to be rebuilt from their remains.";
-            if (Firing < _firingTime)
-                msg += $" Fires in {Firing}";
-            return msg;
+            get
+            {
+                string msg = $" If it sees a hostile within {Awareness} tiles orthogonally, " +
+                    $"prepare to fire at it in {_firingTime} turns if it isn't killed. This shot penetrates all " +
+                    $"tiles until it hits a wall{(Range < Game.DMap.Width * Game.DMap.Height ? $" or travels {Range} spaces" : "")}, " +
+                    $"killing friendlies and enemies alike. Fortunately, organelles destroyed " +
+                    $"by this shot drop all of the components used to build them.";
+                if (Firing < _firingTime)
+                    msg += $" Fires in {Firing} turns.";
+                return msg;
+            }
         }
 
-        public override bool Act()
+        public override void Act()
         {
             if (!Engulf())
             {
@@ -59,11 +65,10 @@ namespace AmoebaRL.Core
                     if (FireGraphic != null)
                         FireGraphic.T = Firing;
                     Firing--;
-                    return true;
                 }
                 else
                 {
-                    return base.Act();
+                    base.Act();
                 }
             }
             else
@@ -71,7 +76,6 @@ namespace AmoebaRL.Core
                 if (FireGraphic != null)
                     Game.DMap.RemoveVFX(FireGraphic);
             }
-            return true;
         }
 
         public virtual void Fire()
@@ -198,17 +202,14 @@ namespace AmoebaRL.Core
             } // else, wait a turn.
         }
 
+        public override List<Item> BecomesOnDie => new List<Item>() { new SiliconDust() };
+
+        public override Actor BecomesOnEaten => new CapturedHunter();
+
         public override void Die()
         {
             CleanVFX();
-            Game.DMap.RemoveActor(this);
-            ICell drop = Game.DMap.NearestLootDrop(X, Y);
-            SiliconDust transformation = new SiliconDust()
-            {
-                X = drop.X,
-                Y = drop.Y
-            };
-            Game.DMap.AddItem(transformation);
+            base.Die();
         }
 
         protected void CleanVFX()
@@ -222,44 +223,28 @@ namespace AmoebaRL.Core
         public override void OnEaten()
         {
             CleanVFX();
-            Game.DMap.RemoveActor(this);
-            CapturedHunter transformation = new CapturedHunter
-            {
-                X = X,
-                Y = Y
-            };
-            Game.DMap.AddActor(transformation);
+            base.OnEaten();
         }
 
-        public class CapturedHunter : CapturedMilitia
+        public class CapturedHunter : DissolvingNPC
         {
-            public CapturedHunter()
+            public override void Init()
             {
-                Awareness = 0;
-                Slime = 1;
                 Color = Palette.Hunter;
                 Name = "Dissolving Hunter";
                 Symbol = 'h';
                 MaxHP = 16;
                 HP = MaxHP;
+                Awareness = 0;
+                Slime = 1;
                 Speed = 16;
-                // Game.DMap.UpdatePlayerFieldOfView();
-                // Already called by parent?
-                // Game.PlayerMass.Add(this);
             }
 
-            public override string GetDescription()
-            {
-                return $"It could not fulfill its purpose. " + DissolvingAddendum();
-            }
+            public override string Flavor => $"It could not fulfill its purpose.";
 
-            public override string NameOfResult { get; set; } = "electronics";
+            public override Actor DigestsTo => new Electronics();
 
-            public override Actor DigestsTo() => new Electronics();
-
-            public override void OnUnslime() => BecomeActor(new Hunter());
-
-            public override void OnDestroy() => BecomeActor(new Hunter());
+            public override Actor RescuesTo => new Hunter();
         }
 
         public class Reticle : Animation
@@ -309,7 +294,7 @@ namespace AmoebaRL.Core
 
     public class Scout : Hunter
     {
-        public Scout()
+        public override void Init()
         {
             Awareness = 4;
             Color = Palette.Hunter;
@@ -320,69 +305,29 @@ namespace AmoebaRL.Core
             BaseChar = Symbol;
         }
 
-        public override string GetDescription()
-        {
-            string msg = $"Forward reconassiance sent by the humans to assess a threat. It has binoculars and can see {Awareness} tiles orthogonally. " +
-                $"If it sees an enemy, it lines up a shot which is fired after {_firingTime} turns if it isn't killed. This shot penetrates all" +
-                $"tiles until it hits a wall or travels {Range} tiles, killing friendlies and enemies alike. Organelles destroyed " +
-                $"by this shot will be able to be fully rebuilt from their remains.";
-            if (Firing < _firingTime)
-                msg += $" Fires in {Firing}";
-            return msg;
-        }
+        public override string Flavor => "Forward reconassiance sent by the humans to assess a threat. ";
 
-        public override void Die()
-        {
-            CleanVFX();
-            Game.DMap.RemoveActor(this);
-            ICell drop = Game.DMap.NearestLootDrop(X, Y);
-            SiliconDust transformation = new SiliconDust()
-            {
-                X = drop.X,
-                Y = drop.Y
-            };
-            Game.DMap.AddItem(transformation);
-        }
+        public override Actor BecomesOnEaten => new CapturedScout();
 
-        public override void OnEaten()
+        public class CapturedScout : DissolvingNPC
         {
-            CleanVFX();
-            Game.DMap.RemoveActor(this);
-            CapturedHunter transformation = new CapturedScout
+            public override void Init()
             {
-                X = X,
-                Y = Y
-            };
-            Game.DMap.AddActor(transformation);
-        }
-
-        public class CapturedScout : CapturedHunter
-        {
-            public CapturedScout()
-            {
-                Awareness = 0;
-                Slime = 1;
                 Color = Palette.Hunter;
                 Name = "Dissolving Scout";
                 Symbol = 's';
                 MaxHP = 16;
                 HP = MaxHP;
                 Speed = 16;
-                // Game.DMap.UpdatePlayerFieldOfView();
+                Awareness = 0;
+                Slime = 1;
             }
 
-            public override string GetDescription()
-            {
-                return $"It can't do much scouting from there. Its equipment looks high-tech, though. " + DissolvingAddendum();
-            }
+            public override string Flavor => $"It can't do much scouting from there. Its equipment looks high-tech, though.";
 
-            public override string NameOfResult { get; set; } = "electronics";
+            public override Actor DigestsTo => new Electronics();
 
-            public override Actor DigestsTo() => new Electronics();
-
-            public override void OnUnslime() => BecomeActor(new Scout());
-
-            public override void OnDestroy() => BecomeActor(new Scout());
+            public override Actor RescuesTo => new Scout();
         }
     }
 }

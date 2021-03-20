@@ -8,6 +8,6 @@ namespace AmoebaRL.Interfaces
 {
     public interface IDescribable : INamed
     {
-        string GetDescription();
+        string Description { get; }
     }
 }

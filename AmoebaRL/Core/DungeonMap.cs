@@ -8,6 +8,7 @@ using RogueSharp;
 using AmoebaRL.UI;
 using AmoebaRL.Interfaces;
 using AmoebaRL.Core.Organelles;
+using AmoebaRL.Core.Enemies;
 
 namespace AmoebaRL.Core
 {
@@ -275,20 +276,22 @@ namespace AmoebaRL.Core
             return !Game.PlayerMass.Contains(actAt);
         }
 
-        public ICell NearestLootDrop(int x, int y) => NearestLootDrop(x, y, NotUnderPlayer);
+        private bool NotThroughWalls(ICell candidate) => !IsWall(candidate);
 
-        public List<ICell> NearestLootDrops(int x, int y) => NearestLootDrops(x, y, NotUnderPlayer);
+        public ICell NearestLootDrop(int x, int y) => NearestLootDrop(x, y, NotUnderPlayer, NotThroughWalls);
+
+        public List<ICell> NearestLootDrops(int x, int y) => NearestLootDrops(x, y, NotUnderPlayer, NotThroughWalls);
 
         // Helpers
-        public ICell NearestLootDrop(int x, int y, Func<ICell, bool> LegalLootDrop)
+        public ICell NearestLootDrop(int x, int y, Func<ICell, bool> legalLootDrop, Func<ICell, bool> legalLootPath)
         {
-            List<ICell> candidates = NearestLootDrops(x, y, LegalLootDrop);
+            List<ICell> candidates = NearestLootDrops(x, y, legalLootDrop, legalLootPath);
             if (candidates.Count == 0)
                 return null;
               return candidates[Game.Rand.Next(0, candidates.Count - 1)];
         }
 
-        public List<ICell> NearestLootDrops(int x, int y, Func<ICell, bool> LegalLootDrop)
+        /*public List<ICell> NearestLootDrops(int x, int y, Func<ICell, bool> LegalLootDrop)
         {
             List<ICell> seen = new List<ICell>();
             List<ICell> frontier = new List<ICell>();
@@ -312,38 +315,58 @@ namespace AmoebaRL.Core
                 frontier.Clear();
             }
             return found;
-        }
+        }*/
+
+        public List<ICell> NearestLootDrops(int x, int y, List<ICell> seen, List<ICell> seenPerimeter) => NearestLootDrops(x, y, NotUnderPlayer, NotThroughWalls, seen, seenPerimeter);
 
         /// <summary>
-        /// Emergency fix for 7drl, should work on this later
+        /// Finds the set of nearest locations which an <see cref="Item"/> can appear in to an origin.
         /// </summary>
-        /// <param name="x"></param>
-        /// <param name="y"></param>
-        /// <param name="LegalLootDrop"></param>
-        /// <returns></returns>
-        public List<ICell> NearestLootDropsBuffered(List<ICell> ignoreWhileSearching, int x, int y)
+        /// <param name="x">The x coordinate of the point to try to be nearest to.</param>
+        /// <param name="y">The y coordinate of the point to try to be nearest to.</param>
+        /// <param name="legalLootDrop">The rule a tile must meet for an item to be able to appear on it. Doesn't need to include "an item doesn't already exist".</param>
+        /// <param name="legalLootPath">The rule a tile must meet to be included in pathfinding from the cell at <paramref name="x"/>, <paramref name="y"/>.</param>
+        /// <param name="seen">A buffer of tiles to exclude from tile drops and to start searching from, generated and modified by calls to this function.</param>
+        /// <param name="seenPerimeter">The tiles on the outermost ring of <paramref name="seen"/>, used to improve performance in repeated calls. Generated and modified by calls to this function.</param>
+        /// <returns>All of the tiles on which an item can legally appear.</returns>
+        /// <remarks>Should eventually replace this with the efficient floodfill library. Should ultimately be delegated to a separate class which can store this state internally and query a "next" method.</remarks>
+        public List<ICell> NearestLootDrops(int x, int y, Func<ICell, bool> legalLootDrop, Func<ICell, bool> legalLootPath, List<ICell> seen = null, List<ICell> seenPerimeter = null)
         {
-            Func<ICell, bool> LegalLootDrop = NotUnderPlayer;
+            List<ICell> candidates = new List<ICell>();
             List<ICell> frontier = new List<ICell>();
-            List<ICell> candidates = new List<ICell>() { GetCell(x, y) };
             List<ICell> found = new List<ICell>();
-            while (found.Count == 0 && candidates.Count > 0)
+            if(seen == null)
+                seen = new List<ICell>();
+            if(seen.Count == 0)
+                candidates.Add(GetCell(x, y));
+            else
+            {
+                List<ICell> perim;
+                if (seenPerimeter == null)
+                    perim = seen;
+                else
+                    perim = seenPerimeter;
+                foreach (ICell onPerimeter in perim)
+                    foreach (ICell adj in Adjacent(onPerimeter.X, onPerimeter.Y).Where(a => !seen.Contains(a) && legalLootPath(a)))
+                        candidates.Add(adj);
+            }
+            do
             {
                 foreach (ICell c in candidates)
                 {
-                    ignoreWhileSearching.Add(c);
-                    if (GetItemAt(c.X, c.Y) == null && !IsWall(c) && !Cities.Contains(GetActorAt(c.X, c.Y)) && LegalLootDrop(c))
+                    seen.Add(c);
+                    if (GetItemAt(c.X, c.Y) == null && !IsWall(c) && !Cities.Contains(GetActorAt(c.X, c.Y)) && legalLootDrop(c))
                         found.Add(c);
                     else
                     {
-                        foreach (ICell adj in Adjacent(c.X, c.Y).Where(a => !ignoreWhileSearching.Contains(a) && !IsWall(a)))
+                        foreach (ICell adj in Adjacent(c.X, c.Y).Where(a => !seen.Contains(a) && legalLootPath(a)))
                             frontier.Add(adj);
                     }
                 }
                 candidates.Clear();
                 candidates.AddRange(frontier);
                 frontier.Clear();
-            }
+            } while (found.Count == 0 && candidates.Count > 0);
             return found;
         }
 
