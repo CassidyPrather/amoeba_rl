@@ -5,15 +5,7 @@
     <TargetFramework>net4.6.1</TargetFramework>
   </PropertyGroup>
 
-  <ItemGroup>
-    <Compile Remove="FloodSpill-CSharp\**" />
-    <Compile Remove="rlnet\**" />
-    <EmbeddedResource Remove="FloodSpill-CSharp\**" />
-    <EmbeddedResource Remove="rlnet\**" />
-    <None Remove="FloodSpill-CSharp\**" />
-    <None Remove="rlnet\**" />
-  </ItemGroup>
-
+  <!--The following references must be updated when the project updates to .NET 5.0-->
   <ItemGroup>
     <PackageReference Include="RLNET" Version="1.0.6" />
     <PackageReference Include="RogueSharp" Version="4.2.0" />
