@@ -16,7 +16,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.Slime;
             Symbol = ' ';
             Slime = 1;
-            Speed = 10000; // aaa
+            Delay = 10000; // aaa
         }
 
         public override List<Item> Components() => new List<Item>() { new Nutrient() };

@@ -17,7 +17,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.Hunter;
             Symbol = '$';
             Slime = 1;
-            Speed = 1;
+            Delay = 1;
         }
 
         public override Resource Provides { get; set; } = Resource.ELECTRONICS;

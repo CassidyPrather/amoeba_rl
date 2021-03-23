@@ -21,7 +21,7 @@ namespace AmoebaRL.Core.Enemies
             Awareness = 3;
             Color = Palette.RestingTank;
             Symbol = 't';
-            Speed = 16;
+            Delay = 16;
             Name = "Tank";
         }
 
@@ -67,7 +67,7 @@ namespace AmoebaRL.Core.Enemies
                 Symbol = 't';
                 MaxHP = 24;
                 HP = MaxHP;
-                Speed = 16;
+                Delay = 16;
                 Awareness = 0;
                 Slime = 1;
             }
@@ -88,7 +88,7 @@ namespace AmoebaRL.Core.Enemies
             Awareness = 3;
             Color = Palette.RestingTank;
             Symbol = 'M';
-            Speed = 16;
+            Delay = 16;
             Name = "Mech";
             Exhaustion = 1;
             StaminaPoolSize = 1;
@@ -110,7 +110,7 @@ namespace AmoebaRL.Core.Enemies
                 Symbol = 'M';
                 MaxHP = 24;
                 HP = MaxHP;
-                Speed = 16;
+                Delay = 16;
             }
 
             public override string Flavor => "You can't just attach legs to a tank and expect it to go faster.";
@@ -129,7 +129,7 @@ namespace AmoebaRL.Core.Enemies
             Awareness = 3;
             Color = Palette.RestingMilitia;
             Symbol = 'v';
-            Speed = 16;
+            Delay = 16;
             Name = "Caravan";
             Exhaustion = 1;
             StaminaPoolSize = 1;
@@ -166,7 +166,7 @@ namespace AmoebaRL.Core.Enemies
                     List<Actor> seenTargets = Seen(Game.PlayerMass);
                     if (seenTargets.Count > 0)
                     {
-                        ICell fleeTarget = MinimizeTerrorStep(seenTargets, false);
+                        ICell fleeTarget = ImmediateUphillStep(seenTargets, false);
                         Game.CommandSystem.AttackMove(this, fleeTarget);
                     }
                     else
@@ -184,7 +184,7 @@ namespace AmoebaRL.Core.Enemies
                 Symbol = 'v';
                 MaxHP = 24;
                 HP = MaxHP;
-                Speed = 16;
+                Delay = 16;
                 Awareness = 0;
                 Slime = 1;
             }

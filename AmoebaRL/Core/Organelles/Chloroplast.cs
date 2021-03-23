@@ -20,7 +20,6 @@ namespace AmoebaRL.Core.Organelles
 
     public class Chloroplast : Upgradable, IProactive
     {
-        public int Delay { get; set; } = 20;
 
         public int NextFood { get; set; } = 20;
 
@@ -31,7 +30,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Chloroplast";
             Slime = 1;
             Awareness = 0;
-            Speed = 16;
+            base.Delay = 16;
             PossiblePaths = new List<UpgradePath>()
             {
                 new UpgradePath(1, CraftingMaterial.Resource.CALCIUM, () => new Bioreactor()),
@@ -99,7 +98,7 @@ namespace AmoebaRL.Core.Organelles
             Slime = 1;
             Awareness = 0;
             Delay = 10;
-            Speed = 16;
+            Delay = 16;
             NextFood = Delay;
             PossiblePaths = new List<UpgradePath>()
             {
@@ -130,7 +129,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Cultivator";
             Slime = 1;
             Awareness = 0;
-            Speed = 16;
+            Delay = 16;
             PossiblePaths = new List<UpgradePath>()
             {
                 new UpgradePath(2, CraftingMaterial.Resource.CALCIUM, () => new Extractor()),
@@ -179,7 +178,7 @@ namespace AmoebaRL.Core.Organelles
             Slime = 1;
             Awareness = 0;
             Delay = 45;
-            Speed = 16;
+            Delay = 16;
             NextFood = Delay;
             PossiblePaths.Clear();
         }
@@ -224,7 +223,7 @@ namespace AmoebaRL.Core.Organelles
             Slime = 1;
             Awareness = 0;
             Delay = 60;
-            Speed = 16;
+            Delay = 16;
             NextFood = Delay;
             PossiblePaths.Clear();
         }
@@ -273,7 +272,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Extractor";
             Slime = 1;
             Awareness = 0;
-            Speed = 16;
+            Delay = 16;
             PossiblePaths.Clear();
         }
 
@@ -376,7 +375,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Butcher";
             Slime = 1;
             Awareness = 0;
-            Speed = 16;
+            Delay = 16;
         }
 
         public override string Description => "This butcher processes dissolved corpses efficiently. Every time a corpse is fully dissolved, it produces an extra product.";

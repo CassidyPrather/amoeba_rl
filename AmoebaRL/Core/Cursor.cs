@@ -20,7 +20,7 @@ namespace AmoebaRL.Core
             Symbol = 'X';
             Frames = 2;
             Speed = 2;
-            AlwaysVisible = true;
+            Visibility = VisibilityCondition.ALWAYS_VISIBLE;
         }
 
         public bool Move(int x, int y)

@@ -27,7 +27,7 @@ namespace AmoebaRL.Core.Organelles
             X = 10;
             Y = 10;
             Slime = 1;
-            Speed = 16;
+            Delay = 16;
             PossiblePaths = new List<UpgradePath>()
             {
                 new UpgradePath(1, CraftingMaterial.Resource.CALCIUM, () => new EyeCore()),
@@ -50,10 +50,10 @@ namespace AmoebaRL.Core.Organelles
             {
                 n.Color = n.InactiveColor; // or Pallette.Player.Inactive
                 Game.SchedulingSystem.Remove(n);
-                int buffer = n.Speed;
-                n.Speed = Speed;
+                int buffer = n.Delay;
+                n.Delay = Delay;
                 Game.SchedulingSystem.Add(n);
-                n.Speed = buffer;
+                n.Delay = buffer;
             }
 
             ColorMovingSlime();
@@ -196,7 +196,7 @@ namespace AmoebaRL.Core.Organelles
             Color = InactiveColor;
             Symbol = '@';
             Slime = 1;
-            Speed = 16;
+            Delay = 16;
             PossiblePaths = new List<UpgradePath>()
             {
                 new UpgradePath(2, CraftingMaterial.Resource.CALCIUM, () => new LaserCore()),
@@ -226,7 +226,7 @@ namespace AmoebaRL.Core.Organelles
             Color = InactiveColor;
             Symbol = '@';
             Slime = 1;
-            Speed = 8;
+            Delay = 8;
             PossiblePaths = new List<UpgradePath>()
             {
                 new UpgradePath(2, CraftingMaterial.Resource.CALCIUM, () => new GravityCore()),
@@ -256,7 +256,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.PlayerInactive;
             Symbol = '@';
             Slime = 1;
-            Speed = 16;
+            Delay = 16;
             PossiblePaths.Clear();
         }
 
@@ -286,7 +286,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.PlayerInactive;
             Symbol = '@';
             Slime = 1;
-            Speed = 16;
+            Delay = 16;
             PossiblePaths.Clear();
         }
 
@@ -310,8 +310,8 @@ namespace AmoebaRL.Core.Organelles
                 {
                     int untilTurn = scheduledForTime.Value - Game.SchedulingSystem.GetTime();
                     Game.SchedulingSystem.Remove(a);
-                    Terrified.Add(new Tuple<Actor, int>(a, a.Speed));
-                    a.Speed += untilTurn;
+                    Terrified.Add(new Tuple<Actor, int>(a, a.Delay));
+                    a.Delay += untilTurn;
                 }
                 else
                     Game.MessageLog.Add($"{a.Name} is already terrified");
@@ -323,7 +323,7 @@ namespace AmoebaRL.Core.Organelles
             foreach (Tuple<Actor, int> a in Terrified)
             {
                 Game.SchedulingSystem.Add(a.Item1);
-                a.Item1.Speed = a.Item2;
+                a.Item1.Delay = a.Item2;
                 SetAsActiveNucleus();
             }
         }
@@ -345,7 +345,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.InactiveGravityCore;
             Symbol = '@';
             Slime = 1;
-            Speed = 8;
+            Delay = 8;
             PossiblePaths.Clear();
         }
 
@@ -419,7 +419,7 @@ namespace AmoebaRL.Core.Organelles
             Color = Palette.InactiveQuantumCore;
             Symbol = '@';
             Slime = 1;
-            Speed = 8;
+            Delay = 8;
             PossiblePaths.Clear();
         }
 
@@ -435,12 +435,12 @@ namespace AmoebaRL.Core.Organelles
 
         public void DoPreMove()
         {
-            Speed = BaseSpeed;
+            Delay = BaseSpeed;
         }
 
         public void DoPostAttackMove()
         {
-            Speed = BaseSpeed;
+            Delay = BaseSpeed;
         }
     }
 }

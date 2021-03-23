@@ -67,7 +67,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Maw";
             Slime = 1;
             Awareness = 1;
-            Speed = 16;
+            Delay = 16;
             PossiblePaths = new List<UpgradePath>()
             {
                 new UpgradePath(3, CraftingMaterial.Resource.CALCIUM, () => new ReinforcedMaw()),
@@ -167,7 +167,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Reinforced Maw";
             Slime = 1;
             Awareness = 1;
-            Speed = 16;
+            Delay = 16;
             PossiblePaths.Clear();
         }
 
@@ -199,7 +199,7 @@ namespace AmoebaRL.Core.Organelles
             Name = "Tentacle";
             Slime = 1;
             Awareness = 3;
-            Speed = 4;
+            Delay = 4;
             PossiblePaths.Clear();
         }
 
@@ -234,7 +234,7 @@ namespace AmoebaRL.Core.Organelles
 
         public virtual bool MinimizeTerrorMove(IEnumerable<Actor> terrorizers)
         {
-            ICell best = MinimizeTerrorStep(terrorizers, true);
+            ICell best = ImmediateUphillStep(terrorizers, true);
             if (best.X == X && best.Y == Y)
                 return false;
             Game.CommandSystem.AttackMoveOrganelle(this, best.X, best.Y);

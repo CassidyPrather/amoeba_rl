@@ -14,29 +14,37 @@ namespace AmoebaRL.Core
     {
         public bool Transparent { get; set; } = false;
 
-        public bool AlwaysVisible { get; set; } = false;
+        public VisibilityCondition Visibility { get; set; } = VisibilityCondition.LOS_ONLY;
 
         public virtual RLColor Color { get; set; } = Palette.Wall;
 
         public virtual RLColor BackgroundColor { get; set; } = Palette.Floor;
 
         public virtual char Symbol { get; set; } = '*';
+
         public int X { get; set; }
+
         public int Y { get; set; }
+
+
 
         public virtual void Draw(RLConsole console, IMap map)
         {
             // Don't draw actors in cells that haven't been explored
-            if (!AlwaysVisible && !map.GetCell(X, Y).IsExplored)
+            if (!(Visibility == VisibilityCondition.ALWAYS_VISIBLE || Visibility == VisibilityCondition.EXPLORED_ONLY) && !map.GetCell(X, Y).IsExplored)
             {
                 return;
             }
 
             // Only draw the actor with the color and symbol when they are in field-of-view
-            if (!Transparent && (AlwaysVisible || map.IsInFov(X, Y)))
+            if (!Transparent && (Visibility == VisibilityCondition.ALWAYS_VISIBLE || map.IsInFov(X, Y)))
             {
                 console.Set(X, Y, Color, BackgroundColor, Symbol);
             }
+            else if(!Transparent && (Visibility == VisibilityCondition.EXPLORED_ONLY))
+            {
+                console.Set(X, Y, Palette.DbStone, BackgroundColor, Symbol);
+            }    
             else
             {
                 if(map.IsInFov(X, Y))

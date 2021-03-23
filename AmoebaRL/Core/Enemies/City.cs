@@ -43,8 +43,8 @@ namespace AmoebaRL.Core.Enemies
             Symbol = 'C';
             Name = "City Gate";
             Color = Palette.City;
-            Speed = 16;
-            Unforgettable = true;
+            Delay = 16;
+            Visibility = VisibilityCondition.EXPLORED_ONLY;
         }
 
         public void Act()
@@ -235,7 +235,7 @@ namespace AmoebaRL.Core.Enemies
                 BackgroundColor = Palette.ReticleBackground;
                 Speed = 3;
                 Frames = 2;
-                AlwaysVisible = true;
+                Visibility = VisibilityCondition.ALWAYS_VISIBLE;
             }
 
             public override void SetFrame(int idx)

@@ -31,7 +31,7 @@ namespace AmoebaRL.Core.Enemies
             Awareness = 3;
             Color = Palette.Hunter;
             Symbol = 'h';
-            Speed = 16;
+            Delay = 16;
             Name = "Hunter";
         }
 
@@ -237,7 +237,7 @@ namespace AmoebaRL.Core.Enemies
                 HP = MaxHP;
                 Awareness = 0;
                 Slime = 1;
-                Speed = 16;
+                Delay = 16;
             }
 
             public override string Flavor => $"It could not fulfill its purpose.";
@@ -299,7 +299,7 @@ namespace AmoebaRL.Core.Enemies
             Awareness = 4;
             Color = Palette.Hunter;
             Symbol = 's';
-            Speed = 16;
+            Delay = 16;
             Name = "Scout";
             Range = 3;
             BaseChar = Symbol;
@@ -318,7 +318,7 @@ namespace AmoebaRL.Core.Enemies
                 Symbol = 's';
                 MaxHP = 16;
                 HP = MaxHP;
-                Speed = 16;
+                Delay = 16;
                 Awareness = 0;
                 Slime = 1;
             }

@@ -18,7 +18,7 @@ namespace AmoebaRL.Core.Enemies
             Awareness = 3;
             Color = Palette.Militia;
             Symbol = 'm';
-            Speed = 16;
+            Delay = 16;
             Name = "Militia";
         }
 
@@ -86,7 +86,7 @@ namespace AmoebaRL.Core.Enemies
                 HP = MaxHP;
                 Awareness = 0;
                 Slime = 1;
-                Speed = 16;
+                Delay = 16;
             }
 
             public override string Flavor => "Probably regrets its mediocrity.";

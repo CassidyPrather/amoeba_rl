@@ -298,7 +298,7 @@ namespace AmoebaRL.Systems
                         c.TryUpgrade(player);
                     if (player is QuantumCore q)
                     {
-                        player.Speed /= 2;
+                        player.Delay /= 2;
                         q.SetAsActiveNucleus();
                     }
                     success = true;

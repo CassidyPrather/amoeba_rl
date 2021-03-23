@@ -12,6 +12,6 @@ namespace AmoebaRL.Interfaces
 
         int Slime { get; set; }
 
-        int Speed { get; set; }
+        int Delay { get; set; }
     }
 }

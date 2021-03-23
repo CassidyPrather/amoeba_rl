@@ -16,7 +16,7 @@ namespace AmoebaRL.Core
             Color = Palette.Slime;
             Slime = 0;
             Awareness = 0;
-            Speed = 0;
+            Delay = 0;
             Game.MessageLog.Add("Press ESC to quit. Press R to play again.");
         }
     }
