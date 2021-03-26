@@ -12,13 +12,8 @@ using AmoebaRL.Core.Enemies;
 namespace AmoebaRL.Core
 {
     /// <summary>
-    /// Exists on the map.
+    /// Autonomous <see cref="Entity"/> which has a proactive impact on the map.
     /// </summary>
-    /// <remarks>
-    /// Should be designed to include multi-tile monsters of non-square shapes from the beginning.
-    /// In any case, definitely needs a field containing a reference to its positio within a map object.
-    /// Furthermore, should be separated from <see cref="ISchedulable"/>
-    /// </remarks>
     public class Actor : IActor, IDrawable, ISchedulable
     {
         // IActor
