@@ -15,8 +15,6 @@ namespace AmoebaRL.Core.Organelles
         {
             Awareness = 0;
             Name = "Calcium";
-            Color = Palette.Calcium;
-            Symbol = '$';
             Slime = 1;
             Delay = 1;
         }
@@ -32,8 +30,6 @@ namespace AmoebaRL.Core.Organelles
     {
         public CalciumDust()
         {
-            Color = Palette.Calcium;
-            Symbol = '%';
             Name = "Calcium Dust";
         }
 

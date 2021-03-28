@@ -14,8 +14,7 @@ namespace AmoebaRL
             {
                 PlayAgain = false;
                 Game g = new Game();
-                g.Play();
-                Game.Clean();
+                g.Clean();
             } while (PlayAgain);
         }
     }

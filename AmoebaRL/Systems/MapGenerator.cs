@@ -13,7 +13,7 @@ using AmoebaRL.Core.Enemies;
 namespace AmoebaRL.Systems
 {
 
-    class MapGenerator
+    public class MapGenerator
     {
         private readonly int _width;
         private readonly int _height;
@@ -31,7 +31,7 @@ namespace AmoebaRL.Systems
 
         // Constructing a new MapGenerator requires the dimensions of the maps it will create
         // as well as the sizes and maximum number of rooms
-        public MapGenerator(int width, int height,
+        public MapGenerator(Game context, int width, int height,
         int maxBoulders, int boulderMaxSize, int boulderMinSize)
         {
             _width = width;
@@ -39,7 +39,8 @@ namespace AmoebaRL.Systems
             _mapBoulders = maxBoulders;
             _boulderMaxSize = boulderMaxSize;
             _boulderMinSize = boulderMinSize;
-            _map = new DungeonMap();
+            _map = new DungeonMap(context);
+
         }
 
         // Generate a new map that places rooms randomly
@@ -47,6 +48,9 @@ namespace AmoebaRL.Systems
         {
             // Set the properties of all cells to false
             _map.Initialize(_width, _height);
+            // Have to do a separate method because RogueSharp does not allow overriding Initalize.
+            _map.InitalizeContent();
+
             Arena(); // Build a box full of boulders.
 
             PlaceBoulders();
@@ -226,7 +230,7 @@ namespace AmoebaRL.Systems
 
         private void RandomElbowTunnel(ICell from, ICell to)
         {
-            if (Game.Rand.Next(0, 1) == 0)
+            if (_map.Context.Rand.Next(0, 1) == 0)
             {
                 CreateHorizontalTunnel(from.X, to.X, from.Y);
                 CreateVerticalTunnel(from.Y, to.Y, from.X);
@@ -281,10 +285,10 @@ namespace AmoebaRL.Systems
             for (int r = _mapBoulders; r > 0; r--)
             {
                 // Determine the size and position of the room randomly
-                int boulderWidth = Game.Rand.Next(_boulderMinSize, _boulderMaxSize);
-                int boulderHeight = Game.Rand.Next(_boulderMinSize, _boulderMaxSize);
-                int boulderXPosition = Game.Rand.Next(0, _width - boulderWidth - 1);
-                int boulderYPosition = Game.Rand.Next(0, _height - boulderHeight - 1);
+                int boulderWidth = _map.Context.Rand.Next(_boulderMinSize, _boulderMaxSize);
+                int boulderHeight = _map.Context.Rand.Next(_boulderMinSize, _boulderMaxSize);
+                int boulderXPosition = _map.Context.Rand.Next(0, _width - boulderWidth - 1);
+                int boulderYPosition = _map.Context.Rand.Next(0, _height - boulderHeight - 1);
 
                 // All of our rooms can be represented as Rectangles
                 var newRoom = new Rectangle(boulderXPosition, boulderYPosition,
@@ -349,28 +353,32 @@ namespace AmoebaRL.Systems
         /// </summary>
         private void InitalizeNewPlayermassOnMap()
         {
-            Nucleus initialPlayer = Game.Player;
-            List<Actor> playerMass = Game.PlayerMass;
+            Nucleus initialPlayer = _map.Context.ActivePlayer;
+            List<Actor> playerMass = _map.PlayerMass;
             if (initialPlayer == null)
             {
                 // Devhack option:
                 initialPlayer = new Nucleus();
             }
-            if(playerMass == null)
+            if (playerMass == null)
             {
                 playerMass = new List<Actor>() { initialPlayer };
-                Game.PlayerMass = playerMass;
-                // Devhack option:
-                for(int i = 0; i < INITIAL_SLIME; i++)
-                    playerMass.Add(new Cytoplasm());
-                playerMass.Add(new Nucleus());
+                _map.PlayerMass = playerMass;
             }
+            else
+                playerMass.Add(initialPlayer);
+            
+            // Devhack option:
+            for (int i = 0; i < INITIAL_SLIME; i++)
+                    playerMass.Add(new Cytoplasm());
+            playerMass.Add(new Nucleus());
+
 
             List<ICell> initialSlime;
             do
             {
-                initialPlayer.X = Game.Rand.Next(0, _width - 1);
-                initialPlayer.Y = Game.Rand.Next(0, _height - 1);
+                initialPlayer.X = _map.Context.Rand.Next(0, _width - 1);
+                initialPlayer.Y = _map.Context.Rand.Next(0, _height - 1);
             } while (!_map.GetCell(initialPlayer.X,initialPlayer.Y).IsWalkable 
                     || !TryFluidSelect(out initialSlime, _map.GetCell(initialPlayer.X, initialPlayer.Y), playerMass.Count));
 
@@ -381,19 +389,17 @@ namespace AmoebaRL.Systems
                 inMass.X = initialSlime[i].X;
                 inMass.Y = initialSlime[i].Y;
             }
-            foreach(Actor a in Game.PlayerMass)
+            foreach(Actor a in _map.PlayerMass)
                 _map.AddActor(a);
             initialPlayer.SetAsActiveNucleus();
-            //_map.AddPlayer(initialPlayer); // Must be called last because updates FOV
-            //Game.PlayerMass.Add(player);
         }
 
         public void PlaceLoot(Item l)
         {
             do
             {
-                l.X = Game.Rand.Next(0, _width - 1);
-                l.Y = Game.Rand.Next(0, _height - 1);
+                l.X = _map.Context.Rand.Next(0, _width - 1);
+                l.Y = _map.Context.Rand.Next(0, _height - 1);
             } while (!_map.GetCell(l.X, l.Y).IsWalkable || !_map.IsEmpty(l.X, l.Y));
             _map.AddItem(l);
         }
@@ -408,8 +414,8 @@ namespace AmoebaRL.Systems
                 do
                 {
                     
-                    c.X = Game.Rand.Next(0, _width - 1);
-                    c.Y = Game.Rand.Next(0, _height - 1);
+                    c.X = _map.Context.Rand.Next(0, _width - 1);
+                    c.Y = _map.Context.Rand.Next(0, _height - 1);
                     src = _map.GetCell(c.X, c.Y);
                 } while (src.IsWalkable || !_map.IsEmpty(c.X, c.Y));
                 adjacent = AdjacentWalkable(src);
@@ -446,7 +452,7 @@ namespace AmoebaRL.Systems
             {
                 if (candidates.Count == 0 && candidates.Count < count)
                     throw new InvalidOperationException("Not enough available cells to pick from.");
-                int idxToAdd = Game.Rand.Next(0, candidates.Count - 1);
+                int idxToAdd = _map.Context.Rand.Next(0, candidates.Count - 1);
                 ICell selected = candidates[idxToAdd];
                 candidates.Remove(selected);
                 selection.Add(selected);

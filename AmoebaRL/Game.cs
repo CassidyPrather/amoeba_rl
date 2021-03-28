@@ -15,29 +15,22 @@ namespace AmoebaRL
 {
     public class Game
     {
-        // Constants may need to be fiddled with, should be automated where possible.
-        #region Constants
-        #region Sizes
-        private static readonly int _fontWidth = 12;
-        private static readonly int _fontHeight = 12;
-        #endregion
+        public GraphicalSystem Graphics { get; protected set; }
 
-        private static readonly string _fontFileName = "terminal12x12_gs_ro.png";
+        public int seed;
 
-        private static readonly string _winTitle = "Amoeba RL";
-        #endregion
-
-        // Would like to make classes for each of these.
-        #region Consoles
-        private RLRootConsole _rootConsole;
-        private MapConsole _mapConsole;
-        private InfoConsole _infoConsole;
-        private PlayerConsole _playerConsole;
-        #endregion
-
-        public static int seed;
+        public enum Mode
+        {
+            MESSAGE,
+            ORGANELLE,
+            EXAMINE
+        }
 
         #region Settings
+        public static int MapWidth = 48;
+
+        public static int MapHeight = 48;
+
         public static int DefaultSpawnRate = 50;
 
         public static int EvolutionRate = 6;
@@ -47,48 +40,43 @@ namespace AmoebaRL
         public static int CityArmor = 100;
         #endregion
 
-        #region Static Handles
-        // hate that all these are static, but it's what the tutorial taught.
+        #region Gamewide Handles
+        // Replace the random number generator with something better:
+        public IRandom Rand { get; private set; }
 
-        public static IRandom Rand { get; private set; }
+        public DungeonMap DMap { get; private set; }
 
-        public static DungeonMap DMap { get; private set; }
+        public Nucleus ActivePlayer { get; set; }
 
-        public static Nucleus Player { get; set; }
+        // Should be map-level:
+        // public static List<Actor> PlayerMass { get; set; }
 
-        public static List<Actor> PlayerMass { get; set; }
+        // May need to rethink:
+        public CommandSystem CommandSystem { get; private set; }
 
-        public static CommandSystem CommandSystem { get; private set; }
+        public SchedulingSystem SchedulingSystem { get; private set; }
 
-        public static SchedulingSystem SchedulingSystem { get; private set; }
+        public MessageLog MessageLog { get; private set; }
 
-        public static MessageLog MessageLog { get; private set; }
+        public OrganelleLog OrganelleLog { get; private set; }
 
-        public static OrganelleLog OrganelleLog { get; private set; }
+        public Cursor ExamineCursor { get; private set; } = null;
 
-        public static Cursor ExamineCursor { get; private set; } = null;
+        public Mode Showing { get; private set; } = Mode.MESSAGE;
+
         #endregion
-
-        private bool _renderRequired = true;
-
-        private DateTime _lastGraphicalTime;
 
         public Game()
         {
-            _lastGraphicalTime = DateTime.UtcNow;
             StartNewGame();
-            // Set up a handler for RLNET's Update event
-            _rootConsole.Update += OnRootConsoleUpdate;
-            // Set up a handler for RLNET's Render event
-            _rootConsole.Render += OnRootConsoleRender;
         }
 
-        static public void Clean()
+        public void Clean()
         {
             Rand = null;
             DMap = null;
-            Player = null;
-            PlayerMass = null;
+            ActivePlayer = null;
+            // PlayerMass = null;
             CommandSystem = null;
             SchedulingSystem = null;
             MessageLog = null;
@@ -104,16 +92,11 @@ namespace AmoebaRL
             seed = (int)DateTime.UtcNow.Ticks; // may save for later?
             Rand = new DotNetRandom(seed);
 
-            _mapConsole = new MapConsole();
-            _playerConsole = new PlayerConsole();
-            _infoConsole = new InfoConsole();
-            _rootConsole = new RLRootConsole(_fontFileName, _mapConsole.Width + _playerConsole.Width,
-                                             _mapConsole.Height + _infoConsole.Height, _fontWidth, _fontHeight, 1f,
-                                             _winTitle);
-            CommandSystem = new CommandSystem();
+            CommandSystem = new CommandSystem(this);
             SchedulingSystem = new SchedulingSystem();
+            
             // Fix the numbers in the map generator call later.
-            MapGenerator mapGenerator = new MapGenerator(_mapConsole.Width, _mapConsole.Height, 20, 13, 7);
+            MapGenerator mapGenerator = new MapGenerator(this, MapWidth, MapHeight, 20, 13, 7);
             DMap = mapGenerator.CreateMap();
             
             // Create a new MessageLog and print the random seed used to generate the level
@@ -126,52 +109,51 @@ namespace AmoebaRL
             MessageLog.Add("A, D: Cycle active nucleus");
             MessageLog.Add("Destroy all cities to win");
             MessageLog.Add("Consult the \"README\" file to review these instructions and more");
-            OrganelleLog = new OrganelleLog();
+            OrganelleLog = new OrganelleLog(DMap.PlayerMass);
 
+            // Set up the graphics.
+            // TODO: Automatically infer best GraphicalSystem subclass:
+            Graphics = new ASCIIGraphics(this);
+
+            Graphics.Run();
             // Launch the game!
-            CommandSystem.AdvanceTurn();
+            // CommandSystem.AdvanceTurn();
         }
 
-        public void Play() => _rootConsole.Run();
-
-        private void OnRootConsoleUpdate(object sender, UpdateEventArgs e)
+        /// <summary>
+        /// Respond to an input sent by the user interaction layer (<see cref="Graphics"/>).
+        /// </summary>
+        /// <param name="press">The input specified by the user interaction layer (<see cref="Graphics"/>).</param>
+        /// <returns>The input was accepted and the state of the game may have changed.</returns>
+        public bool HandleUserInput(RLKeyPress press)
         {
-            RLKeyPress keyPress = _rootConsole.Keyboard.GetKeyPress();
             if (CommandSystem.IsPlayerTurn)
             {
-                _renderRequired = true;
-                UserInput(keyPress);
+                AcceptUserInput(press);
+                return true;
             }
             else
-            { 
+            {
                 CommandSystem.AdvanceTurn();
-                
+                return false;
             }
-            _mapConsole.OnUpdate(sender, e);
-            _infoConsole.OnUpdate(sender, e);
-            _playerConsole.OnUpdate(sender, e);
         }
 
-        private void UserInput(RLKeyPress keyPress)
+        protected void AcceptUserInput(RLKeyPress keyPress)
         {
             bool didPlayerAct;
 
             if (ExamineCursor != null)
                 didPlayerAct = UserInputExamine(keyPress);
-            else if (MessageLog.Showing == MessageLog.Mode.ORGANELLE)
+            else if (Showing == Mode.ORGANELLE)
                 didPlayerAct = UserInputOrganellePane(keyPress);
-            else if (Player != null)
+            else if (ActivePlayer != null)
                 didPlayerAct = UserInputLive(keyPress);
             else
                 didPlayerAct = UserInputMeta(keyPress);
 
-            
-
             if (didPlayerAct)
-            {
-                _renderRequired = true;
                 CommandSystem.EndPlayerTurn();
-            }
         }
 
         private bool UserInputExamine(RLKeyPress keyPress)
@@ -196,26 +178,23 @@ namespace AmoebaRL
                 }
                 else if (keyPress.Key == RLKey.X)
                 {
-                    DMap.RemoveVFX(ExamineCursor);
+                    DMap.RemoveEntity(ExamineCursor);
                     ExamineCursor = null;
-                    MessageLog.Toggle();
+                    Showing = Mode.MESSAGE;
                     // Exit examine mode
                 }
                 else if (keyPress.Key == RLKey.Z)
                 {
-                    DMap.RemoveVFX(ExamineCursor);
+                    DMap.RemoveEntity(ExamineCursor);
                     ExamineCursor = null;
-                    MessageLog.Toggle();
-                    MessageLog.Toggle(); // toggle 2x = go to organelle inspection mode
+                    Showing = Mode.ORGANELLE;
                     // Exit examine mode
                 }
                 else if (keyPress.Key == RLKey.Escape)
                 {
-                    DMap.RemoveVFX(ExamineCursor);
+                    DMap.RemoveEntity(ExamineCursor);
                     ExamineCursor = null;
-                    MessageLog.Toggle();
-                    // _rootConsole.Close();
-                    // Quit the game
+                    Showing = Mode.MESSAGE;
                 }
             }
             return false;
@@ -232,19 +211,19 @@ namespace AmoebaRL
             {
                 if (keyPress.Key == RLKey.Up)
                 {
-                    return CommandSystem.AttackMovePlayer(Player, Direction.Up);
+                    return CommandSystem.AttackMovePlayer(ActivePlayer, Direction.Up);
                 }
                 else if (keyPress.Key == RLKey.Down)
                 {
-                    return CommandSystem.AttackMovePlayer(Player, Direction.Down);
+                    return CommandSystem.AttackMovePlayer(ActivePlayer, Direction.Down);
                 }
                 else if (keyPress.Key == RLKey.Left)
                 {
-                    return CommandSystem.AttackMovePlayer(Player, Direction.Left);
+                    return CommandSystem.AttackMovePlayer(ActivePlayer, Direction.Left);
                 }
                 else if (keyPress.Key == RLKey.Right)
                 {
-                    return CommandSystem.AttackMovePlayer(Player, Direction.Right);
+                    return CommandSystem.AttackMovePlayer(ActivePlayer, Direction.Right);
                 }
                 else if (keyPress.Key == RLKey.Space || keyPress.Key == RLKey.Period
                     || keyPress.Key == RLKey.KeypadPeriod
@@ -262,24 +241,27 @@ namespace AmoebaRL
                 }
                 else if (keyPress.Key == RLKey.Z)
                 {
-                    MessageLog.Toggle();
+
+                    Showing = Mode.ORGANELLE;
                     // Toggle Information Pane (Organelle/Log)
                 }
                 else if (keyPress.Key == RLKey.X)
                 {
-                    MessageLog.ExamineMode();
+                    Showing = Mode.EXAMINE;
                     ExamineCursor = new Cursor()
                     {
-                        X = Player.X,
-                        Y = Player.Y
+                        X = ActivePlayer.X,
+                        Y = ActivePlayer.Y
                     };
-                    DMap.AddVFX(ExamineCursor);
+                    DMap.AddEntity(ExamineCursor);
                     // Enter Examine Mode
                 }
                 else if (keyPress.Key == RLKey.Escape)
                 {
-                    if (MessageLog.Showing == MessageLog.Mode.ORGANELLE)
-                        MessageLog.Toggle();
+                    if (Showing == Mode.ORGANELLE) // Should never happen.
+                        Showing = Mode.MESSAGE;
+                    else if (Showing == Mode.MESSAGE)
+                        Graphics.End(); // Quit the game
                 }
             }
             return false;
@@ -307,7 +289,7 @@ namespace AmoebaRL
                 }
                 else if (keyPress.Key == RLKey.Z)
                 {
-                    MessageLog.Toggle();
+                    Showing = Mode.MESSAGE;
                     // Toggle Information Pane (Organelle/Log)
                 }
                 else if (keyPress.Key == RLKey.X)
@@ -317,13 +299,13 @@ namespace AmoebaRL
                         X = OrganelleLog.Highlighted.X,
                         Y = OrganelleLog.Highlighted.Y
                     };
-                    DMap.AddVFX(ExamineCursor);
-                    MessageLog.ExamineMode();
+                    DMap.AddEntity(ExamineCursor);
+                    Showing = Mode.EXAMINE;
                     // Enter Examine Mode
                 }
                 else if (keyPress.Key == RLKey.Escape)
                 {
-                    MessageLog.Toggle();
+                    Showing = Mode.MESSAGE;
                     // Go back to play mode
                 }
             }
@@ -336,42 +318,27 @@ namespace AmoebaRL
             {
                 if(keyPress.Key == RLKey.Escape)
                 {
-                    _rootConsole.Close();
+                    Graphics.End();
                 }
                 else if (keyPress.Key == RLKey.R)
                 {
                     Program.PlayAgain = true;
-                    _rootConsole.Close();
+                    Graphics.End();
                 }
                 return true; // Let the user idle after their death I guess.
             }
             return false;
         }
 
-        private void OnRootConsoleRender(object sender, UpdateEventArgs e)
+
+        public void Toggle()
         {
-            // Update Animations
-            DateTime renderInstant = DateTime.UtcNow;
-            TimeSpan delta = renderInstant - _lastGraphicalTime;
-            _lastGraphicalTime = renderInstant;
-            if (DMap.Animate(_mapConsole, delta))
-                _rootConsole.Draw();
-            // Update Main Game
-            if(_renderRequired)
-            {
-                DMap.Draw(_mapConsole);
-                //Player.Draw(_mapConsole, DMap);
-                MessageLog.Draw(_infoConsole);
-                OrganelleLog.Draw(_playerConsole);
-
-                RLConsole.Blit(_mapConsole, 0, 0, _mapConsole.Width, _mapConsole.Height, _rootConsole, 0, 0);
-                RLConsole.Blit(_infoConsole, 0, 0, _infoConsole.Width, _infoConsole.Height, _rootConsole, 0, _mapConsole.Height);
-                RLConsole.Blit(_playerConsole, 0, 0, _playerConsole.Width, _playerConsole.Height, _rootConsole, _mapConsole.Width, 0);
-
-                _rootConsole.Draw(); // Must come after "inner draws"
-
-                _renderRequired = false;
-            }
+            if (Showing == Mode.MESSAGE)
+                Showing = Mode.ORGANELLE;
+            else if (Showing == Mode.ORGANELLE)
+                Showing = Mode.MESSAGE;
+            else if (Showing == Mode.EXAMINE)
+                Showing = Mode.MESSAGE;
         }
     }
 }

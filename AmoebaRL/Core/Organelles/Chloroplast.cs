@@ -25,8 +25,6 @@ namespace AmoebaRL.Core.Organelles
 
         public Chloroplast()
         {
-            Color = Palette.RootOrganelle;
-            Symbol = 'H';
             Name = "Chloroplast";
             Slime = 1;
             Awareness = 0;
@@ -60,17 +58,17 @@ namespace AmoebaRL.Core.Organelles
                 X = target.X,
                 Y = target.Y
             };
-            Game.DMap.AddActor(c);
-            Game.PlayerMass.Add(c);
+            Map.AddActor(c);
+            Map.PlayerMass.Add(c);
             return true;
         }
 
         protected ICell GetSpawnSpot()
         {
-            List<ICell> targets = Game.DMap.NearestNoActor(X, Y);
+            List<ICell> targets = Map.NearestNoActor(X, Y);
             if (targets.Count == 0)
                 return null;
-            return targets[Game.Rand.Next(targets.Count - 1)];
+            return targets[Map.Context.Rand.Next(targets.Count - 1)];
         }
     }
 
@@ -78,8 +76,6 @@ namespace AmoebaRL.Core.Organelles
     {
         public Plant()
         {
-            Color = Palette.OrganelleInactive;
-            Symbol = 'l';
             Name = "Plant";
         }
 
@@ -92,8 +88,6 @@ namespace AmoebaRL.Core.Organelles
     {
         public Bioreactor()
         {
-            Color = Palette.Calcium;
-            Symbol = 'R';
             Name = "Bioreactor";
             Slime = 1;
             Awareness = 0;
@@ -124,8 +118,6 @@ namespace AmoebaRL.Core.Organelles
 
         public Cultivator()
         {
-            Color = Palette.Hunter;
-            Symbol = 'U';
             Name = "Cultivator";
             Slime = 1;
             Awareness = 0;
@@ -140,7 +132,7 @@ namespace AmoebaRL.Core.Organelles
         public virtual void Act()
         {
             // Check adjacent digestibles.
-            List<DissolvingNPC> adj = Game.DMap.AdjacentActors(X, Y)
+            List<DissolvingNPC> adj = Map.AdjacentActors(X, Y)
                 .Where(a => a is DissolvingNPC)
                 .Cast<DissolvingNPC>().ToList();
 
@@ -172,8 +164,6 @@ namespace AmoebaRL.Core.Organelles
     {
         public BiometalForge()
         {
-            Color = Palette.Calcium;
-            Symbol = 'F';
             Name = "Biometal Forge";
             Slime = 1;
             Awareness = 0;
@@ -190,15 +180,15 @@ namespace AmoebaRL.Core.Organelles
                 return false;
 
             Organelle produced;
-            if (Game.Rand.Next(1) == 0)
+            if (Map.Context.Rand.Next(1) == 0)
                 produced = new Calcium();
             else
                 produced = new Electronics();
 
             produced.X = target.X;
             produced.Y = target.Y;
-            Game.DMap.AddActor(produced);
-            Game.PlayerMass.Add(produced);
+            Map.AddActor(produced);
+            Map.PlayerMass.Add(produced);
             return true;
         }
 
@@ -217,8 +207,6 @@ namespace AmoebaRL.Core.Organelles
     {
         public PrimordialSoup()
         {
-            Color = Palette.Hunter;
-            Symbol = 'P';
             Name = "Primordial Soup";
             Slime = 1;
             Awareness = 0;
@@ -236,7 +224,7 @@ namespace AmoebaRL.Core.Organelles
 
             // This will need to be manually updated when new organelles are added.
             Organelle produced;
-            int choice = Game.Rand.Next(4);
+            int choice = Map.Context.Rand.Next(4);
             if (choice < 2)
                 produced = new Membrane();
             else if (choice < 4)
@@ -246,8 +234,7 @@ namespace AmoebaRL.Core.Organelles
 
             produced.X = target.X;
             produced.Y = target.Y;
-            Game.DMap.AddActor(produced);
-            Game.PlayerMass.Add(produced);
+            Map.AddActor(produced);
             return true;
         }
 
@@ -267,8 +254,6 @@ namespace AmoebaRL.Core.Organelles
 
         public Extractor()
         {
-            Color = Palette.Calcium;
-            Symbol = 'U';
             Name = "Extractor";
             Slime = 1;
             Awareness = 0;
@@ -278,15 +263,15 @@ namespace AmoebaRL.Core.Organelles
 
         public override void Act()
         {
-            List<Actor> adjUseless = Game.DMap.AdjacentActors(X, Y).Where(a => !(a is IDigestable)).ToList();
-            List<ICell> adjRaw = Game.DMap.AdjacentWalkable(X, Y);
+            List<Actor> adjUseless = Map.AdjacentActors(X, Y).Where(a => !(a is IDigestable)).ToList();
+            List<ICell> adjRaw = Map.AdjacentWalkable(X, Y);
             foreach (Actor a in adjUseless)
-                adjRaw.Add(Game.DMap.GetCell(a.X, a.Y));
+                adjRaw.Add(Map.GetCell(a.X, a.Y));
             List<ICell> adjWantToEnter = new List<ICell>();
             // Randomize order
             while (!(adjRaw.Count == 0))
             {
-                int pick = Game.Rand.Next(adjRaw.Count - 1);
+                int pick = Map.Context.Rand.Next(adjRaw.Count - 1);
                 adjWantToEnter.Add(adjRaw[pick]);
                 adjRaw.RemoveAt(pick);
             }
@@ -302,9 +287,9 @@ namespace AmoebaRL.Core.Organelles
                     do
                     {
                         stuck = false;
-                        getsToGo = wants[Game.Rand.Next(wants.Count - 1)];
+                        getsToGo = wants[Map.Context.Rand.Next(wants.Count - 1)];
                         p = getsToGo.PathIgnoring(x =>
-                                Game.PlayerMass.Contains(x) &&
+                                Map.PlayerMass.Contains(x) &&
                                 !(x is Extractor) &&
                                 !(x is DissolvingNPC && x.AdjacentTo(X, Y)),
                             dest.X, dest.Y);
@@ -319,11 +304,11 @@ namespace AmoebaRL.Core.Organelles
                         try
                         {
                             ICell step = p.StepForward();
-                            Game.CommandSystem.AttackMoveOrganelle(getsToGo, step.X, step.Y);
+                            Map.Context.CommandSystem.AttackMoveOrganelle(getsToGo, step.X, step.Y);
                         }
                         catch (RogueSharp.NoMoreStepsException)
                         {
-                            Game.MessageLog.Add($"A dissolving human was pulled into the space it was already in!");
+                            Map.Context.MessageLog.Add($"A dissolving human was pulled into the space it was already in!");
                         }
                     }
                 }
@@ -336,12 +321,12 @@ namespace AmoebaRL.Core.Organelles
 
         private List<Organelle> NeedsToReach(ICell dest)
         {
-            List<Organelle> wants = Game.PlayerMass.Where(
+            List<Organelle> wants = Map.PlayerMass.Where(
                 c => c is IDigestable && !c.AdjacentTo(X, Y) && c is Organelle
                 ).Cast<Organelle>().ToList();
             wants = wants.Where(
-                w => DungeonMap.TaxiDistance(Game.DMap.GetCell(w.X, w.Y), dest)
-                == wants.Min(x => DungeonMap.TaxiDistance(Game.DMap.GetCell(w.X, w.Y), dest))
+                w => DungeonMap.TaxiDistance(Map.GetCell(w.X, w.Y), dest)
+                == wants.Min(x => DungeonMap.TaxiDistance(Map.GetCell(w.X, w.Y), dest))
                 )
                 .ToList();
             return wants;
@@ -370,8 +355,6 @@ namespace AmoebaRL.Core.Organelles
     {
         public Butcher()
         {
-            Color = Palette.Hunter;
-            Symbol = 'K';
             Name = "Butcher";
             Slime = 1;
             Awareness = 0;

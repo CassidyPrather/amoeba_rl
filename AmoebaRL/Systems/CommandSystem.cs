@@ -28,7 +28,14 @@ namespace AmoebaRL.Systems
             }
         }
 
+        public Game CommandTo { get; set; }
+
         public bool IsPlayerTurn { get; set; }
+
+        public CommandSystem(Game g)
+        {
+            CommandTo = g;
+        }
 
         public void EndPlayerTurn()
         {
@@ -38,8 +45,8 @@ namespace AmoebaRL.Systems
         public void Win()
         {
             // TODO
-            Game.SchedulingSystem.Clear();
-            Game.DMap.AddActor(new PostMortem());
+            CommandTo.SchedulingSystem.Clear();
+            CommandTo.DMap.AddActor(new PostMortem());
 
         }
 
@@ -49,31 +56,31 @@ namespace AmoebaRL.Systems
             // for stack problems.
             do
             {
-                ISchedulable nextUp = Game.SchedulingSystem.Get();
+                ISchedulable nextUp = CommandTo.SchedulingSystem.Get();
                 if (nextUp is Nucleus n)
                 {
                     IsPlayerTurn = true;
-                    //Game.SchedulingSystem.Add(nextUp); // We want the same nucleus to go again, if possible.
+                    //CommandTo.SchedulingSystem.Add(nextUp); // We want the same nucleus to go again, if possible.
                     n.SetAsActiveNucleus();
                     
                 }
                 else if (nextUp is PostMortem)
                 {
                     IsPlayerTurn = true;
-                    Game.Player = null;
-                    Game.SchedulingSystem.Add(nextUp);
+                    CommandTo.ActivePlayer = null;
+                    CommandTo.SchedulingSystem.Add(nextUp);
                 }
                 else if (nextUp is IProactive behavior)
                 {
                     behavior.Act();
                     // Bandaid for cases where things self-destruct: Could use global class "alive" variable?
-                    if (Game.DMap.Actors.Contains(nextUp))
-                        Game.SchedulingSystem.Add(nextUp);
+                    if (CommandTo.DMap.Actors.Contains(nextUp))
+                        CommandTo.SchedulingSystem.Add(nextUp);
                 }
                 else
                 {
                     // ISchedulables with no behaviors are very strange indeed...
-                    Game.SchedulingSystem.Add(nextUp);
+                    CommandTo.SchedulingSystem.Add(nextUp);
                 }
                 if (nextUp is IPostSchedule post)
                     post.DoPostSchedule();
@@ -82,10 +89,10 @@ namespace AmoebaRL.Systems
 
         public void AttackMove(NPC monster, ICell cell)
         {
-            if (!Game.DMap.SetActorPosition(monster, cell.X, cell.Y))
+            if (!CommandTo.DMap.SetActorPosition(monster, cell.X, cell.Y))
             {
-                Actor target = Game.DMap.GetActorAt(cell.X, cell.Y);
-                if (Game.PlayerMass.Contains(target))
+                Actor target = CommandTo.DMap.GetActorAt(cell.X, cell.Y);
+                if (CommandTo.DMap.PlayerMass.Contains(target))
                 { // would be fine to just attack all slimed things instead?
                     Attack(monster, target);
                 }
@@ -107,12 +114,12 @@ namespace AmoebaRL.Systems
                     Actor newVictim = n.Retreat();
                     if (newVictim == null)
                     {
-                        Game.MessageLog.Add($"{victim.Name} could not retreat and was destroyed");
+                        CommandTo.MessageLog.Add($"{victim.Name} could not retreat and was destroyed");
                         n.Destroy();
                     }
                     else
                     {
-                        Game.MessageLog.Add($"The {victim.Name} retreated into the nearby { newVictim.Name }, thereby avoiding death");
+                        CommandTo.MessageLog.Add($"The {victim.Name} retreated into the nearby { newVictim.Name }, thereby avoiding death");
                         Attack(monster, newVictim);
                     }
                 }
@@ -123,18 +130,18 @@ namespace AmoebaRL.Systems
                 {
                     if(victim is ReinforcedMembrane || victim is ReinforcedMaw)
                     {
-                        Game.MessageLog.Add($"The {monster.Name} is impaled by sharp {victim.Name} protiens!");
+                        CommandTo.MessageLog.Add($"The {monster.Name} is impaled by sharp {victim.Name} protiens!");
                         i.Die();
                     }
                     else
                     {
-                        Game.MessageLog.Add($"The {monster.Name} shrugs off the {victim.Name}'s protiens");
+                        CommandTo.MessageLog.Add($"The {monster.Name} shrugs off the {victim.Name}'s protiens");
                         m.Destroy();
                     }
                 }
                 else
                 {
-                    Game.MessageLog.Add($"The {monster.Name} is impaled by sharp {victim.Name} protiens!");
+                    CommandTo.MessageLog.Add($"The {monster.Name} is impaled by sharp {victim.Name} protiens!");
                     i.Die();
                 }
             }    
@@ -144,27 +151,27 @@ namespace AmoebaRL.Systems
                 bool saved = CheckAndSave(monster, victim);
                 if (!saved)
                 {
-                    Game.MessageLog.Add($"The { monster.Name } destroys the {victim.Name}");
+                    CommandTo.MessageLog.Add($"The { monster.Name } destroys the {victim.Name}");
                     o.Destroy();
                 }
             }
             else
             {
-                Game.MessageLog.Add($"A { victim.Name } is destroyed by a {monster.Name}");
-                Game.DMap.RemoveActor(victim);
+                CommandTo.MessageLog.Add($"A { victim.Name } is destroyed by a {monster.Name}");
+                CommandTo.DMap.RemoveActor(victim);
             }
         }
 
-        private static bool CheckAndSave(Actor monster, Actor victim)
+        private bool CheckAndSave(Actor monster, Actor victim)
         {
             bool saved = false;
-            List<Actor> adj = Game.DMap.AdjacentActors(victim.X, victim.Y);
+            List<Actor> adj = CommandTo.DMap.AdjacentActors(victim.X, victim.Y);
             if (!(monster is Tank))
             {
                 saved = adj.Where(a => a is ForceField).Count() > 0;
                 if (saved)
                 {
-                    Game.MessageLog.Add($"An energy mantle force protects the {victim.Name} from the {monster.Name}");
+                    CommandTo.MessageLog.Add($"An energy mantle force protects the {victim.Name} from the {monster.Name}");
                 }
             }
             if (!saved)
@@ -173,9 +180,9 @@ namespace AmoebaRL.Systems
                 if (nnms.Count > 0)
                 {
                     saved = true;
-                    NonNewtonianMembrane savior = nnms[Game.Rand.Next(nnms.Count() - 1)];
-                    Game.DMap.Swap(savior, victim);
-                    Game.MessageLog.Add($"The { savior.Name } rematerializes and protects the {victim.Name} from the {monster.Name}");
+                    NonNewtonianMembrane savior = nnms[CommandTo.Rand.Next(nnms.Count() - 1)];
+                    CommandTo.DMap.Swap(savior, victim);
+                    CommandTo.MessageLog.Add($"The { savior.Name } rematerializes and protects the {victim.Name} from the {monster.Name}");
                 }
             }
 
@@ -185,15 +192,15 @@ namespace AmoebaRL.Systems
         public void EatActor(Actor eating, Actor eaten)
         {
             // Also eat the item underneath, if it was present.
-            Item under = Game.DMap.GetItemAt(eaten.X, eaten.Y);
+            Item under = CommandTo.DMap.GetItemAt(eaten.X, eaten.Y);
             if(eaten is IEatable e)
             {
-                Game.DMap.Swap(eating, eaten);
+                CommandTo.DMap.Swap(eating, eaten);
                 e.OnEaten();
             }
             else
             {
-                Game.DMap.RemoveActor(eaten);
+                CommandTo.DMap.RemoveActor(eaten);
             }
             if (under != null && under is IEatable && !(under is Nutrient))
             {
@@ -230,7 +237,7 @@ namespace AmoebaRL.Systems
                     seen.AddRange(candidates);
                     frontier.Clear();
                     foreach (Actor c in candidates)
-                        frontier.AddRange(Game.PlayerMass.Where(a => a.AdjacentTo(c.X, c.Y) && !seen.Contains(a)));
+                        frontier.AddRange(CommandTo.DMap.PlayerMass.Where(a => a.AdjacentTo(c.X, c.Y) && !seen.Contains(a)));
                     candidates.Clear();
                     candidates.AddRange(frontier);
                     foreach (Actor potential in candidates)
@@ -242,20 +249,20 @@ namespace AmoebaRL.Systems
                         return false; // No room to eat
                 }
                 // Pick a random cytoplasm among the nearest.
-                int pick = Game.Rand.Next(0, selection.Count - 1);
+                int pick = CommandTo.Rand.Next(0, selection.Count - 1);
                 Actor recepient = selection[pick];
                 Point newOrganellePos = new Point(recepient.X, recepient.Y);
                 
-                Game.DMap.RemoveActor(recepient);
+                CommandTo.DMap.RemoveActor(recepient);
                 eaten.X = newOrganellePos.X;
                 eaten.Y = newOrganellePos.Y;
                 e.OnEaten();
                 if(moveAndTransform)
-                    eating = Game.DMap.GetActorAt(newOrganellePos.X, newOrganellePos.Y);
+                    eating = CommandTo.DMap.GetActorAt(newOrganellePos.X, newOrganellePos.Y);
             }
             else
             {
-                Game.DMap.RemoveItem(eaten);
+                CommandTo.DMap.RemoveItem(eaten);
             }
             if(eating != null && eating is Organelle o)
                 AttackMoveOrganelle(o, mealLocation.X, mealLocation.Y);
@@ -286,14 +293,14 @@ namespace AmoebaRL.Systems
             bool success = false;
             if (player is IPreMove pre)
                 pre.DoPreMove();
-            Actor targetActor = Game.DMap.GetActorAt(x, y);
+            Actor targetActor = CommandTo.DMap.GetActorAt(x, y);
             if (targetActor != null)
             {
                 // Swap with slimed tiles
                 if (targetActor.Slime > 0)
                 {
 
-                    Game.DMap.Swap(player, targetActor);
+                    CommandTo.DMap.Swap(player, targetActor);
                     if (targetActor is CraftingMaterial c)
                         c.TryUpgrade(player);
                     if (player is QuantumCore q)
@@ -308,19 +315,19 @@ namespace AmoebaRL.Systems
                 {
                     if (player is ReinforcedMaw)
                     {
-                        Game.MessageLog.Add($"The {targetActor.Name} is crushed by the jaws of the {player.Name}!");
+                        CommandTo.MessageLog.Add($"The {targetActor.Name} is crushed by the jaws of the {player.Name}!");
                         EatActor(player, targetActor);
                         success = true;
                     }
                     else if(player is LaserCore)
                     {
-                        Game.MessageLog.Add($"The {targetActor.Name} is obliterated by the {player.Name}'s laser beam!");
+                        CommandTo.MessageLog.Add($"The {targetActor.Name} is obliterated by the {player.Name}'s laser beam!");
                         EatActor(player, targetActor);
                         success = true;
                     }
                     else
                     {
-                        Game.MessageLog.Add($"The {targetActor.Name}'s armor is too strong for the {player.Name}!");
+                        CommandTo.MessageLog.Add($"The {targetActor.Name}'s armor is too strong for the {player.Name}!");
                         success = false;
                     }
                     
@@ -328,20 +335,20 @@ namespace AmoebaRL.Systems
                 // Destroy cities only if their armor can be overcome
                 else if(targetActor is City c)
                 {
-                    if(Game.PlayerMass.Count >= Game.CityArmor)
+                    if(CommandTo.DMap.PlayerMass.Count >= c.Armor)
                     {
                         c.Destroy();
                         success = true;
                     }
                     else
                     {
-                        Game.MessageLog.Add($"There is not enough mass to destroy the {targetActor.Name}! (Have {Game.PlayerMass.Count}, need {Game.CityArmor})");
+                        CommandTo.MessageLog.Add($"There is not enough mass to destroy the {targetActor.Name}! (Have {CommandTo.DMap.PlayerMass.Count}, need {c.Armor})");
                     }
                 }
                 // Eat anything else that can be eaten.
                 else if (targetActor is IEatable)
                 {
-                    Game.MessageLog.Add($"The {player.Name} consumes the {targetActor.Name}.");
+                    CommandTo.MessageLog.Add($"The {player.Name} consumes the {targetActor.Name}.");
                     EatActor(player, targetActor);
                     success = true;
                 }
@@ -349,7 +356,7 @@ namespace AmoebaRL.Systems
             }
             else
             {
-                Item targetItem = Game.DMap.GetItemAt(x, y);
+                Item targetItem = CommandTo.DMap.GetItemAt(x, y);
                 if (targetItem != null)
                 {
                     if (targetItem is IEatable)
@@ -396,7 +403,7 @@ namespace AmoebaRL.Systems
             return output;
         }
 
-        private static bool MoveOrganelle(Organelle player, int x, int y)
+        private bool MoveOrganelle(Organelle player, int x, int y)
         {
             int counter = 1;
             int max = 0;
@@ -409,7 +416,7 @@ namespace AmoebaRL.Systems
                 List<SlimePathfind> frontier = new List<SlimePathfind>();
                 foreach (SlimePathfind l in last)
                 {
-                    List<Actor> pullIn = Game.DMap.Actors.Where(a => a.Slime > 0
+                    List<Actor> pullIn = CommandTo.DMap.Actors.Where(a => a.Slime > 0
                                                                 && (!(a is Organelle o) || !o.Anchor)
                                                                 && a.AdjacentTo(l.current.X, l.current.Y)
                                                                 && !accountedFor.Where(t => t.current == a).Any()).ToList();
@@ -430,7 +437,7 @@ namespace AmoebaRL.Systems
 
             List<SlimePathfind> best = accountedFor.Where(p => p.dist == max).ToList();
 
-            int randSelect = Game.Rand.Next(0, best.Count - 1);
+            int randSelect = CommandTo.Rand.Next(0, best.Count - 1);
             SlimePathfind selected = best[randSelect];
             List<Actor> path = new List<Actor>();
             bool looping = true; // why can't you come up with better name
@@ -445,12 +452,12 @@ namespace AmoebaRL.Systems
             path.Reverse();
 
             Point lastPoint = new Point(player.X, player.Y);
-            if (Game.DMap.WithinBounds(x,y) && Game.DMap.SetActorPosition(player, x, y))
+            if (CommandTo.DMap.WithinBounds(x,y) && CommandTo.DMap.SetActorPosition(player, x, y))
             {// Player was moved; cascade vaccume
                 for (int i = 1; i < path.Count; i++)
                 {
                     Point buffer = new Point(path[i].X, path[i].Y);
-                    Game.DMap.SetActorPosition(path[i], lastPoint.X, lastPoint.Y);
+                    CommandTo.DMap.SetActorPosition(path[i], lastPoint.X, lastPoint.Y);
                     lastPoint = buffer;
                 }
                 return true;
@@ -461,8 +468,8 @@ namespace AmoebaRL.Systems
 
         public void NextNucleus(int shift)
         {
-            List<Actor> nuclei = Game.PlayerMass.Where(a => a is Nucleus).ToList();
-            int curIdx = nuclei.IndexOf(Game.Player);
+            List<Actor> nuclei = CommandTo.DMap.PlayerMass.Where(a => a is Nucleus).ToList();
+            int curIdx = nuclei.IndexOf(CommandTo.ActivePlayer);
             int newIdx = (curIdx + shift) % nuclei.Count;
             if (newIdx < 0)
                 newIdx += nuclei.Count();

@@ -33,17 +33,17 @@ namespace AmoebaRL.Core.Organelles
         public virtual void Act()
         {
             // Craft with adjacent organelles when allowed.
-            List<ICell> adj = Game.DMap.Adjacent(X, Y);
+            List<ICell> adj = Map.Context.DMap.Adjacent(X, Y);
             List<IUpgradable> adjUpg = new List<IUpgradable>();
             foreach (ICell a in adj)
             { 
-                Actor act = Game.DMap.GetActorAt(a.X, a.Y);
+                Actor act = Map.Context.DMap.GetActorAt(a.X, a.Y);
                 if (act != null && act is IUpgradable u && !(act is Nucleus))
                     adjUpg.Add(u);
             }
             while(adjUpg.Count > 0)
             {
-                IUpgradable picked = adjUpg[Game.Rand.Next(0, adjUpg.Count-1)];
+                IUpgradable picked = adjUpg[Map.Context.Rand.Next(0, adjUpg.Count-1)];
                 adjUpg.Remove(picked);
                 if(picked.Upgrade(Provides))
                 {
@@ -52,10 +52,10 @@ namespace AmoebaRL.Core.Organelles
                         X = X,
                         Y = Y
                     };
-                    Game.PlayerMass.Add(byproduct);
-                    Game.DMap.RemoveActor(this);
+                    Map.PlayerMass.Add(byproduct);
+                    Map.Context.DMap.RemoveActor(this);
                     BecomeActor(byproduct);
-                    Game.DMap.UpdatePlayerFieldOfView();
+                    Map.Context.DMap.UpdatePlayerFieldOfView();
                     break;
                 }
             }
@@ -72,10 +72,10 @@ namespace AmoebaRL.Core.Organelles
                         X = X,
                         Y = Y
                     };
-                    Game.PlayerMass.Add(byproduct);
-                    Game.DMap.RemoveActor(this);
+                    Map.PlayerMass.Add(byproduct);
+                    Map.Context.DMap.RemoveActor(this);
                     BecomeActor(byproduct);
-                    Game.DMap.UpdatePlayerFieldOfView();
+                    Map.Context.DMap.UpdatePlayerFieldOfView();
                     return true;
                 }
                 return false;

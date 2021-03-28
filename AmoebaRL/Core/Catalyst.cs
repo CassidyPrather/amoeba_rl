@@ -15,12 +15,12 @@ namespace AmoebaRL.Core
 
         public virtual void OnEaten()
         {
-            Game.DMap.RemoveItem(this);
+            Map.RemoveItem(this);
             Actor transformation = NewOrganelle();
             transformation.X = X;
             transformation.Y = Y;
-            Game.DMap.AddActor(transformation);
-            Game.PlayerMass.Add(transformation);
+            Map.AddActor(transformation);
+            Map.PlayerMass.Add(transformation);
         }
     }
 }

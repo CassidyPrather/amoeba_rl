@@ -14,11 +14,9 @@ namespace AmoebaRL.Core.Enemies
     {
         public int Range { get; protected set; } = 64;
 
-        public static readonly int _firingTime = 2;
+        public int FiringTime { get; set; } = 2;
 
-        public int Firing { get; protected set; } = _firingTime;
-
-        public FiringTimer FireGraphic { get; protected set; } = null;
+        public int Firing { get; protected set; } = 2;
 
         public Point FiringDirection { get; protected set; }
 
@@ -29,8 +27,6 @@ namespace AmoebaRL.Core.Enemies
         public override void Init()
         {
             Awareness = 3;
-            Color = Palette.Hunter;
-            Symbol = 'h';
             Delay = 16;
             Name = "Hunter";
         }
@@ -42,14 +38,20 @@ namespace AmoebaRL.Core.Enemies
             get
             {
                 string msg = $" If it sees a hostile within {Awareness} tiles orthogonally, " +
-                    $"prepare to fire at it in {_firingTime} turns if it isn't killed. This shot penetrates all " +
-                    $"tiles until it hits a wall{(Range < Game.DMap.Width * Game.DMap.Height ? $" or travels {Range} spaces" : "")}, " +
+                    $"prepare to fire at it in {FiringTime} turns if it isn't killed. This shot penetrates all " +
+                    $"tiles until it hits a wall{(Range < Map.Context.DMap.Width * Map.Context.DMap.Height ? $" or travels {Range} spaces" : "")}, " +
                     $"killing friendlies and enemies alike. Fortunately, organelles destroyed " +
                     $"by this shot drop all of the components used to build them.";
-                if (Firing < _firingTime)
+                if (Firing < FiringTime)
                     msg += $" Fires in {Firing} turns.";
                 return msg;
             }
+        }
+
+        public void ClearReticles()
+        {
+            foreach (Reticle r in Targeted)
+                Map.RemoveVFX(r);
         }
 
         public override void Act()
@@ -57,39 +59,21 @@ namespace AmoebaRL.Core.Enemies
             if (!Engulf())
             {
                 if (Firing <= 0)
-                {
                     Fire();
-                }
-                else if (Firing < _firingTime)
-                {
-                    if (FireGraphic != null)
-                        FireGraphic.T = Firing;
+                else if (Firing < FiringTime)
                     Firing--;
-                }
                 else
-                {
                     base.Act();
-                }
-            }
-            else
-            {
-                if (FireGraphic != null)
-                    Game.DMap.RemoveVFX(FireGraphic);
             }
         }
 
         public virtual void Fire()
         {
-            if(FireGraphic != null)
-            {
-                Game.DMap.RemoveVFX(FireGraphic);
-                FireGraphic = null;
-            }
-            Firing = _firingTime;
+            Firing = FiringTime;
             int hitCount = 0;
             foreach(Reticle r in Targeted)
             {
-                Actor hit = Game.DMap.GetActorAt(r.X, r.Y);
+                Actor hit = Map.GetActorAt(r.X, r.Y);
                 if(hit != null)
                 {
                     hitCount++;
@@ -114,13 +98,11 @@ namespace AmoebaRL.Core.Enemies
                         m.Die();
                     }
                 }
-                Game.DMap.RemoveVFX(r);
-                Symbol = BaseChar;
             }
             if(hitCount > 0)
-                Game.MessageLog.Add($"The {Name} hit {hitCount} mass.");
+                Map.Context.MessageLog.Add($"The {Name} hit {hitCount} mass.");
+            ClearReticles();
             Targeted.Clear();
-            Symbol = BaseChar;
         }
 
         public override void ActToTargets(List<Actor> seenTargets)
@@ -133,7 +115,7 @@ namespace AmoebaRL.Core.Enemies
                 bool HasFiringPath;
                 do
                 {
-                    int pick = Game.Rand.Next(0, actionPaths.Count - 1);
+                    int pick = Map.Context.Rand.Next(0, actionPaths.Count - 1);
                     picked = actionPaths[pick];
                     target = picked.Steps.Last();
                     actionPaths.Remove(picked);
@@ -143,17 +125,6 @@ namespace AmoebaRL.Core.Enemies
 
                 if (HasFiringPath)
                 {
-                    if (FireGraphic == null)
-                    {
-                        FireGraphic = new FiringTimer
-                        {
-                            T = _firingTime,
-                            X = X,
-                            Y = Y
-                        };
-                        Game.DMap.AddVFX(FireGraphic);
-                        
-                    }
                     // This line caused hunters to fire sideways sometimes, e.g. when an ally was in the way.
                     // ICell sights = picked.StepForward();
                     // Funny story, I accidentally coded in diagonal firing while working on this.
@@ -168,27 +139,20 @@ namespace AmoebaRL.Core.Enemies
                         sights.Y--;
                     // Calculate direction of firing
                     FiringDirection = new Point(sights.X - X, sights.Y - Y);
-                    if (FiringDirection.X > 0)
-                        Symbol = (char)16;
-                    else if (FiringDirection.X < 0)
-                        Symbol = (char)17;
-                    else if (FiringDirection.Y > 0)
-                        Symbol = (char)31;
-                    else if (FiringDirection.Y < 0)
-                        Symbol = (char)30;
+
                     // Calculate targets
                     Point bullet = new Point(sights.X, sights.Y);
                     int distanceTravelled = 0;
-                    while (Game.DMap.WithinBounds(bullet.X, bullet.Y) && !Game.DMap.IsWall(bullet.X, bullet.Y) && distanceTravelled < Range)
+                    while (Map.Context.DMap.WithinBounds(bullet.X, bullet.Y) && !Map.Context.DMap.IsWall(bullet.X, bullet.Y) && distanceTravelled < Range)
                     {
                         distanceTravelled ++;
-                        Reticle r = new Reticle()
+                        Reticle r = new Reticle
                         {
                             X = bullet.X,
                             Y = bullet.Y
                         };
-                        Game.DMap.AddVFX(r);
                         Targeted.Add(r);
+                        Map.AddVFX(r);
                         bullet.X += FiringDirection.X;
                         bullet.Y += FiringDirection.Y;
                     }
@@ -208,21 +172,15 @@ namespace AmoebaRL.Core.Enemies
 
         public override void Die()
         {
-            CleanVFX();
+            ClearReticles();
+            Targeted.Clear();
             base.Die();
-        }
-
-        protected void CleanVFX()
-        {
-            if (FireGraphic != null)
-                Game.DMap.RemoveVFX(FireGraphic);
-            foreach (Reticle r in Targeted)
-                Game.DMap.RemoveVFX(r);
         }
 
         public override void OnEaten()
         {
-            CleanVFX();
+            ClearReticles();
+            Targeted.Clear();
             base.OnEaten();
         }
 
@@ -230,9 +188,7 @@ namespace AmoebaRL.Core.Enemies
         {
             public override void Init()
             {
-                Color = Palette.Hunter;
                 Name = "Dissolving Hunter";
-                Symbol = 'h';
                 MaxHP = 16;
                 HP = MaxHP;
                 Awareness = 0;
@@ -246,50 +202,6 @@ namespace AmoebaRL.Core.Enemies
 
             public override Actor RescuesTo => new Hunter();
         }
-
-        public class Reticle : Animation
-        {
-
-            public Reticle()
-            {
-                Color = Palette.ReticleForeground;
-                BackgroundColor = Palette.ReticleBackground;
-                Symbol = 'X';
-                Frames = 2;
-                Speed = 3;
-            }
-
-            public override void SetFrame(int idx)
-            {
-                if (idx == 0)
-                    Transparent = false;
-                else
-                    Transparent = true;
-            }
-        }
-
-        public class FiringTimer : Animation
-        {
-            public int T { get; set; } = 2;
-
-            public FiringTimer()
-            {
-                Symbol = '2';
-                Color = Palette.Hunter;
-                BackgroundColor = Palette.FloorBackground;
-                Speed = 3;
-                Frames = 2;
-            }
-
-            public override void SetFrame(int idx)
-            {
-                Symbol = T.ToString()[0];
-                if (idx == 0)
-                    Transparent = false;
-                else
-                    Transparent = true;
-            }
-        }
     }
 
     public class Scout : Hunter
@@ -297,12 +209,9 @@ namespace AmoebaRL.Core.Enemies
         public override void Init()
         {
             Awareness = 4;
-            Color = Palette.Hunter;
-            Symbol = 's';
             Delay = 16;
             Name = "Scout";
             Range = 3;
-            BaseChar = Symbol;
         }
 
         public override string Flavor => "Forward reconassiance sent by the humans to assess a threat. ";
@@ -313,9 +222,7 @@ namespace AmoebaRL.Core.Enemies
         {
             public override void Init()
             {
-                Color = Palette.Hunter;
                 Name = "Dissolving Scout";
-                Symbol = 's';
                 MaxHP = 16;
                 HP = MaxHP;
                 Delay = 16;
@@ -329,5 +236,10 @@ namespace AmoebaRL.Core.Enemies
 
             public override Actor RescuesTo => new Scout();
         }
+    }
+
+    public class Reticle : Entity
+    {
+        // ...?
     }
 }

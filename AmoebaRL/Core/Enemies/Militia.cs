@@ -16,8 +16,6 @@ namespace AmoebaRL.Core.Enemies
         public override void Init()
         {
             Awareness = 3;
-            Color = Palette.Militia;
-            Symbol = 'm';
             Delay = 16;
             Name = "Militia";
         }
@@ -34,7 +32,7 @@ namespace AmoebaRL.Core.Enemies
         {
             if(!Engulf())
             { 
-                List<Actor> seenTargets = Seen(Game.PlayerMass);
+                List<Actor> seenTargets = Seen(Map.PlayerMass);
                 if (seenTargets.Count > 0)
                     ActToTargets(seenTargets);
                 else
@@ -47,25 +45,25 @@ namespace AmoebaRL.Core.Enemies
             List<Path> actionPaths = PathsToNearest(seenTargets);
             if (actionPaths.Count > 0)
             {
-                int pick = Game.Rand.Next(0, actionPaths.Count - 1);
+                int pick = Map.Context.Rand.Next(0, actionPaths.Count - 1);
                 try
                 {
                     //Formerly: path.Steps.First()
-                    Game.CommandSystem.AttackMove(this, actionPaths[pick].StepForward());
+                    Map.Context.CommandSystem.AttackMove(this, actionPaths[pick].StepForward());
                 }
                 catch (NoMoreStepsException)
                 {
-                    Game.MessageLog.Add($"The {Name} contemplates the irrationality of its existence.");
+                    Map.Context.MessageLog.Add($"The {Name} contemplates the irrationality of its existence.");
                 }
             } // else, wait a turn.
         }
 
         public virtual void Wander()
         {
-            List<ICell> adj = Game.DMap.AdjacentWalkable(X, Y);
-            int pick = Game.Rand.Next(0, adj.Count);
+            List<ICell> adj = Map.AdjacentWalkable(X, Y);
+            int pick = Map.Context.Rand.Next(0, adj.Count);
             if (pick != adj.Count)
-                Game.CommandSystem.AttackMove(this, adj[pick]);
+                Map.Context.CommandSystem.AttackMove(this, adj[pick]);
         }
 
         /*public override void PerformAction(CommandSystem commandSystem)
@@ -79,9 +77,7 @@ namespace AmoebaRL.Core.Enemies
 
             public override void Init()
             {
-                Color = Palette.Militia;
                 Name = "Dissolving Militia";
-                Symbol = 'm';
                 MaxHP = 8;
                 HP = MaxHP;
                 Awareness = 0;

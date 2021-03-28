@@ -12,108 +12,63 @@ using AmoebaRL.Core.Enemies;
 
 namespace AmoebaRL.Core
 {
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <remarks>
+    /// The RogueSharp paradigm for maps is ultimately too limiting for this game and eventually needs to be moved away from.
+    /// But for now, it is sufficient.
+    /// Requires optimization for things like GetXAt() and Add/Remove.
+    /// </remarks>
     public class DungeonMap : Map
     {
+        public Game Context { get; protected set; }
+
+        // TODO: Replace List<Entity> with a special struct.
+        protected List<List<List<Entity>>> Content { get; set; }
+
+
+        #region Indices
+        public List<Entity> All;
         public List<Actor> Actors;
+        public List<Actor> PlayerMass;
         public List<Item> Items;
-        public List<Rectangle> Boulders;
         public List<City> Cities;
-        public List<IDrawable> Effects;
+        public List<Entity> Effects;
+        #endregion
 
-        
-        private static readonly TimeSpan ANIMATION_RATE = TimeSpan.FromMilliseconds(250);
+        // Would love to do away with this:
+        public List<Rectangle> Boulders;
 
-        public TimeSpan TimeSinceLastAnimation = TimeSpan.Zero;
-
-        public int AnimationFrame = 0;
-
-        public DungeonMap()
+        public DungeonMap(Game context)
         {
+            Context = context;
+            All = new List<Entity>();
             Boulders = new List<Rectangle>();
             Actors = new List<Actor>();
+            PlayerMass = new List<Actor>();
             Items = new List<Item>();
-            Effects = new List<IDrawable>();
+            Effects = new List<Entity>();
             Cities = new List<City>();
         }
 
-        // The Draw method will be called each time the map is updated
-        // It will render all of the symbols/colors for each cell to the map sub console
-        public void Draw(RLConsole mapConsole)
+        public void InitalizeContent()
         {
-            mapConsole.Clear();
-            foreach (Cell cell in GetAllCells())
+            Content = new List<List<List<Entity>>>();
+            for (int row = 0; row < Height; row++)
             {
-                SetConsoleSymbolForCell(mapConsole, cell);
-            }
-            foreach (Item i in Items)
-            {
-                i.Draw(mapConsole, this);
-            }
-            foreach (Actor a in Actors)
-            {
-                a.Draw(mapConsole, this);
-            }
-            foreach(VFX e in Effects)
-            {
-                e.Draw(mapConsole, this);
-            }
-        }
-
-        public bool Animate(RLConsole mapConsole, TimeSpan delta)
-        {
-            TimeSinceLastAnimation += delta;
-            if(TimeSinceLastAnimation >= ANIMATION_RATE)
-            {
-                AnimationFrame++;
-                TimeSinceLastAnimation = TimeSpan.Zero;
-                foreach (VFX e in Effects)
-                    e.Draw(mapConsole, this);
-                return true;
-            }
-            return false;
-        }
-
-        private void SetConsoleSymbolForCell(RLConsole console, Cell cell)
-        {
-            // When we haven't explored a cell yet, we don't want to draw anything
-            if (!cell.IsExplored)
-            {
-                return;
-            }
-
-            // When a cell is currently in the field-of-view it should be drawn with ligher colors
-            if (IsInFov(cell.X, cell.Y))
-            {
-                // Choose the symbol to draw based on if the cell is walkable or not
-                // '.' for floor and '#' for walls
-                if (cell.IsWalkable)
+                Content.Add(new List<List<Entity>>());
+                for (int col = 0; col < Width; col++)
                 {
-                    console.Set(cell.X, cell.Y, Palette.FloorFov, Palette.FloorBackgroundFov, '.');
-                }
-                else
-                {
-                    console.Set(cell.X, cell.Y, Palette.WallFov, Palette.WallBackgroundFov, '#');
-                }
-            }
-            // When a cell is outside of the field of view draw it with darker colors
-            else
-            {
-                if (cell.IsWalkable)
-                {
-                    console.Set(cell.X, cell.Y, Palette.Floor, Palette.FloorBackground, '.');
-                }
-                else
-                {
-                    console.Set(cell.X, cell.Y, Palette.Wall, Palette.WallBackground, '#');
+                    Content[row].Add(new List<Entity>());
                 }
             }
         }
-
 
         // This method will be called any time we move the player to update field-of-view
         public void UpdatePlayerFieldOfView()
         {
-            IEnumerator<Actor> grantsVision = Game.PlayerMass.Where(a => a.Awareness >= 0).GetEnumerator();
+            IEnumerator<Actor> grantsVision = PlayerMass.Where(a => a.Awareness >= 0).GetEnumerator();
             bool hasNext = grantsVision.MoveNext();
             if (hasNext)
             {
@@ -136,22 +91,143 @@ namespace AmoebaRL.Core
             }
         }
 
+        #region Accessors
+        /// <summary>
+        /// Move an entity on the map, updating <see cref="GetEntity(int, int)"/>.
+        /// </summary>
+        /// <param name="toMove">The <see cref="Entity.Positions"/> value to change the position of.</param>
+        /// <param name="dest">The new <see cref="Entity.Positions"/> value.</param>
+        /// <remarks>
+        /// If <see cref="Entity.Positions"/> is modified without calling <see cref="Move(Entity, Coord)"/> for each modification,
+        /// both <see cref="GetEntity(int, int)"/> and <see cref="RemoveEntity(Entity)"/> will no longer work.
+        /// </remarks>
+        public void Move(Entity toMove, Coord dest) => Move(toMove, new List<Coord>() { dest });
 
-
-        public IDrawable GetActorOrItem(int x, int y)
+        /// <summary>
+        /// Move an entity on the map, updating <see cref="GetEntity(int, int)"/>.
+        /// </summary>
+        /// <param name="toMove">The <see cref="Entity.Positions"/> value to change the position of.</param>
+        /// <param name="dest">The new <see cref="Entity.Positions"/> value.</param>
+        /// /// <remarks>
+        /// If <see cref="Entity.Positions"/> is modified without calling <see cref="Move(Entity, Coord)"/> for each modification,
+        /// both <see cref="GetEntity(int, int)"/> and <see cref="RemoveEntity(Entity)"/> will no longer work.
+        /// </remarks>
+        public void Move(Entity toMove, IEnumerable<Coord> dests)
         {
-            IDrawable firstChoice = GetActorAt(x, y);
-            if (firstChoice != null)
-                return firstChoice;
-            IDrawable secondChoice = GetItemAt(x, y);
-            return secondChoice; // may be null
+            foreach (Coord old in toMove.Positions)
+                Content[old.X][old.Y].Remove(toMove);
+            foreach (Coord c in dests)
+                Content[c.X][c.Y].Add(toMove);
         }
+
+        public Entity GetEntity(int x, int y) => GetEntities(x, y).FirstOrDefault();
+
+        public List<Entity> GetEntities(int x, int y) => Content[x][y];
 
         public Actor GetActorAt(int x, int y) => Actors.FirstOrDefault(a => a.X == x && a.Y == y);
 
         public Item GetItemAt(int x, int y) => Items.FirstOrDefault(a => a.X == x && a.Y == y);
 
-        public IDrawable GetVFX(int x, int y) => Effects.FirstOrDefault(a => a.X == x && a.Y == y);
+        public Entity GetVFX(int x, int y) => Effects.FirstOrDefault(a => a.X == x && a.Y == y);
+
+        public Entity GetActorOrItem(int x, int y)
+        {
+            Entity firstChoice = GetActorAt(x, y);
+            if (firstChoice != null)
+                return firstChoice;
+            Entity secondChoice = GetItemAt(x, y);
+            return secondChoice; // may be null
+        }
+
+        public void AddEntity(Entity toAdd)
+        {
+            All.Add(toAdd);
+            Content[toAdd.X][toAdd.Y].Add(toAdd);
+            toAdd.Map = this;
+        }
+
+        public void AddActor(Actor toAdd)
+        {
+            AddEntity(toAdd);
+            Actors.Add(toAdd);
+            SetIsWalkable(toAdd.X, toAdd.Y, false);
+            Context.SchedulingSystem.Add(toAdd);
+            if (toAdd is Organelle)
+                UpdatePlayerFieldOfView();
+        }
+
+        public void AddItem(Item toAdd)
+        {
+            AddEntity(toAdd);
+            Items.Add(toAdd);
+        }
+
+        public void AddVFX(Entity toAdd)
+        {
+            AddEntity(toAdd);
+            Effects.Add(toAdd);
+        }
+
+        public void AddCity(City toAdd)
+        {
+            Cities.Add(toAdd);
+            AddActor(toAdd);
+        }
+
+        // Called by MapGenerator after we generate a new map to add the player to the map
+        public void AddPlayer(Nucleus player)
+        {
+            // Game.Player = player; // would like to move away from this handle altogether.
+            Actors.Add(player);
+            SetIsWalkable(player.X, player.Y, false);
+            UpdatePlayerFieldOfView();
+            Context.SchedulingSystem.Add(player);
+        }
+
+        public void RemoveEntity(Entity toRemove)
+        {
+            All.Remove(toRemove);
+            Content[toRemove.X][toRemove.Y].Remove(toRemove);
+            //toRemove.Map = null;
+        }
+
+        public void RemoveActor(Actor a)
+        {
+            RemoveEntity(a);
+            Actors.Remove(a);
+            if(PlayerMass.Contains(a))
+            {
+                PlayerMass.Remove(a);
+                UpdatePlayerFieldOfView();
+                // It is okay for the player mass to be disjoint.
+            }
+            SetIsWalkable(a.X, a.Y, true);
+            Context.SchedulingSystem.Remove(a);
+        }
+        
+        public void RemoveItem(Item targetItem)
+        {
+            RemoveEntity(targetItem);
+            Items.Remove(targetItem);
+            // Items don't make cells unwalkable so this is fine to not mess with.
+        }
+
+        public void RemoveVFX(Entity toRemove)
+        {
+            RemoveEntity(toRemove);
+            Effects.Remove(toRemove);
+        }
+
+        public void RemoveCity(City c)
+        {
+            RemoveEntity(c);
+            RemoveActor(c);
+            SetCellProperties(c.X, c.Y, true, true, true);
+            Cities.Remove(c);
+            UpdatePlayerFieldOfView();
+        }
+
+        #endregion
 
         /// <summary>
         /// Determines whether there is an <see cref="Actor"/> or <see cref="Item"/> at the point.
@@ -163,7 +239,7 @@ namespace AmoebaRL.Core
 
         public bool IsWall(ICell w) => !w.IsWalkable && IsEmpty(w.X, w.Y);
 
-        public bool IsWall(int x, int y) => IsWall(GetCell(x,y));
+        public bool IsWall(int x, int y) => IsWall(GetCell(x, y));
 
         public bool WithinBounds(int x, int y) => x >= 0 && y >= 0 && x < Width && y < Height;
 
@@ -181,7 +257,7 @@ namespace AmoebaRL.Core
                 // The new cell the actor is on is now not walkable
                 SetIsWalkable(actor.X, actor.Y, false);
                 // Don't forget to update the field of view if we just repositioned the player
-                if (Game.PlayerMass.Contains(actor))
+                if (PlayerMass.Contains(actor))
                 {
                     UpdatePlayerFieldOfView();
                 }
@@ -208,72 +284,12 @@ namespace AmoebaRL.Core
             SetCellProperties(cell.X, cell.Y, cell.IsTransparent, isWalkable, cell.IsExplored);
         }
 
-        // Called by MapGenerator after we generate a new map to add the player to the map
-        public void AddPlayer(Nucleus player)
-        {
-            // Game.Player = player; // would like to move away from this handle altogether.
-            Actors.Add(player);
-            SetIsWalkable(player.X, player.Y, false);
-            UpdatePlayerFieldOfView();
-            Game.SchedulingSystem.Add(player);
-        }
-
-        public void AddActor(Actor toAdd)
-        {
-            //if (!IsWalkable(toAdd.X, toAdd.Y) && !(toAdd is City) && !(toAdd is PostMortem))
-            //    Game.MessageLog.Add($"Placed actor in an impossible location");
-            Actors.Add(toAdd);
-            SetIsWalkable(toAdd.X, toAdd.Y, false);
-            Game.SchedulingSystem.Add(toAdd);
-            if (toAdd is Organelle)
-                UpdatePlayerFieldOfView();
-        }
-
-        public void AddItem(Item toAdd) => Items.Add(toAdd);
-
-        public void AddVFX(VFX toAdd) => Effects.Add(toAdd);
-
-        public void AddCity(City toAdd)
-        {
-            Cities.Add(toAdd);
-            AddActor(toAdd);
-        }
-
-        public void RemoveActor(Actor a)
-        {
-            Actors.Remove(a);
-            if(Game.PlayerMass.Contains(a))
-            {
-                Game.PlayerMass.Remove(a);
-                UpdatePlayerFieldOfView();
-                // It is okay for the player mass to be disjoint.
-            }
-            SetIsWalkable(a.X, a.Y, true);
-            Game.SchedulingSystem.Remove(a);
-        }
-        
-        public void RemoveItem(Item targetItem)
-        {
-            Items.Remove(targetItem);
-            // Items don't make cells unwalkable so this is fine to not mess with.
-        }
-
-        public void RemoveVFX(VFX toRemove) => Effects.Remove(toRemove);
-
-        public void RemoveCity(City c)
-        {
-            RemoveActor(c);
-            SetCellProperties(c.X, c.Y, true, true, true);
-            Cities.Remove(c);
-            UpdatePlayerFieldOfView();
-        }
-
         private bool NotUnderPlayer(ICell lootSpot)
         {
-            Actor actAt = Game.DMap.GetActorAt(lootSpot.X, lootSpot.Y);
+            Actor actAt = GetActorAt(lootSpot.X, lootSpot.Y);
             if (actAt == null)
                 return true;
-            return !Game.PlayerMass.Contains(actAt);
+            return !PlayerMass.Contains(actAt);
         }
 
         private bool NotThroughWalls(ICell candidate) => !IsWall(candidate);
@@ -288,34 +304,8 @@ namespace AmoebaRL.Core
             List<ICell> candidates = NearestLootDrops(x, y, legalLootDrop, legalLootPath);
             if (candidates.Count == 0)
                 return null;
-              return candidates[Game.Rand.Next(0, candidates.Count - 1)];
+              return candidates[Context.Rand.Next(0, candidates.Count - 1)];
         }
-
-        /*public List<ICell> NearestLootDrops(int x, int y, Func<ICell, bool> LegalLootDrop)
-        {
-            List<ICell> seen = new List<ICell>();
-            List<ICell> frontier = new List<ICell>();
-            List<ICell> candidates = new List<ICell>() { GetCell(x, y) };
-            List<ICell> found = new List<ICell>();
-            while(found.Count == 0 && candidates.Count > 0)
-            {
-                foreach(ICell c in candidates)
-                {
-                    seen.Add(c);
-                    if(GetItemAt(c.X, c.Y) == null && !IsWall(c) && !Cities.Contains(GetActorAt(c.X, c.Y)) && LegalLootDrop(c))
-                        found.Add(c);
-                    else
-                    {
-                        foreach(ICell adj in Adjacent(c.X, c.Y).Where(a => !seen.Contains(a) && !IsWall(a)))
-                            frontier.Add(adj);
-                    } 
-                }
-                candidates.Clear();
-                candidates.AddRange(frontier);
-                frontier.Clear();
-            }
-            return found;
-        }*/
 
         public List<ICell> NearestLootDrops(int x, int y, List<ICell> seen, List<ICell> seenPerimeter) => NearestLootDrops(x, y, NotUnderPlayer, NotThroughWalls, seen, seenPerimeter);
 
@@ -474,7 +464,7 @@ namespace AmoebaRL.Core
 
         public static int TaxiDistance(ICell from, ICell to) => Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y);
 
-        public static int TaxiDistance(IDrawable from, IDrawable to) => Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y);
+        public static int TaxiDistance(Entity from, Entity to) => Math.Abs(from.X - to.X) + Math.Abs(from.Y - to.Y);
 
 
         public static Path QuickShortestPath(DungeonMap m, ICell from, ICell to)

@@ -7,10 +7,10 @@ using System.Threading.Tasks;
 namespace AmoebaRL.Core
 {
     /// <summary>
-    /// Two-dimensional integer vector.
+    /// Two-dimensional immutable integer vector.
     /// </summary>
     /// <remarks>Nomenclature inspired by JackNine</remarks>
-    public class Coord
+    public struct Coord
     {
         /// <summary>
         /// Instantiates a new two-dimensional vector for (<see cref="X"/>, <see cref="Y"/>).
@@ -26,12 +26,12 @@ namespace AmoebaRL.Core
         /// <summary>
         /// First value. Commonly the horizontal coordinate.
         /// </summary>
-        public int X { get; set; } = 0;
+        public int X { get; set; }
 
         /// <summary>
         /// Second value. Commonly the vertical coordinate.
         /// </summary>
-        public int Y { get; set; } = 0;
+        public int Y { get; set; }
 
         /// <summary>
         /// { <see cref="X"/>, <see cref="Y"/> }

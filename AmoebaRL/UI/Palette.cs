@@ -73,7 +73,7 @@ namespace AmoebaRL.UI
         public static RLColor TextHeading = DbLight;
         public static RLColor TextBody = DbBrightWood;
 
-        public static RLColor Player = DbLight;
+        public static RLColor SuperBright = DbLight;
         public static RLColor PlayerInactive = DbDark;
 
         public static RLColor Slime = DbGrass;
@@ -93,7 +93,7 @@ namespace AmoebaRL.UI
         public static RLColor RestingMilitia = DbWood;
         public static RLColor Calcium = new RLColor(DbWater.r * 1.2f, DbWater.g *0.9f, DbWater.b * 1.2f);
         public static RLColor RestingTank = DbDeepWater;
-        public static RLColor Hunter = DbSun;
+        public static RLColor Electronics = DbSun;
         public static RLColor ReticleForeground = DbBlood;
         public static RLColor ReticleBackground = DbOldBlood;
 

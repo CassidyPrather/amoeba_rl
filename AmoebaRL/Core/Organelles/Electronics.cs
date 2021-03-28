@@ -14,8 +14,6 @@ namespace AmoebaRL.Core.Organelles
         {
             Awareness = 0;
             Name = "Electronics";
-            Color = Palette.Hunter;
-            Symbol = '$';
             Slime = 1;
             Delay = 1;
         }
@@ -31,8 +29,6 @@ namespace AmoebaRL.Core.Organelles
     {
         public SiliconDust()
         {
-            Color = Palette.Hunter;
-            Symbol = '%';
             Name = "Silicon Dust";
         }
 

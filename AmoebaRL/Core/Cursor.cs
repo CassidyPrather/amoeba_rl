@@ -11,21 +11,11 @@ using System.Threading.Tasks;
 
 namespace AmoebaRL.Core
 {
-    public class Cursor : Animation
+    public class Cursor : Entity
     {
-        public Cursor()
-        {
-            Color = Palette.Cursor;
-            BackgroundColor = Palette.FloorBackground;
-            Symbol = 'X';
-            Frames = 2;
-            Speed = 2;
-            Visibility = VisibilityCondition.ALWAYS_VISIBLE;
-        }
-
         public bool Move(int x, int y)
         {
-            if(x < Game.DMap.Width && x >= 0 && y < Game.DMap.Height && y >= 0)
+            if(x < Map.Width && x >= 0 && y < Map.Height && y >= 0)
             {
                 X = x;
                 Y = y;
@@ -34,19 +24,11 @@ namespace AmoebaRL.Core
             return false;
         }
 
-        public override void SetFrame(int idx)
-        {
-            if (idx == 0)
-                Transparent = false;
-            else
-                Transparent = true;
-        }
-
         public IDescribable Under()
         {
-            IDrawable Hovering = Game.DMap.GetActorOrItem(X,Y);
+            Entity Hovering = Map.GetActorOrItem(X,Y);
             if (Hovering != null && Hovering is IDescribable d
-                && ((Hovering is City && Game.DMap.IsExplored(X,Y)) || Game.DMap.IsInFov(X,Y)))
+                && ((Hovering is City && Map.IsExplored(X,Y)) || Map.IsInFov(X,Y)))
                 return d;
             return null;
         }

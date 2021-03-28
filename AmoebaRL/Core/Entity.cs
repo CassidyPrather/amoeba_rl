@@ -16,15 +16,18 @@ namespace AmoebaRL.Core
         /// <summary>
         /// The <see cref="DungeonMap"/> this is a member of.
         /// </summary>
-        public DungeonMap Map { get; protected set; }
+        public DungeonMap Map { get; set; } = null;
 
         /// <summary>
         /// The horizontal component of <see cref="Position"/>.
         /// </summary>
-        public int X 
+        public int X
         {
             get => Position.X;
-            set => Position.X = value; // Does this actually call Position.set?
+            set
+            {
+                Position = new Coord(value, Y);
+            }
         }
 
         /// <summary>
@@ -33,7 +36,10 @@ namespace AmoebaRL.Core
         public int Y
         {
             get => Position.Y;
-            set => Position.Y = value; // Does this actually call Position.set?
+            set
+            {
+                Position = new Coord(X, value);
+            }
         }
 
         /// <summary>
@@ -45,14 +51,34 @@ namespace AmoebaRL.Core
         public Coord Position
         {
             get => Positions[0];
-            set => Positions[0] = value;
+            set
+            {
+                // Call Positions setter:
+                Positions = new List<Coord>() { value };
+            }
         }
+
+        private List<Coord> positions = new List<Coord>() { new Coord() };
 
         /// <summary>
         /// The locations within <see cref="DungeonMap"/> this occupies. Multi-tile entities may occupy several.
         /// Initalized to list containing a single empty coordinate.
         /// </summary>
-        public List<Coord> Positions { get; set; } = new List<Coord>() { new Coord() };
+        /// <remarks>
+        /// <see cref="DungeonMap.Move(Entity, IEnumerable{Coord})"/> must be called specifically when this collection is modified.
+        /// </remarks>
+        public List<Coord> Positions {
+            get
+            {
+                return positions;
+            }
+            set
+            {
+                if(Map != null)
+                    Map.Move(this, value);
+                positions = value;
+            }
+        }
 
         /// <summary>
         /// Whether this actor has been explored by the active user.
@@ -67,10 +93,5 @@ namespace AmoebaRL.Core
         /// </summary>
         /// <returns>This actor has been explored by the active user.</returns>
         public bool IsInFov() => Map.IsInFov(X, Y);
-
-        /// <summary>
-        /// The graphical representation of associated with this <see cref="Entity"/>.
-        /// </summary>
-        public virtual IGraphic Representation { get; set; }
     }
 }

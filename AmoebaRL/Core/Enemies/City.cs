@@ -33,18 +33,15 @@ namespace AmoebaRL.Core.Enemies
 
         public int CityLevel { get; set; } = 1;
 
-        Queue<Actor> SpawnQueue { get; set; } = new Queue<Actor>();
+        public Queue<Actor> SpawnQueue { get; set; } = new Queue<Actor>();
 
-        public SpawnTimer Timer { get; protected set; } = null;
+        public int Armor { get; set; } = Game.CityArmor;
 
         public City()
         {
             Awareness = 0;
-            Symbol = 'C';
             Name = "City Gate";
-            Color = Palette.City;
             Delay = 16;
-            Visibility = VisibilityCondition.EXPLORED_ONLY;
         }
 
         public void Act()
@@ -59,21 +56,15 @@ namespace AmoebaRL.Core.Enemies
             }
             if (SpawnQueue.Count > 0)
             {
-                List<ICell> spawnAreas = Game.DMap.AdjacentWalkable(X, Y);
+                List<ICell> spawnAreas = Map.AdjacentWalkable(X, Y);
                 if (spawnAreas.Count > 0)
                 {
                     Actor baby = SpawnQueue.Dequeue();
                     baby.X = spawnAreas[0].X;
                     baby.Y = spawnAreas[0].Y;
-                    Game.DMap.AddActor(baby);
-                    if (SpawnQueue.Count == 0)
-                    {
-                        Game.DMap.RemoveVFX(Timer);
-                        Timer = null;
-                    }
+                    Map.AddActor(baby);
                 }
             }
-            ConfigureTimer();
         }
 
         public void SpawnNextWave(int budget)
@@ -84,11 +75,11 @@ namespace AmoebaRL.Core.Enemies
             // Roll for caravan
             bool waveHasCaravan;
             if (WaveNumber == 0)
-                waveHasCaravan = Game.Rand.Next(3) == 0;
+                waveHasCaravan = Map.Context.Rand.Next(3) == 0;
             else if (WaveNumber < 4)
-                waveHasCaravan = Game.Rand.Next(19) <= 2;
+                waveHasCaravan = Map.Context.Rand.Next(19) <= 2;
             else
-                waveHasCaravan = Game.Rand.Next(19) == 0;
+                waveHasCaravan = Map.Context.Rand.Next(19) == 0;
             if (waveHasCaravan)
                 SpawnQueue.Enqueue(new Caravan());
             WaveNumber++;
@@ -108,7 +99,7 @@ namespace AmoebaRL.Core.Enemies
                 allowedSpawnTypes.Add(3);
             else if (budget >= ScoutCost)
                 allowedSpawnTypes.Add(4);
-            int spawnType = allowedSpawnTypes[Game.Rand.Next(allowedSpawnTypes.Count - 1)];
+            int spawnType = allowedSpawnTypes[Map.Context.Rand.Next(allowedSpawnTypes.Count - 1)];
             if (spawnType == 0)
             {
                 for (int i = 0; i < Math.Min(budget, MechCost); i++)
@@ -140,33 +131,6 @@ namespace AmoebaRL.Core.Enemies
 
             return 0; // Nothing spawned???
         }
-
-        private void ConfigureTimer()
-        {
-            if (TurnsToNextWave < 10 || SpawnQueue.Count > 0)
-            {
-                if (Timer == null)
-                {
-                    Timer = new SpawnTimer
-                    {
-                        X = X,
-                        Y = Y
-                    };
-                    Game.DMap.AddVFX(Timer);
-                }
-                if (!(SpawnQueue.Count > 0))
-                {
-                    Timer.HasQueue = false;
-                    Timer.T = TurnsToNextWave;
-                }
-                else
-                {
-                    Timer.HasQueue = true;
-                    Timer.T = SpawnQueue.Count;
-                }
-            }
-        }
-
 
         public string Description
         {
@@ -201,69 +165,19 @@ namespace AmoebaRL.Core.Enemies
 
         public void Destroy()
         {
-            if(Timer != null)
+            Map.RemoveCity(this);
+            if(Map.Cities.Count == 0)
             {
-                Game.DMap.RemoveVFX(Timer);
-                Timer = null;
-            }
-            Game.DMap.RemoveCity(this);
-            if(Game.DMap.Cities.Count == 0)
-            {
-                Game.MessageLog.Add("The humans try to trigger a cave-in, but you slip through just in time! You escape to the surface and live out the rest of your days in peace. ");
-                Game.MessageLog.Add($"Final score: {Game.PlayerMass.Count}. Time to win (A turn is 16 time units): {Game.SchedulingSystem.GetTime()}.");
-                Game.MessageLog.Add($"Thanks for playing!.");
-                Game.CommandSystem.Win();
-                // Player wins! Throw confetti!
+                Map.Context.MessageLog.Add("The humans try to trigger a cave-in, but you slip through just in time! You escape to the surface and live out the rest of your days in peace. ");
+                Map.Context.MessageLog.Add($"Final score: {Map.PlayerMass.Count}. Time to win (A turn is 16 time units): {Map.Context.SchedulingSystem.GetTime()}.");
+                Map.Context.MessageLog.Add($"Thanks for playing!.");
+                Map.Context.CommandSystem.Win();
+                // Player wins!
             }
             else
             {
-                Game.MessageLog.Add("The humans trigger a cave-in, blocking off this exit to the surface!");
-                Game.MessageLog.Add($"{Game.DMap.Cities.Count} cities remain...");
-            }
-        }
-
-        public class SpawnTimer : Animation
-        {
-            public bool HasQueue = false;
-
-            public int T { get; set; } = 9;
-
-            public SpawnTimer()
-            {
-                Symbol = '9';
-                Color = Palette.ReticleForeground;
-                BackgroundColor = Palette.ReticleBackground;
-                Speed = 3;
-                Frames = 2;
-                Visibility = VisibilityCondition.ALWAYS_VISIBLE;
-            }
-
-            public override void SetFrame(int idx)
-            {
-                if (idx == 0)
-                {
-                    if (T <= 9)
-                        Symbol = (Math.Max(0, T)).ToString()[0];
-                    else
-                        Symbol = '*';
-                    Color = Palette.ReticleForeground;
-                    if (!HasQueue)
-                        BackgroundColor = Palette.ReticleBackground;
-                    else
-                        BackgroundColor = Palette.Hunter;
-                }
-                else
-                {
-                    Symbol = 'C';
-                    Color = Palette.City;
-                    BackgroundColor = Palette.FloorBackgroundFov;
-                }
-            }
-
-            public override void Draw(RLConsole console, IMap map)
-            {
-                if (map.IsExplored(X, Y))
-                    base.Draw(console, map);
+                Map.Context.MessageLog.Add("The humans trigger a cave-in, blocking off this exit to the surface!");
+                Map.Context.MessageLog.Add($"{Map.Cities.Count} cities remain...");
             }
         }
     }

@@ -34,6 +34,8 @@ New map generators; prefab handling
 Items should be visible out of LOS once explored
 Make map smaller or more dense
 Glossary of keywords and keyword construction system for actors.
+Reduce hunter range, increase firing rate
+While reworking the tech tree, rework the way hunters destroy organelles to use a new "downgrade" system
 
 ## Fun stuff
 
@@ -43,6 +45,8 @@ Global cytoplasm effect skill tree
 Pipe-drilling organelle
 
 ## Keywords
+
+E.g.
 Armor 0
 Armor 1
 Spikes 1

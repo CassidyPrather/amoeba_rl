@@ -14,7 +14,7 @@ namespace AmoebaRL.Core
     /// <summary>
     /// Autonomous <see cref="Entity"/> which has a proactive impact on the map.
     /// </summary>
-    public class Actor : IActor, IDrawable, ISchedulable
+    public class Actor : Entity, IActor, ISchedulable
     {
         // IActor
         /// <summary>Flavor only, displayed in text log contexts.</summary>
@@ -45,68 +45,6 @@ namespace AmoebaRL.Core
         /// <remarks>May later be used as a shorthand for faction.</remarks>
         public int Slime { get; set; } = 0;
 
-        // IDrawable
-        public RLColor Color { get; set; } = Palette.Cursor;
-
-        /// <inheritdoc/>
-        public VisibilityCondition Visibility { get; set; } = VisibilityCondition.LOS_ONLY;
-
-        /// <inheritdoc/>
-        public char Symbol { get; set; } = '?';
-
-        /// <inheritdoc/>
-        public int X { get; set; } = 0;
-
-        /// <inheritdoc/>
-        public int Y { get; set; } = 0;
-
-        /// <inheritdoc/>
-        public void Draw(RLConsole console, IMap map)
-        {
-            if(Visibility == VisibilityCondition.ALWAYS_VISIBLE ||
-                (Visibility == VisibilityCondition.LOS_ONLY && map.IsInFov(X, Y)))
-            {
-                DrawSelfGraphic(console, map);
-                return;
-            }
-            
-            if(map.IsExplored(X, Y))
-            {
-                if (Visibility == VisibilityCondition.EXPLORED_ONLY)
-                    DrawSelfGraphicMemory(console, map);
-                else
-                    console.Set(X, Y, Palette.Floor, Palette.FloorBackground, '.');
-            }
-        }
-
-        /// <summary>
-        /// Draws the graphical representation of this as if it was observed directly.
-        /// </summary>
-        /// <param name="console">Drawing canvas.</param>
-        /// <param name="map">The game area the drawing is done in the context of.</param>
-        protected virtual void DrawSelfGraphic(RLConsole console, IMap map)
-        {
-            if (Slime == 1)
-                console.Set(X, Y, Color, Palette.BodySlime, Symbol);
-            else if (Slime == 2)
-                console.Set(X, Y, Color, Palette.PathSlime, Symbol);
-            else
-                console.Set(X, Y, Color, Palette.FloorBackgroundFov, Symbol);
-            return;
-        }
-
-        /// <summary>
-        /// Draws the graphical representation of this as if it was remembered, but is not directly visible.
-        /// </summary>
-        /// <param name="console">Drawing canvas.</param>
-        /// <param name="map">The game area the drawing is done in the context of.</param>
-        protected virtual void DrawSelfGraphicMemory(RLConsole console, IMap map)
-        {
-            DrawSelfGraphic(console, map);
-        }
-
-
-
         // ISchedulable
         /// </inheritdoc>
         public int Time
@@ -125,10 +63,10 @@ namespace AmoebaRL.Core
         /// <param name="i">The <see cref="Item"/> to transform into.</param>
         public void BecomeItem(Item i)
         {
-            ICell lands = Game.DMap.NearestLootDrop(X, Y);
+            ICell lands = Map.NearestLootDrop(X, Y);
             i.X = lands.X;
             i.Y = lands.Y;
-            Game.DMap.AddItem(i);
+            Map.AddItem(i);
         }
 
         /// <summary>
@@ -144,19 +82,19 @@ namespace AmoebaRL.Core
             foreach (Item i in items)
             {
                 if (nextAvailable.Count == 0)
-                    nextAvailable = Game.DMap.NearestLootDrops(X, Y, alreadyTriedDrop, alreadyTriedDropPerimeter);
+                    nextAvailable = Map.NearestLootDrops(X, Y, alreadyTriedDrop, alreadyTriedDropPerimeter);
                 if (nextAvailable.Count > 0)
                 {
-                    int picker = Game.Rand.Next(nextAvailable.Count - 1);
+                    int picker = Map.Context.Rand.Next(nextAvailable.Count - 1);
                     ICell lands = nextAvailable[picker];
                     nextAvailable.RemoveAt(picker);
                     i.X = lands.X;
                     i.Y = lands.Y;
-                    Game.DMap.AddItem(i);
+                    Map.AddItem(i);
                 }
                 else
                 {
-                    Game.MessageLog.Add($"The {i.Name} had nowhere is crushed!");
+                    Map.Context.MessageLog.Add($"The {i.Name} had nowhere is crushed!");
                 }
             }
         }
@@ -170,7 +108,7 @@ namespace AmoebaRL.Core
         {
             a.X = X;
             a.Y = Y;
-            Game.DMap.AddActor(a);
+            Map.AddActor(a);
             return a;
         }
 
@@ -181,9 +119,9 @@ namespace AmoebaRL.Core
         /// <returns>Result of calculation.</returns>
         public FieldOfView FOV(bool lightWalls = true)
         {
-            // When replacing static handles, Instances of Game.DMap
+            // When replacing static handles, Instances of Map.Context.DMap
             // should instead be replaced by object references to this class.
-            FieldOfView selfFOV = new FieldOfView(Game.DMap);
+            FieldOfView selfFOV = new FieldOfView(Map.Context.DMap);
             selfFOV.ComputeFov(X, Y, Awareness, lightWalls);
             return selfFOV;
         }
@@ -218,7 +156,7 @@ namespace AmoebaRL.Core
         {
             int mySafety = 0;
             foreach (Actor t in sources)
-                mySafety += DungeonMap.TaxiDistance(t, this);
+                mySafety += Position.TaxiDistance(t.Position);
 
 
             // Find the safest sacrifice.
@@ -227,12 +165,12 @@ namespace AmoebaRL.Core
             List<Actor> sacrifices = null;
             if (canPassThroughOthers)
             {
-                sacrifices = Game.DMap.AdjacentActors(X, Y).Where(a => !sources.Contains(a) && !(a is City)).ToList();
+                sacrifices = Map.AdjacentActors(X, Y).Where(a => !sources.Contains(a) && !(a is City)).ToList();
                 foreach (Actor s in sacrifices)
                 {
                     int safety = 0;
                     foreach (Actor t in sources)
-                        safety += DungeonMap.TaxiDistance(t, s);
+                        safety += t.Position.TaxiDistance(s.Position);
                     if (safety >= safestSacrificeVal)
                     {
                         safestSacrificeVal = safety;
@@ -242,14 +180,14 @@ namespace AmoebaRL.Core
             }
 
             // Find the safest place to walk to.
-            List<ICell> freeSpaces = Game.DMap.AdjacentWalkable(X, Y);
+            List<ICell> freeSpaces = Map.AdjacentWalkable(X, Y);
             List<ICell> safestFreeSpaces = new List<ICell>();
             int safestFreeSpaceVal = 0;
             foreach (ICell s in freeSpaces)
             {
                 int safety = 0;
                 foreach (Actor t in sources)
-                    safety += DungeonMap.TaxiDistance(Game.DMap.GetCell(t.X, t.Y), s);
+                    safety += DungeonMap.TaxiDistance(Map.GetCell(t.X, t.Y), s);
                 if (safety >= safestFreeSpaceVal)
                 {
                     safestFreeSpaceVal = safety;
@@ -259,24 +197,24 @@ namespace AmoebaRL.Core
 
             // If waiting is the safest option, return false.
             if (mySafety >= safestSacrificeVal && mySafety >= safestFreeSpaceVal)
-                return Game.DMap.GetCell(X, Y);
+                return Map.GetCell(X, Y);
 
             // Otherwise, move to the safest spot and return true.
             bool takeSacrifice = safestSacrificeVal > safestFreeSpaceVal;
             if (safestFreeSpaceVal == safestSacrificeVal)
             {
-                takeSacrifice = Game.Rand.Next(1) == 0;
+                takeSacrifice = Map.Context.Rand.Next(1) == 0;
             }
             if (takeSacrifice)
             {
-                Actor picked = safestSacrifices[Game.Rand.Next(safestSacrifices.Count - 1)];
-                ICell targ = Game.DMap.GetCell(picked.X, picked.Y);
-                return targ; // Game.CommandSystem.AttackMoveOrganelle(this, targ.X, targ.Y);
+                Actor picked = safestSacrifices[Map.Context.Rand.Next(safestSacrifices.Count - 1)];
+                ICell targ = Map.GetCell(picked.X, picked.Y);
+                return targ; // Map.Context.CommandSystem.AttackMoveOrganelle(this, targ.X, targ.Y);
             }
             else
             {
-                ICell targ = safestFreeSpaces[Game.Rand.Next(safestFreeSpaces.Count - 1)];
-                return targ; // Game.CommandSystem.AttackMoveOrganelle(this, targ.X, targ.Y);
+                ICell targ = safestFreeSpaces[Map.Context.Rand.Next(safestFreeSpaces.Count - 1)];
+                return targ; // Map.Context.CommandSystem.AttackMoveOrganelle(this, targ.X, targ.Y);
             }
         }
 
@@ -284,7 +222,6 @@ namespace AmoebaRL.Core
         /// Determines whether a path exists from this to a specified location that is not obstructed.
         /// </summary>
         /// <param name="ignoreIf">Criteria by which a cell may be considered to not be an obstruction. 
-        /// Empty locations or locations containing only <see cref="Item"/>s or <see cref="VFX"/>s are never obstructed by default.</param>
         /// <param name="x">Horizontal coordinate of target location.</param>
         /// <param name="y">Vertical coordinate of target location.</param>
         /// <returns>A path exists from this to a specified location that is not obstructed.</returns>
@@ -305,22 +242,22 @@ namespace AmoebaRL.Core
         /// Null if none exists.</returns>
         public Path PathIgnoring(Func<Actor,bool> ignoreIf, int x, int y)
         {
-            IEnumerable<Actor> ignore = Game.DMap.Actors.Where(ignoreIf);
+            IEnumerable<Actor> ignore = Map.Actors.Where(ignoreIf);
             List<bool> wasAlreadyIgnored = new List<bool>();
             foreach (Actor toIgnore in ignore)
             {
-                wasAlreadyIgnored.Add(Game.DMap.IsWalkable(toIgnore.X, toIgnore.Y));
-                Game.DMap.SetIsWalkable(toIgnore.X, toIgnore.Y, true);
+                wasAlreadyIgnored.Add(Map.IsWalkable(toIgnore.X, toIgnore.Y));
+                Map.SetIsWalkable(toIgnore.X, toIgnore.Y, true);
             }
 
             Path found = null;
             try
             {
                 //found = f.ShortestPath(
-                //    Game.DMap.GetCell(X, Y),
-                //    Game.DMap.GetCell(x, y)
+                //    Map.GetCell(X, Y),
+                //    Map.GetCell(x, y)
                 //);
-                found = DungeonMap.QuickShortestPath(Game.DMap, Game.DMap.GetCell(X, Y), Game.DMap.GetCell(x, y));
+                found = DungeonMap.QuickShortestPath(Map.Context.DMap, Map.GetCell(X, Y), Map.GetCell(x, y));
             }
             catch (PathNotFoundException)
             {
@@ -331,7 +268,7 @@ namespace AmoebaRL.Core
             foreach (Actor toIgnore in ignore)
             {
                 alreadyIgnored.MoveNext();
-                Game.DMap.SetIsWalkable(toIgnore.X, toIgnore.Y, alreadyIgnored.Current);
+                Map.SetIsWalkable(toIgnore.X, toIgnore.Y, alreadyIgnored.Current);
             }
 
 

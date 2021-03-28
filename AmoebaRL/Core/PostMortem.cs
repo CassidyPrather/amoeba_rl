@@ -12,12 +12,9 @@ namespace AmoebaRL.Core
         public PostMortem()
         {
             Name = "Post Mortem";
-            Symbol = '@';
-            Color = Palette.Slime;
             Slime = 0;
             Awareness = 0;
             Delay = 0;
-            Game.MessageLog.Add("Press ESC to quit. Press R to play again.");
         }
     }
 }

@@ -15,15 +15,10 @@ namespace AmoebaRL.Core.Organelles
 {
     public class Nucleus : Upgradable
     {
-        public virtual RLColor ActiveColor { get; set; } = Palette.Player;
-        public virtual RLColor InactiveColor { get; set; } = Palette.PlayerInactive;
-
         public Nucleus()
         {
             Awareness = 3;
             Name = "Nucleus";
-            Color = InactiveColor;
-            Symbol = '@';
             X = 10;
             Y = 10;
             Slime = 1;
@@ -41,18 +36,18 @@ namespace AmoebaRL.Core.Organelles
         /// </summary>
         public void SetAsActiveNucleus()
         {
-            Game.Player = this;
-            Color = ActiveColor;
-            Game.SchedulingSystem.Remove(this); // Sometimes this is redundant, but it's good to check anyway.
-            Game.SchedulingSystem.Add(this);
-            List<Actor> otherNucleus = Game.PlayerMass.Where(a => a is Nucleus && a != this).ToList();
+            if (Map == null)
+                return;
+            Map.Context.ActivePlayer = this;
+            Map.Context.SchedulingSystem.Remove(this); // Sometimes this is redundant, but it's good to check anyway.
+            Map.Context.SchedulingSystem.Add(this);
+            List<Actor> otherNucleus = Map.PlayerMass.Where(a => a is Nucleus && a != this).ToList();
             foreach (Nucleus n in otherNucleus)
             {
-                n.Color = n.InactiveColor; // or Pallette.Player.Inactive
-                Game.SchedulingSystem.Remove(n);
+                Map.Context.SchedulingSystem.Remove(n);
                 int buffer = n.Delay;
                 n.Delay = Delay;
-                Game.SchedulingSystem.Add(n);
+                Map.Context.SchedulingSystem.Add(n);
                 n.Delay = buffer;
             }
 
@@ -61,9 +56,9 @@ namespace AmoebaRL.Core.Organelles
 
         public void ColorMovingSlime()
         {
-            if (Game.DMap == null)
+            if (Map.Context.DMap == null)
                 return; // this check shouldn't be necessary
-            foreach (Actor already in Game.PlayerMass)
+            foreach (Actor already in Map.PlayerMass)
                 already.Slime = 1;
             int counter = 1;
             int max = 0;
@@ -76,7 +71,7 @@ namespace AmoebaRL.Core.Organelles
                 List<SlimePathfind> frontier = new List<SlimePathfind>();
                 foreach (SlimePathfind l in last)
                 {
-                    List<Actor> pullIn = Game.DMap.Actors.Where(a => a.Slime > 0
+                    List<Actor> pullIn = Map.Context.DMap.Actors.Where(a => a.Slime > 0
                                                                 && (!(a is Organelle o) || !o.Anchor)
                                                                 && a.AdjacentTo(l.current.X, l.current.Y)
                                                                 && !accountedFor.Where(t => t.current == a).Any()).ToList();
@@ -125,26 +120,27 @@ namespace AmoebaRL.Core.Organelles
 
         public void HandleGameOver()
         {
-            if (Game.DMap.Actors.Where(a => a is Nucleus).Count() == 0)
+            if (Map.Context.DMap.Actors.Where(a => a is Nucleus).Count() == 0)
             {
-                Game.MessageLog.Add($"You lose. Final Score: {Game.PlayerMass.Count}.");
-                Game.SchedulingSystem.Clear();
-                Game.DMap.AddActor(new PostMortem());
-                Game.DMap.UpdatePlayerFieldOfView();
+                Map.Context.MessageLog.Add($"You lose. Final Score: {Map.PlayerMass.Count}.");
+                Map.Context.SchedulingSystem.Clear();
+                Map.AddActor(new PostMortem());
+                Map.UpdatePlayerFieldOfView();
+                Map.Context.MessageLog.Add("Press ESC to quit. Press R to play again.");
             }
         }
 
         public Organelle Retreat()
         {
-            List<Actor> sacrifices = Game.PlayerMass.Where(a => DungeonMap.TaxiDistance(this, a) == 1 && !(a is Nucleus) && (a is Organelle)).ToList();
+            List<Actor> sacrifices = Map.PlayerMass.Where(a => a.Position.TaxiDistance(this.Position) == 1 && !(a is Nucleus) && (a is Organelle)).ToList();
             if (sacrifices.Count > 0)
             {
-                List<Actor> bestSacrifices = sacrifices.Where(s => !(Game.DMap.GetVFX(s.X,s.Y) is Hunter.Reticle)).ToList();
+                List<Actor> bestSacrifices = sacrifices.Where(s => !(Map.Context.DMap.GetEntities(s.X,s.Y).Any(t => t is Reticle))).ToList();
                 if (bestSacrifices.Count == 0)
                     bestSacrifices = sacrifices;
                 // Prioritize retreating into organelles?
-                int r = Game.Rand.Next(0, bestSacrifices.Count - 1);
-                Game.DMap.Swap(this, bestSacrifices[r]);
+                int r = Map.Context.Rand.Next(0, bestSacrifices.Count - 1);
+                Map.Context.DMap.Swap(this, bestSacrifices[r]);
                 return bestSacrifices[r] as Organelle;
             }
             return null;
@@ -167,8 +163,6 @@ namespace AmoebaRL.Core.Organelles
         public DNA()
         {
             Name = "DNA";
-            Color = Palette.Player;
-            Symbol = 'X';
         }
 
         public override string Description => "Short for Deoxyribonucleic Acid. It would be possible to fasion a new nucleus out of this.";
@@ -186,15 +180,10 @@ namespace AmoebaRL.Core.Organelles
 
     public class EyeCore : Nucleus
     {
-        public override RLColor ActiveColor { get; set; } = Palette.Calcium;
-        public override RLColor InactiveColor { get; set; } = Palette.RestingTank;
-
         public EyeCore()
         {
             Awareness = 6;
             Name = "Eye Core";
-            Color = InactiveColor;
-            Symbol = '@';
             Slime = 1;
             Delay = 16;
             PossiblePaths = new List<UpgradePath>()
@@ -216,15 +205,11 @@ namespace AmoebaRL.Core.Organelles
 
     public class SmartCore : Nucleus
     {
-        public override RLColor ActiveColor { get; set; } = Palette.Hunter;
-        public override RLColor InactiveColor { get; set; } = Palette.SmartCoreInactive;
 
         public SmartCore()
         {
             Awareness = 3;
             Name = "Smart Core";
-            Color = InactiveColor;
-            Symbol = '@';
             Slime = 1;
             Delay = 8;
             PossiblePaths = new List<UpgradePath>()
@@ -246,15 +231,10 @@ namespace AmoebaRL.Core.Organelles
 
     public class LaserCore : EyeCore
     {
-        public override RLColor ActiveColor { get; set; } = Palette.RootOrganelle;
-        public override RLColor InactiveColor { get; set; } = Palette.OrganelleInactive;
-
         public LaserCore()
         {
             Awareness = 6;
             Name = "Laser Core";
-            Color = Palette.PlayerInactive;
-            Symbol = '@';
             Slime = 1;
             Delay = 16;
             PossiblePaths.Clear();
@@ -273,18 +253,12 @@ namespace AmoebaRL.Core.Organelles
 
     public class TerrorCore : EyeCore, IPostAttackMove, IPostSchedule
     {
-        public override RLColor ActiveColor { get; set; } = Palette.TerrorCoreActive;
-
-        public override RLColor InactiveColor { get; set; } = Palette.Wall;
-
         public List<Tuple<Actor, int>> Terrified { get; protected set; } = new List<Tuple<Actor, int>>();
 
         public TerrorCore()
         {
             Awareness = 6;
             Name = "Terror Core";
-            Color = Palette.PlayerInactive;
-            Symbol = '@';
             Slime = 1;
             Delay = 16;
             PossiblePaths.Clear();
@@ -303,18 +277,18 @@ namespace AmoebaRL.Core.Organelles
         public void DoPostAttackMove()
         {
             Terrified.Clear();
-            foreach(Actor a in Game.DMap.AdjacentActors(X,Y).Where(a => a is Militia).Cast<Militia>())
+            foreach(Actor a in Map.Context.DMap.AdjacentActors(X,Y).Where(a => a is Militia).Cast<Militia>())
             {
-                int? scheduledForTime = Game.SchedulingSystem.ScheduledFor(a);
+                int? scheduledForTime = Map.Context.SchedulingSystem.ScheduledFor(a);
                 if (scheduledForTime.HasValue)
                 {
-                    int untilTurn = scheduledForTime.Value - Game.SchedulingSystem.GetTime();
-                    Game.SchedulingSystem.Remove(a);
+                    int untilTurn = scheduledForTime.Value - Map.Context.SchedulingSystem.GetTime();
+                    Map.Context.SchedulingSystem.Remove(a);
                     Terrified.Add(new Tuple<Actor, int>(a, a.Delay));
                     a.Delay += untilTurn;
                 }
                 else
-                    Game.MessageLog.Add($"{a.Name} is already terrified");
+                    Map.Context.MessageLog.Add($"{a.Name} is already terrified");
             }
         }
 
@@ -322,7 +296,7 @@ namespace AmoebaRL.Core.Organelles
         {
             foreach (Tuple<Actor, int> a in Terrified)
             {
-                Game.SchedulingSystem.Add(a.Item1);
+                Map.Context.SchedulingSystem.Add(a.Item1);
                 a.Item1.Delay = a.Item2;
                 SetAsActiveNucleus();
             }
@@ -331,9 +305,6 @@ namespace AmoebaRL.Core.Organelles
 
     public class GravityCore : SmartCore, IPostAttackMove
     {
-        public override RLColor ActiveColor { get; set; } = Palette.DarkSlime;
-        public override RLColor InactiveColor { get; set; } = Palette.InactiveGravityCore;
-
         public int GravityAttempts { get; protected set; } = 2;
 
         public int MaxRange { get; protected set; } = 2;
@@ -342,8 +313,6 @@ namespace AmoebaRL.Core.Organelles
         {
             Awareness = 3;
             Name = "Gravity Core";
-            Color = Palette.InactiveGravityCore;
-            Symbol = '@';
             Slime = 1;
             Delay = 8;
             PossiblePaths.Clear();
@@ -366,36 +335,36 @@ namespace AmoebaRL.Core.Organelles
             Anchor = true;
             for(int i = 0; i < GravityAttempts; i++)
             {
-                List<ICell> adj = Game.DMap.AdjacentWalkable(X,Y);
+                List<ICell> adj = Map.Context.DMap.AdjacentWalkable(X,Y);
                 if(adj.Count > 0)
                 {
                     bool gravityIgnore(Actor x) => x is Militia && !(x is Tank);
-                    ICell gravityTo = adj[Game.Rand.Next(adj.Count - 1)];
+                    ICell gravityTo = adj[Map.Context.Rand.Next(adj.Count - 1)];
                     // Find the nearest organelles (other than this or those adjacent to this) to gravityTo
                     // which can reach it without switching places with slime that is closer.
-                    List<Organelle> nearest = Game.DMap.NearestActors(X, Y, a =>
+                    List<Organelle> nearest = Map.Context.DMap.NearestActors(X, Y, a =>
                             a is Organelle &&
-                            DungeonMap.TaxiDistance(Game.DMap.GetCell(a.X, a.Y), gravityTo) <= MaxRange && 
+                            DungeonMap.TaxiDistance(Map.Context.DMap.GetCell(a.X, a.Y), gravityTo) <= MaxRange && 
                             !(a == this) &&
                             a.PathExists(gravityIgnore, gravityTo.X, gravityTo.Y)
                             ).Cast<Organelle>().ToList();
                     while(nearest.Count > 0)
                     {
-                        Organelle sel = nearest[Game.Rand.Next(nearest.Count - 1)];
+                        Organelle sel = nearest[Map.Context.Rand.Next(nearest.Count - 1)];
                         nearest.Remove(sel);
                         Path p = null;
                         try
                         {
                             p = sel.PathIgnoring(gravityIgnore, gravityTo.X, gravityTo.Y);
-                            //p = DungeonMap.QuickShortestPath(Game.DMap,
-                            //    Game.DMap.GetCell(X, Y),
-                            //    Game.DMap.GetCell(gravityTo.X, gravityTo.Y));
+                            //p = DungeonMap.QuickShortestPath(Map.Context.DMap,
+                            //    Map.Context.DMap.GetCell(X, Y),
+                            //    Map.Context.DMap.GetCell(gravityTo.X, gravityTo.Y));
                         }
                         catch (PathNotFoundException) { }
                         if(p != null)
                         {
                             ICell next = p.StepForward();
-                            Game.CommandSystem.AttackMoveOrganelle(sel, next.X, next.Y);
+                            Map.Context.CommandSystem.AttackMoveOrganelle(sel, next.X, next.Y);
                             nearest.Clear();
                         }
                     }
@@ -409,15 +378,10 @@ namespace AmoebaRL.Core.Organelles
     {
         public int BaseSpeed { get; protected set; } = 8;
 
-        public override RLColor ActiveColor { get; set; } = Palette.Cursor;
-        public override RLColor InactiveColor { get; set; } = Palette.InactiveQuantumCore;
-
         public QuantumCore()
         {
             Awareness = 3;
             Name = "Quantum Core";
-            Color = Palette.InactiveQuantumCore;
-            Symbol = '@';
             Slime = 1;
             Delay = 8;
             PossiblePaths.Clear();

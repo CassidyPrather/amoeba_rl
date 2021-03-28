@@ -24,7 +24,7 @@ namespace AmoebaRL.Core.Organelles
 
         public void Unslime()
         {
-            Game.DMap.RemoveActor(this);
+            Map.RemoveActor(this);
             OnUnslime();
         }
 
@@ -42,7 +42,7 @@ namespace AmoebaRL.Core.Organelles
 
         public void Destroy()
         {
-            Game.DMap.RemoveActor(this);
+            Map.RemoveActor(this);
             OnDestroy();
         }
 

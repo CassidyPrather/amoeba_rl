@@ -14,8 +14,6 @@ namespace AmoebaRL.Core.Organelles
     {
         public Membrane()
         {
-            Color = Palette.RootOrganelle;
-            Symbol = 'B';
             Name = "Membrane";
             Slime = 1;
             Awareness = 0;
@@ -36,8 +34,6 @@ namespace AmoebaRL.Core.Organelles
     {
         public ReinforcedMembrane()
         {
-            Color = Palette.Calcium;
-            Symbol = 'B';
             Name = "Tough Membrane";
             Slime = 1;
             Awareness = 0;
@@ -62,8 +58,6 @@ namespace AmoebaRL.Core.Organelles
     {
         public Maw()
         {
-            Color = Palette.Hunter;
-            Symbol = 'W';
             Name = "Maw";
             Slime = 1;
             Awareness = 1;
@@ -80,7 +74,7 @@ namespace AmoebaRL.Core.Organelles
 
         public virtual void Act()
         {
-            List<Actor> seenTargets = Seen(Game.DMap.Actors).Where(s=> s is Militia).ToList();
+            List<Actor> seenTargets = Seen(Map.Context.DMap.Actors).Where(s=> s is Militia).ToList();
             if (!seenTargets.All(t => t is Tank))
                 seenTargets = seenTargets.Where(t => !(t is Tank)).ToList();
             if (seenTargets.Count > 0)
@@ -94,16 +88,16 @@ namespace AmoebaRL.Core.Organelles
             List<Path> actionPaths = PathsToNearest(seenTargets, ignoring);
             if (actionPaths.Count > 0)
             {
-                int pick = Game.Rand.Next(0, actionPaths.Count - 1);
+                int pick = Map.Context.Rand.Next(0, actionPaths.Count - 1);
                 try
                 {
                     //Formerly: path.Steps.First()
                     ICell nextStep = actionPaths[pick].StepForward();
-                    Game.CommandSystem.AttackMoveOrganelle(this, nextStep.X, nextStep.Y);
+                    Map.Context.CommandSystem.AttackMoveOrganelle(this, nextStep.X, nextStep.Y);
                 }
                 catch (NoMoreStepsException)
                 {
-                    Game.MessageLog.Add($"{Name} wimpers sadly");
+                    Map.Context.MessageLog.Add($"{Name} wimpers sadly");
                 }
             } // else, wait a turn.
         }
@@ -115,8 +109,6 @@ namespace AmoebaRL.Core.Organelles
     {
         public ForceField()
         {
-            Color = Palette.Calcium;
-            Symbol = 'F';
             Name = "Force Field";
             Slime = 1;
             Awareness = 0;
@@ -138,8 +130,6 @@ namespace AmoebaRL.Core.Organelles
     {
         public NonNewtonianMembrane()
         {
-            Color = Palette.Calcium;
-            Symbol = 'P';
             Name = "Phase Membrane";
             Slime = 1;
             Awareness = 0;
@@ -162,8 +152,6 @@ namespace AmoebaRL.Core.Organelles
     {
         public ReinforcedMaw()
         {
-            Color = Palette.Calcium;
-            Symbol = 'W';
             Name = "Reinforced Maw";
             Slime = 1;
             Awareness = 1;
@@ -175,7 +163,7 @@ namespace AmoebaRL.Core.Organelles
 
         public override void Act()
         {
-            List<Actor> seenTargets = Seen(Game.DMap.Actors).Where(s => s is Militia).ToList();
+            List<Actor> seenTargets = Seen(Map.Context.DMap.Actors).Where(s => s is Militia).ToList();
             if (seenTargets.Count > 0)
                 ActToTargets(seenTargets);
         }
@@ -194,8 +182,6 @@ namespace AmoebaRL.Core.Organelles
 
         public Tentacle()
         {
-            Color = Palette.Hunter;
-            Symbol = 'T';
             Name = "Tentacle";
             Slime = 1;
             Awareness = 3;
@@ -209,7 +195,7 @@ namespace AmoebaRL.Core.Organelles
         // Eat everything you see that you can. Retreat from tanks. Don't commit suicide.
         public override void Act()
         {
-            List<Actor> seenTargets = Seen(Game.DMap.Actors).Where(s => s is Militia && !(s is Caravan)).ToList();
+            List<Actor> seenTargets = Seen(Map.Context.DMap.Actors).Where(s => s is Militia && !(s is Caravan)).ToList();
             bool brave = true;
             // Future checks to see if t is caravan occur in this function, but I don't think they're needed.
             if (!seenTargets.All(t => !(!(t is Caravan) && t is Tank)))
@@ -217,8 +203,8 @@ namespace AmoebaRL.Core.Organelles
                 List<Tank> tanks = seenTargets.Where(t => !(t is Caravan) && t is Tank).Cast<Tank>().ToList();
                 if(tanks.Count > 0) // might be an unecessary condition
                 { 
-                    int nearestTankDistance = tanks.Min(t => DungeonMap.TaxiDistance(t, this));
-                    List<Tank> closest = tanks.Where(t => DungeonMap.TaxiDistance(t, this) <= TerrorRadius).ToList(); 
+                    int nearestTankDistance = tanks.Min(t => t.Position.TaxiDistance(Position));
+                    List<Tank> closest = tanks.Where(t => t.Position.TaxiDistance(Position) <= TerrorRadius).ToList(); 
                     if(closest.Count > 0)
                     {
                         if (MinimizeTerrorMove(tanks.Cast<Actor>()))
@@ -237,7 +223,7 @@ namespace AmoebaRL.Core.Organelles
             ICell best = ImmediateUphillStep(terrorizers, true);
             if (best.X == X && best.Y == Y)
                 return false;
-            Game.CommandSystem.AttackMoveOrganelle(this, best.X, best.Y);
+            Map.Context.CommandSystem.AttackMoveOrganelle(this, best.X, best.Y);
             return true;
         }
 
@@ -253,16 +239,11 @@ namespace AmoebaRL.Core.Organelles
     {
         public BarbedWire()
         {
-            Color = Palette.OrganelleInactive;
-            Symbol = 'b';
             Name = "Barbed Wire";
         }
 
         public override string Description => "Humans set these up to protect their cities. You can probably put it to better use.";
 
-        public override Actor NewOrganelle()
-        {
-            return new Membrane();
-        }
+        public override Actor NewOrganelle() => new Membrane();
     }
 }

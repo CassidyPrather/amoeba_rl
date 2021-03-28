@@ -51,8 +51,6 @@ namespace AmoebaRL.Core.Enemies
         public virtual void Init()
         {
             Awareness = 0;
-            Color = Palette.Cursor;
-            Symbol = '?';
             Delay = 16;
             Name = "NPC";
         }
@@ -62,7 +60,7 @@ namespace AmoebaRL.Core.Enemies
         /// </summary>
         public virtual void Die()
         {
-            Game.DMap.RemoveActor(this);
+            Map.RemoveActor(this);
             BecomeItems(BecomesOnDie);
         }
 
@@ -76,9 +74,9 @@ namespace AmoebaRL.Core.Enemies
         /// </remarks>
         public virtual void OnEaten()
         {
-            Game.DMap.RemoveActor(this);
+            Map.RemoveActor(this);
             Actor result = BecomeActor(BecomesOnEaten);
-            Game.PlayerMass.Add(result);
+            Map.PlayerMass.Add(result);
         }
 
         /// <summary>
@@ -112,13 +110,13 @@ namespace AmoebaRL.Core.Enemies
                 engulfing = new HashSet<IEngulfable>() { this };
             else
                 engulfing.Add(this);
-            List<ICell> adj = Game.DMap.Adjacent(X, Y);
-            if (adj.Where(a => Game.DMap.IsWalkable(a.X, a.Y)).Count() > 0)
+            List<ICell> adj = Map.Adjacent(X, Y);
+            if (adj.Where(a => Map.IsWalkable(a.X, a.Y)).Count() > 0)
                 return false; // An escape route exists.
             List<Actor> adjActors = new List<Actor>();
             foreach (ICell a in adj)
             {
-                Actor adjacentActor = Game.DMap.GetActorAt(a.X, a.Y);
+                Actor adjacentActor = Map.GetActorAt(a.X, a.Y);
                 if (adjacentActor != null)
                 {
                     if (adjacentActor is City)
@@ -145,7 +143,7 @@ namespace AmoebaRL.Core.Enemies
         /// </summary>
         public virtual void ProcessEngulf()
         {
-            Game.MessageLog.Add($"The {Name} is engulfed!");
+            Map.Context.MessageLog.Add($"The {Name} is engulfed!");
             OnEaten();
         }
 
@@ -182,8 +180,6 @@ namespace AmoebaRL.Core.Enemies
         {
             Awareness = 0;
             Slime = 1;
-            Color = Palette.Cursor;
-            Symbol = '?';
             Delay = 16;
         }
 
@@ -195,19 +191,19 @@ namespace AmoebaRL.Core.Enemies
             HP--;
             if (HP <= 0)
             {
-                int numButchers = Game.PlayerMass.Where(k => k is Butcher).Count();
+                int numButchers = Map.PlayerMass.Where(k => k is Butcher).Count();
                 for (int i = 0; i < numButchers; i++)
                 {
                     Overfill = MaxHP * 2;
                     ProduceIfOverfull();
                 }
-                Game.DMap.RemoveActor(this);
+                Map.RemoveActor(this);
                 Actor transformation = DigestsTo;
                 transformation.X = X;
                 transformation.Y = Y;
-                Game.DMap.AddActor(transformation);
-                Game.PlayerMass.Add(transformation);
-                Game.DMap.UpdatePlayerFieldOfView();
+                Map.AddActor(transformation);
+                Map.PlayerMass.Add(transformation);
+                Map.UpdatePlayerFieldOfView();
             }
         }
 
@@ -219,17 +215,17 @@ namespace AmoebaRL.Core.Enemies
         {
             if (Overfill >= MaxHP)
             {
-                List<ICell> drops = Game.DMap.NearestNoActor(X, Y);
+                List<ICell> drops = Map.NearestNoActor(X, Y);
                 if (drops.Count > 0)
                 {
-                    ICell pick = drops[Game.Rand.Next(drops.Count - 1)];
+                    ICell pick = drops[Map.Context.Rand.Next(drops.Count - 1)];
                     Actor bounty = DigestsTo;
                     bounty.X = pick.X;
                     bounty.Y = pick.Y;
-                    Game.DMap.AddActor(bounty);
-                    Game.PlayerMass.Add(bounty);
+                    Map.AddActor(bounty);
+                    Map.PlayerMass.Add(bounty);
                     Overfill = 0;
-                    Game.DMap.UpdatePlayerFieldOfView();
+                    Map.UpdatePlayerFieldOfView();
                 }
                 return true;
             }
@@ -261,7 +257,7 @@ namespace AmoebaRL.Core.Enemies
         /// </summary>
         public virtual string DissolvingAddendum()
         {
-            if (!Game.DMap.AdjacentActors(X, Y).Where(a => a is Cultivator).Any())
+            if (!Map.AdjacentActors(X, Y).Where(a => a is Cultivator).Any())
             {
                 return $"After {HP} turns, it will become {NameOfResult}. Be careful, it can still be rescued!";
             }

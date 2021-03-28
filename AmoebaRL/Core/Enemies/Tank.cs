@@ -11,17 +11,30 @@ namespace AmoebaRL.Core.Enemies
 {
     public class Tank : Militia
     {
-        public int StaminaPoolSize { get; set; } = 3;
+        public int StaminaPoolSize
+        {
+            get => Delay / 16;
+            set => Delay = value * 16;
+        }
 
-        public int Exhaustion { get; set; } = 3;
+        public int TurnsToAct
+        {
+            get
+            {
+                int? myScheduledTime = Map.Context.SchedulingSystem.ScheduledFor(this);
+                if(myScheduledTime.HasValue)
+                { 
+                    return (myScheduledTime.Value - Map.Context.SchedulingSystem.GetTime()) / 16;
+                }
+                return -1;
+            }
+        }
 
         public override void Init()
         {
             Armor = 1;
             Awareness = 3;
-            Color = Palette.RestingTank;
-            Symbol = 't';
-            Delay = 16;
+            Delay = 48;
             Name = "Tank";
         }
 
@@ -34,24 +47,7 @@ namespace AmoebaRL.Core.Enemies
             return "It cannot be killed or eaten by most means. It is vulnerable to friendly fire. It can " +
                 "be engulfed by surrounding it on all sides with slime or walls. Cities and humans will not " +
                 "help to engulf it, but any humans can be engulfed in contiguous groups! " +
-                $"It acts every {StaminaPoolSize} turns ({Exhaustion} remaining).";
-        }
-
-        public override void Act()
-        {
-            if (!Engulf())
-            {
-                if (Exhaustion == 1)
-                    Color = Palette.Calcium;
-                if (Exhaustion > 0)
-                    Exhaustion--;
-                else
-                {
-                    Color = Palette.RestingTank;
-                    Exhaustion = StaminaPoolSize;
-                    base.Act();
-                }
-            }
+                $"It acts every {StaminaPoolSize} turns ({TurnsToAct} remaining).";
         }
 
         public override List<Item> BecomesOnDie => new List<Item>() { new CalciumDust() };
@@ -62,9 +58,7 @@ namespace AmoebaRL.Core.Enemies
         {
             public override void Init()
             {
-                Color = Palette.Calcium;
                 Name = "Dissolving Tank";
-                Symbol = 't';
                 MaxHP = 24;
                 HP = MaxHP;
                 Delay = 16;
@@ -86,12 +80,8 @@ namespace AmoebaRL.Core.Enemies
         {
             Armor = 1;
             Awareness = 3;
-            Color = Palette.RestingTank;
-            Symbol = 'M';
-            Delay = 16;
+            Delay = 32;
             Name = "Mech";
-            Exhaustion = 1;
-            StaminaPoolSize = 1;
         }
 
         public override string Flavor => "The humans attached legs to this tank to respond to the growing threat, " +
@@ -105,9 +95,7 @@ namespace AmoebaRL.Core.Enemies
             {
                 Awareness = 0;
                 Slime = 1;
-                Color = Palette.Calcium;
                 Name = "Dissolving Mech";
-                Symbol = 'M';
                 MaxHP = 24;
                 HP = MaxHP;
                 Delay = 16;
@@ -127,12 +115,8 @@ namespace AmoebaRL.Core.Enemies
         {
             Armor = 1;
             Awareness = 3;
-            Color = Palette.RestingMilitia;
-            Symbol = 'v';
-            Delay = 16;
+            Delay = 32;
             Name = "Caravan";
-            Exhaustion = 1;
-            StaminaPoolSize = 1;
         }
 
         public override string Flavor => "It wants to be very far away from danger, so it probably has some precious cargo " +
@@ -145,7 +129,7 @@ namespace AmoebaRL.Core.Enemies
 
         public Item Cargo()
         {
-            if (Game.Rand.Next(1) == 0)
+            if (Map.Context.Rand.Next(1) == 0)
                 return new CalciumDust();
             else
                 return new SiliconDust();
@@ -155,23 +139,14 @@ namespace AmoebaRL.Core.Enemies
         {
             if(!Engulf())
             {
-                if (Exhaustion == 1)
-                    Color = Palette.Militia;
-                if (Exhaustion > 0)
-                    Exhaustion--;
-                else
+                List<Actor> seenTargets = Seen(Map.PlayerMass);
+                if (seenTargets.Count > 0)
                 {
-                    Color = Palette.RestingMilitia;
-                    Exhaustion = StaminaPoolSize;
-                    List<Actor> seenTargets = Seen(Game.PlayerMass);
-                    if (seenTargets.Count > 0)
-                    {
-                        ICell fleeTarget = ImmediateUphillStep(seenTargets, false);
-                        Game.CommandSystem.AttackMove(this, fleeTarget);
-                    }
-                    else
-                        Wander();
+                    ICell fleeTarget = ImmediateUphillStep(seenTargets, false);
+                    Map.Context.CommandSystem.AttackMove(this, fleeTarget);
                 }
+                else
+                    Wander();
             }
         }
 
@@ -179,9 +154,7 @@ namespace AmoebaRL.Core.Enemies
         {
             public override void Init()
             {
-                Color = Palette.Militia;
                 Name = "Dissolving Caravan";
-                Symbol = 'v';
                 MaxHP = 24;
                 HP = MaxHP;
                 Delay = 16;
@@ -195,7 +168,7 @@ namespace AmoebaRL.Core.Enemies
             {
                 get
                 {
-                    if (Game.Rand.Next(1) == 0)
+                    if (Map.Context.Rand.Next(1) == 0)
                         return new Calcium();
                     else
                         return new Electronics();

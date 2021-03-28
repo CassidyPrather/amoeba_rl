@@ -13,10 +13,8 @@ namespace AmoebaRL.Core.Organelles
         { 
             Awareness = 0;
             Name = "Cytoplasm";
-            Color = Palette.Slime;
-            Symbol = ' ';
             Slime = 1;
-            Delay = 10000; // aaa
+            Delay = 16;
         }
 
         public override List<Item> Components() => new List<Item>() { new Nutrient() };
@@ -37,8 +35,6 @@ namespace AmoebaRL.Core.Organelles
         public Nutrient()
         {
             Name = "Nutrient";
-            Color = Palette.Slime;
-            Symbol = '%';
             X = 10;
             Y = 10;
         }
