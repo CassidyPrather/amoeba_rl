@@ -2,17 +2,13 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net4.6.1</TargetFramework>
+    <TargetFramework>net5.0</TargetFramework>
   </PropertyGroup>
 
   <!--The following references must be updated when the project updates to .NET 5.0-->
   <ItemGroup>
-    <PackageReference Include="RLNET" Version="1.0.6" />
+    <PackageReference Include="RLNET5" Version="2.0.2-beta" />
     <PackageReference Include="RogueSharp" Version="4.2.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Reference Include="System.ComponentModel.DataAnnotations" />
   </ItemGroup>
 
   <ItemGroup>
