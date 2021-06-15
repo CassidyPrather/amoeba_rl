@@ -20,11 +20,11 @@ namespace AmoebaRL.Systems
         private readonly int _mapBoulders;
         private readonly int _boulderMaxSize;
         private readonly int _boulderMinSize;
+        private readonly int _numCities;
         private readonly int INITIAL_SLIME = 4; // eventually replace this with a predefined list of IActors that get spawned in near the player.
 
         private readonly DungeonMap _map;
         private readonly int FOOD_AMT = 32;
-        private readonly int CITY_AMT = 16;
         private readonly int DNA_AMT = 5;
         private readonly int WIRE_AMT = 8;
         private readonly int PLANT_AMT = 8;
@@ -32,7 +32,7 @@ namespace AmoebaRL.Systems
         // Constructing a new MapGenerator requires the dimensions of the maps it will create
         // as well as the sizes and maximum number of rooms
         public MapGenerator(Game context, int width, int height,
-        int maxBoulders, int boulderMaxSize, int boulderMinSize)
+        int maxBoulders, int boulderMaxSize, int boulderMinSize, int numCities)
         {
             _width = width;
             _height = height;
@@ -40,6 +40,7 @@ namespace AmoebaRL.Systems
             _boulderMaxSize = boulderMaxSize;
             _boulderMinSize = boulderMinSize;
             _map = new DungeonMap(context);
+            _numCities = numCities;
 
         }
 
@@ -265,7 +266,7 @@ namespace AmoebaRL.Systems
             for (int i = 0; i < FOOD_AMT; i++)
                 PlaceLoot(new Nutrient());
 
-            for (int i = 0; i < CITY_AMT; i++)
+            for (int i = 0; i < _numCities; i++)
                 PlaceCity();
 
             for (int i = 0; i < DNA_AMT; i++)

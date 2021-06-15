@@ -196,14 +196,14 @@ namespace AmoebaRL.UI
             {
                 for(int col = 0; col < toRepresent.Width; col++)
                 {
-                    Entity effect = toRepresent.GetVFX(row, col);
+                    Entity effect = toRepresent.GetVFX(col, row);
                     if(effect != null)
                     {
                         GenerateAppendRepresentation(effect);
                     }
                     else
                     {
-                        Entity top = Showing.DMap.GetActorOrItem(row, col);
+                        Entity top = Showing.DMap.GetActorOrItem(col, row);
                         if (top != null)
                             GenerateAppendRepresentation(top);
                     }

@@ -25,7 +25,7 @@ namespace AmoebaRL.Core
         public Game Context { get; protected set; }
 
         // TODO: Replace List<Entity> with a special struct.
-        protected List<List<List<Entity>>> Content { get; set; }
+        protected List<List<List<Entity>>> Content { get; set; } // indexed with x,y
 
 
         #region Indices
@@ -55,12 +55,12 @@ namespace AmoebaRL.Core
         public void InitalizeContent()
         {
             Content = new List<List<List<Entity>>>();
-            for (int row = 0; row < Height; row++)
+            for (int col = 0; col < Width; col++)
             {
                 Content.Add(new List<List<Entity>>());
-                for (int col = 0; col < Width; col++)
+                for (int row = 0; row < Height; row++)
                 {
-                    Content[row].Add(new List<Entity>());
+                    Content[col].Add(new List<Entity>());
                 }
             }
         }
@@ -332,7 +332,7 @@ namespace AmoebaRL.Core
             else
             {
                 List<ICell> perim;
-                if (seenPerimeter == null)
+                if (seenPerimeter == null || seenPerimeter.Count == 0)
                     perim = seen;
                 else
                     perim = seenPerimeter;

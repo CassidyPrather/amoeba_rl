@@ -338,8 +338,8 @@ namespace AmoebaRL.Core.Organelles
             {
                 return "This cultivator is ravenous and will pull dissolving targets into each adjacent space! This happens no more than once per unoccupied space per turn. " +
                     "Restores the HP of adjacent dissolving targets. " +
-                    "Causes adjacent dissolving targets to produce their loot their digestion rates for free without expending them. Be careful, they can " +
-                    "still be rescued!"; ;
+                    "Causes adjacent dissolving targets to produce their loot at their digestion rates for free without expending them. Be careful, they can " +
+                    "still be rescued!";
             }
         }
 

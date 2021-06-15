@@ -128,7 +128,7 @@ namespace AmoebaRL.UI
                 case nameof(City):
                     return new CityTextTile(e as City, 'C', Palette.City, Palette.Electronics, Palette.ReticleForeground, Palette.ReticleBackground, VisibilityCondition.EXPLORED_ONLY);
                 case nameof(Reticle):
-                    return new ReticleTextTile(e, 'X', Palette.ReticleForeground, Palette.ReticleBackground, VisibilityCondition.EXPLORED_ONLY);
+                    return new ReticleTextTile(e, 'X', Palette.ReticleForeground, Palette.ReticleBackground, VisibilityCondition.LOS_ONLY);
                 case nameof(Cursor):
                     return new ReticleTextTile(e, 'X', Palette.Cursor, Palette.DarkCursor, VisibilityCondition.ALWAYS_VISIBLE);
                 default:

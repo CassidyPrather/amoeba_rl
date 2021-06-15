@@ -18,6 +18,13 @@ namespace AmoebaRL
         public GraphicalSystem Graphics { get; protected set; }
 
         public int seed;
+        private int mapWidth = 48;
+        private int mapHeight = 48;
+        private int defaultSpawnRate = 50;
+        private int evolutionRate = 6;
+        private int maxBudget = 5;
+        private int cityArmor = 100;
+        private int numCities = 12;
 
         public enum Mode
         {
@@ -27,17 +34,46 @@ namespace AmoebaRL
         }
 
         #region Settings
-        public static int MapWidth = 48;
+        /// <summary>
+        /// The width of the map, including the border.
+        /// Must not exceed 64.
+        /// </summary>
+        public int MapWidth { get => mapWidth; set => mapWidth = value; }
 
-        public static int MapHeight = 48;
+        /// <summary>
+        /// The height of the map, including the border.
+        /// Must not exceed 48.
+        /// </summary>
+        public int MapHeight { get => mapHeight; set => mapHeight = value; }
 
-        public static int DefaultSpawnRate = 50;
+        /// <summary>
+        /// The period of new waves.
+        /// </summary>
+        public int DefaultSpawnRate { get => defaultSpawnRate; set => defaultSpawnRate = value; }
 
-        public static int EvolutionRate = 6;
+        /// <summary>
+        /// The number of waves to pass before increasing the wave difficulty.
+        /// Wave 1 is always especially easy.
+        /// </summary>
+        public int EvolutionRate { get => evolutionRate; set => evolutionRate = value; }
 
-        public static int MaxBudget = 5;
+        /// <summary>
+        /// The maximum difficulty of waves.
+        /// </summary>
+        public int MaxBudget { get => maxBudget; set => maxBudget = value; }
 
-        public static int CityArmor = 100;
+        /// <summary>
+        /// The mass the player must accumulate to destroy cities.
+        /// </summary>
+        public int CityArmor { get => cityArmor; set => cityArmor = value; }
+
+        /// <summary>
+        /// The number of cities to generate.
+        /// </summary>
+        public int NumCities { get => numCities; set => numCities = value; }
+        // Ideas for more options:
+        // +/- Require FOV?
+        // Max enemies?
         #endregion
 
         #region Gamewide Handles
@@ -48,10 +84,6 @@ namespace AmoebaRL
 
         public Nucleus ActivePlayer { get; set; }
 
-        // Should be map-level:
-        // public static List<Actor> PlayerMass { get; set; }
-
-        // May need to rethink:
         public CommandSystem CommandSystem { get; private set; }
 
         public SchedulingSystem SchedulingSystem { get; private set; }
@@ -66,8 +98,70 @@ namespace AmoebaRL
 
         #endregion
 
-        public Game()
+        /// <summary>
+        /// Schema for configuring a game.
+        /// </summary>
+        public class GameConfigurationSchema
         {
+            /// <summary>
+            /// The width of the map, including the border.
+            /// Must not exceed 64.
+            /// </summary>
+            public int MapWidth { get; set; } = 48; // max 64
+
+            /// <summary>
+            /// The height of the map, including the border.
+            /// Must not exceed 48.
+            /// </summary>
+            public int MapHeight { get; set; } = 48; // max 48 
+
+            /// <summary>
+            /// The period of new waves.
+            /// </summary>
+            public int DefaultSpawnRate { get; set; } = 50;
+
+            /// <summary>
+            /// The number of waves to pass before increasing the wave difficulty.
+            /// Wave 1 is always especially easy.
+            /// </summary>
+            public int EvolutionRate { get; set; } = 6;
+
+            /// <summary>
+            /// The maximum difficulty of waves.
+            /// </summary>
+            public int MaxBudget { get; set; } = 5;
+
+            /// <summary>
+            /// The mass the player must accumulate to destroy cities.
+            /// </summary>
+            public int CityArmor { get; set; } = 100;
+
+            /// <summary>
+            /// The number of cities to generate.
+            /// </summary>
+            public int NumCities { get; set; } = 12;
+        }
+
+        /// <summary>
+        /// Applies all relevant properties in <see cref="GameConfigurationSchema"/>
+        /// at their corresponding locations in the static game configuration.
+        /// </summary>
+        /// <param name="schema"></param>
+        public void ApplyConfiguration(GameConfigurationSchema schema)
+        {
+            MapWidth = schema.MapWidth;
+            MapHeight = schema.MapHeight;
+            DefaultSpawnRate = schema.DefaultSpawnRate;
+            EvolutionRate = schema.EvolutionRate;
+            MaxBudget = schema.MaxBudget;
+            CityArmor = schema.CityArmor;
+            NumCities = schema.NumCities;
+        }
+
+        public Game(GameConfigurationSchema options = null)
+        {
+            if (options != null)
+                ApplyConfiguration(options);
             StartNewGame();
         }
 
@@ -94,11 +188,11 @@ namespace AmoebaRL
 
             CommandSystem = new CommandSystem(this);
             SchedulingSystem = new SchedulingSystem();
-            
+
             // Fix the numbers in the map generator call later.
-            MapGenerator mapGenerator = new MapGenerator(this, MapWidth, MapHeight, 20, 13, 7);
+            MapGenerator mapGenerator = new(this, MapWidth, MapHeight, 20, 13, 7, NumCities);
             DMap = mapGenerator.CreateMap();
-            
+
             // Create a new MessageLog and print the random seed used to generate the level
             MessageLog = new MessageLog();
             MessageLog.Add("Arrow keys: Move / Select");
@@ -231,11 +325,11 @@ namespace AmoebaRL
                 {
                     return CommandSystem.Wait();
                 }
-                else if(keyPress.Key == RLKey.A)
+                else if (keyPress.Key == RLKey.A)
                 {
                     CommandSystem.NextNucleus(-1);
                 }
-                else if(keyPress.Key == RLKey.D)
+                else if (keyPress.Key == RLKey.D)
                 {
                     CommandSystem.NextNucleus(1);
                 }
@@ -316,7 +410,7 @@ namespace AmoebaRL
         {
             if (keyPress != null)
             {
-                if(keyPress.Key == RLKey.Escape)
+                if (keyPress.Key == RLKey.Escape)
                 {
                     Graphics.End();
                 }

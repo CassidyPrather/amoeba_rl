@@ -17,9 +17,9 @@ namespace AmoebaRL.Core.Enemies
     /// </summary>
     public class City : Actor, IProactive, IDescribable
     {
-        public int WaveRate { get; set; } = Game.DefaultSpawnRate;
+        public int? WaveRate { get; set; } = null;
 
-        public int TurnsToNextWave { get; set; } = Game.DefaultSpawnRate;
+        public int TurnsToNextWave { get; set; } = 50;
 
         public int ScoutCost { get; set; } = 2;
 
@@ -35,7 +35,17 @@ namespace AmoebaRL.Core.Enemies
 
         public Queue<Actor> SpawnQueue { get; set; } = new Queue<Actor>();
 
-        public int Armor { get; set; } = Game.CityArmor;
+        private int? armor = null;
+
+        public int Armor {
+            get
+            {
+                if (!armor.HasValue)
+                    armor = Map.Context.CityArmor;
+                return armor.Value;
+            } 
+            set => armor = value;
+        }
 
         public City()
         {
@@ -50,9 +60,9 @@ namespace AmoebaRL.Core.Enemies
             if (TurnsToNextWave <= 0)
             {
                 // Dispatch wave wave #
-                SpawnNextWave(Math.Min(Game.MaxBudget, CityLevel));
+                SpawnNextWave(Math.Min(Map.Context.MaxBudget, CityLevel));
                 // Set the city level based on the wave number
-                CityLevel = (WaveNumber / Game.EvolutionRate) + 2;
+                CityLevel = (WaveNumber / Map.Context.EvolutionRate) + 2;
             }
             if (SpawnQueue.Count > 0)
             {
@@ -83,7 +93,9 @@ namespace AmoebaRL.Core.Enemies
             if (waveHasCaravan)
                 SpawnQueue.Enqueue(new Caravan());
             WaveNumber++;
-            TurnsToNextWave += WaveRate;
+            if (!WaveRate.HasValue)
+                WaveRate = Map.Context.DefaultSpawnRate;
+            TurnsToNextWave += WaveRate.Value;
 
         }
 
@@ -138,7 +150,7 @@ namespace AmoebaRL.Core.Enemies
             {
                 StringBuilder desc = new StringBuilder();
                 desc.Append($"A doorway to one of the last bastions of humanity. It is protected by advanced " +
-                    $"technology and can only be destroyed when the amoeba mass is at least {Game.CityArmor}. ");
+                    $"technology and can only be destroyed when the amoeba mass is at least {Armor}. ");
                 if (SpawnQueue.Count > 0)
                 {
                     if (SpawnQueue.Count == 1)

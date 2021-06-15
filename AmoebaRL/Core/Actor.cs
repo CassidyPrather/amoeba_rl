@@ -94,7 +94,7 @@ namespace AmoebaRL.Core
                 }
                 else
                 {
-                    Map.Context.MessageLog.Add($"The {i.Name} had nowhere is crushed!");
+                    Map.Context.MessageLog.Add($"The {i.Name} had nowhere to drop, and is crushed!");
                 }
             }
         }
