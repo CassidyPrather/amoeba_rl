@@ -9,7 +9,6 @@ namespace AmoebaRL
 
         static void Main(string[] args)
         {
-            args = new string[] { "--easy" };
             // if (args.Length >= 1 && args[0].Equals("-gj"))
             //    Console.WriteLine("GJ mode enabled."); // hello world
             Game.GameConfigurationSchema options = null;

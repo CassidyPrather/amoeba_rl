@@ -4,6 +4,8 @@ Play as a giant, constantly evolving amoeba and fight off intensifying waves of 
 
 # How to Play
 
+## Controls
+
 Arrow keys: Move
 Space: Wait
 A, D: Go to previous/next nucleus
@@ -22,6 +24,10 @@ Stuck? Try reviewing the following information:
 * Pressing space to pass a turn or luring enemies can break an otherwise impenetrable formation.
 * In the early game, it is easy to find new base organelles but hard to find crafting materials. This inverts as time goes on.
 * Find the right balance between combat, exploration, and organelle management for your play-style; all of these cost time and come with different risks and rewards.
+
+Want an easier gamemode? Launch the program with the command line argument `--easy` for a tuned-down difficulty level.
+
+Want an extra challenge instead? Launch the program with the command line argument `--gj` to activate GJ mode.
 
 # Developing
 
