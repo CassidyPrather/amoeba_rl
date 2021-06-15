@@ -77,13 +77,15 @@ namespace AmoebaRL.Core.Organelles
                     Progress++;
                     if (Progress >= CurrentPath.AmountRequired)
                     {
-                        string tmp = Name;
-                        
+                        // Complete the process.
+                        string oldName = Name;
                         Map.RemoveActor(this);
                         Actor result = BecomeActor(CurrentPath.Result());
                         Map.PlayerMass.Add(result);
                         Map.UpdatePlayerFieldOfView(); // Otherwise crafted material might not be shown.
-                        Map.Context.MessageLog.Add($"The {tmp} absorbs the {CraftingMaterial.ResourceName(material)} and transforms into a {result.Name}!");
+                        if (result is Nucleus n) // Edge case; removing/adding scheduled player can cause unwanted swapping.
+                            n.SetAsActiveNucleus();
+                        Map.Context.MessageLog.Add($"The {oldName} absorbs the {CraftingMaterial.ResourceName(material)} and transforms into a {result.Name}!");
                     }
                     else
                         Map.Context.MessageLog.Add($"The {Name} absorbs the {CraftingMaterial.ResourceName(material)}");

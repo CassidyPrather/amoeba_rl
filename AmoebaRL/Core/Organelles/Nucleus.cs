@@ -31,7 +31,6 @@ namespace AmoebaRL.Core.Organelles
         }
 
         /// <summary>
-        /// 
         /// Responsible for scheduling itself.
         /// </summary>
         public void SetAsActiveNucleus()
