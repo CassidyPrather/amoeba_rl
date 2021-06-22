@@ -4,6 +4,10 @@ Play as a giant, constantly evolving amoeba and fight off intensifying waves of 
 
 Post 7DRL patch (v2.0.0); fixes bugs and improves general balance. Upgraded core framework to .NET 5.0, allowing for easy deployment of cross-platform builds.
 
+# Important Note for Linux Users
+
+Make sure to install [libgdplus](https://www.mono-project.com/docs/gui/libgdiplus/) with your package manager of choice, in addition to the .NET framework, to run the game.
+
 # How to Play
 
 ## Controls
