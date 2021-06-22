@@ -2,6 +2,8 @@
 
 Play as a giant, constantly evolving amoeba and fight off intensifying waves of humans trying to protect their cities. Craft new organelles and cores to respond to escalating threats. Can you destroy all 16 city gates and escape to the surface?
 
+Post 7DRL patch (v2.0.0); fixes bugs and improves general balance. Upgraded core framework to .NET 5.0, allowing for easy deployment of cross-platform builds.
+
 # How to Play
 
 ## Controls
@@ -39,4 +41,4 @@ Extensive playtesting, design, and support from JackNine
 Further playtesting from Qu and Decinym
 Engine: https://github.com/FaronBracy/RogueSharp
 Font: https://github.com/libtcod/libtcod/blob/develop/data/fonts/terminal12x12_gs_ro.png
-.NET 4.6.1 by Microsoft
+.NET 5.0 by Microsoft
