@@ -31,6 +31,9 @@ Want an easier gamemode? Launch the program with the command line argument `--ea
 
 Want an extra challenge instead? Launch the program with the command line argument `--gj` to activate GJ mode.
 
+For those unfamiliar, to launch a program with a command line argument, just add the argument to the end of the line where you would launch the program from the terminal. For example, `AmoebaRL.exe --easy` to launch easy mode. On windows, this can be automated with shortcuts: Right click the executable, select "create shortcut", then right click the shortcut and add the argument to the end of the "Target" field, separated by a space.
+
+
 # Developing
 
 This project uses [git submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules) as it is developed concurrently and independently from the underlying RLNET fork.
