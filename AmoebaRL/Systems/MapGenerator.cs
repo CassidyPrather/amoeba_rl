@@ -368,8 +368,8 @@ namespace AmoebaRL.Systems
             }
             else
                 playerMass.Add(initialPlayer);
-            
-            // Devhack option:
+
+            // Put your devhacks here:
             for (int i = 0; i < INITIAL_SLIME; i++)
                     playerMass.Add(new Cytoplasm());
             playerMass.Add(new Nucleus());

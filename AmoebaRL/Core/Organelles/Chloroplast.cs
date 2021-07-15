@@ -235,6 +235,7 @@ namespace AmoebaRL.Core.Organelles
             produced.X = target.X;
             produced.Y = target.Y;
             Map.AddActor(produced);
+            Map.PlayerMass.Add(produced); // This line was missing
             return true;
         }
 
