@@ -2,9 +2,13 @@
 
 Play as a giant, constantly evolving amoeba and fight off intensifying waves of humans trying to protect their cities. Craft new organelles and cores to respond to escalating threats. Can you destroy all 16 city gates and escape to the surface?
 
-Post 7DRL patch (v2.0.0); fixes bugs and improves general balance. Upgraded core framework to .NET 5.0, allowing for easy deployment of cross-platform builds.
+Post 7DRL patch (v2.1.0); fixes performance and major QoL bugs.
 
-# Important Note for Linux Users
+# Installation
+
+This game depends on [.NET Desktop Runtime 5.0.*](https://dotnet.microsoft.com/download/dotnet/5.0/runtime). Be sure to install it on your system before running it.
+
+## Important Note for Linux Users
 
 Make sure to install [libgdplus](https://www.mono-project.com/docs/gui/libgdiplus/) with your package manager of choice, in addition to the .NET framework, to run the game.
 
@@ -36,11 +40,6 @@ Want an easier gamemode? Launch the program with the command line argument `--ea
 Want an extra challenge instead? Launch the program with the command line argument `--gj` to activate GJ mode.
 
 For those unfamiliar, to launch a program with a command line argument, just add the argument to the end of the line where you would launch the program from the terminal. For example, `AmoebaRL.exe --easy` to launch easy mode. On windows, this can be automated with shortcuts: Right click the executable, select "create shortcut", then right click the shortcut and add the argument to the end of the "Target" field, separated by a space.
-
-
-# Developing
-
-This project uses [git submodules](https://git-scm.com/book/en/v2/Git-Tools-Submodules) as it is developed concurrently and independently from the underlying RLNET fork.
 
 # Credits
 
