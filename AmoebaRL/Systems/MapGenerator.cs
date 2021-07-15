@@ -395,14 +395,21 @@ namespace AmoebaRL.Systems
             initialPlayer.SetAsActiveNucleus();
         }
 
+        /// <summary>
+        /// Quick, dirty method implemented in 7DRL for populating a map with treasure. Has a small chance of failing or taking a long time
+        /// in more cluttered, less open maps. A real loot generation algorithm should be much more sophisticated.
+        /// </summary>
+        /// <param name="l">The loot item to place in the map</param>
         public void PlaceLoot(Item l)
         {
+            int itrs = 0;
             do
             {
                 l.X = _map.Context.Rand.Next(0, _width - 1);
                 l.Y = _map.Context.Rand.Next(0, _height - 1);
-            } while (!_map.GetCell(l.X, l.Y).IsWalkable || !_map.IsEmpty(l.X, l.Y));
-            _map.AddItem(l);
+            } while ((!_map.GetCell(l.X, l.Y).IsWalkable || !_map.IsEmpty(l.X, l.Y)) && itrs++ < 2048);
+            if(itrs < 2048)
+                _map.AddItem(l);
         }
 
         public void PlaceCity()

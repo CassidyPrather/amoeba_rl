@@ -322,40 +322,55 @@ namespace AmoebaRL.Core
         /// <remarks>Should eventually replace this with the efficient floodfill library. Should ultimately be delegated to a separate class which can store this state internally and query a "next" method.</remarks>
         public List<ICell> NearestLootDrops(int x, int y, Func<ICell, bool> legalLootDrop, Func<ICell, bool> legalLootPath, List<ICell> seen = null, List<ICell> seenPerimeter = null)
         {
-            List<ICell> candidates = new List<ICell>();
-            List<ICell> frontier = new List<ICell>();
-            List<ICell> found = new List<ICell>();
+            // Initalize the temporary collections used in this algorithm.
+            List<ICell> candidates = new(); // All unseen cells adjacent to seen perimeter.
+            List<ICell> found = new(); // The next set of nearest loot drop locations.
             if(seen == null)
                 seen = new List<ICell>();
             if(seen.Count == 0)
-                candidates.Add(GetCell(x, y));
+            {
+                ICell startingCell = GetCell(x, y);
+                candidates.Add(startingCell);
+                seen.Add(startingCell);
+            }
             else
             {
+                // Determine all of the cells adjacent to the seen ones
+                // and store it in candidates.
                 List<ICell> perim;
                 if (seenPerimeter == null || seenPerimeter.Count == 0)
-                    perim = seen;
+                    perim = new(seen);
                 else
                     perim = seenPerimeter;
                 foreach (ICell onPerimeter in perim)
                     foreach (ICell adj in Adjacent(onPerimeter.X, onPerimeter.Y).Where(a => !seen.Contains(a) && legalLootPath(a)))
+                    {
+                        seen.Add(adj);
                         candidates.Add(adj);
+                    }
             }
+            // Evaluate the candidates and return the set of valid ones.
+            // If none are valid, re-evaluate the list of candidates on the next-outer ring.
+            List<ICell> nextCandidateRing = new();
             do
             {
+                
                 foreach (ICell c in candidates)
                 {
-                    seen.Add(c);
                     if (GetItemAt(c.X, c.Y) == null && !IsWall(c) && !Cities.Contains(GetActorAt(c.X, c.Y)) && legalLootDrop(c))
                         found.Add(c);
                     else
                     {
                         foreach (ICell adj in Adjacent(c.X, c.Y).Where(a => !seen.Contains(a) && legalLootPath(a)))
-                            frontier.Add(adj);
+                        {
+                            seen.Add(adj);
+                            nextCandidateRing.Add(adj);
+                        }
                     }
                 }
                 candidates.Clear();
-                candidates.AddRange(frontier);
-                frontier.Clear();
+                candidates.AddRange(nextCandidateRing);
+                nextCandidateRing.Clear();
             } while (found.Count == 0 && candidates.Count > 0);
             return found;
         }
