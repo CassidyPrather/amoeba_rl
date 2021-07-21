@@ -74,7 +74,7 @@ namespace AmoebaRL.UI
         public static RLColor TextBody = DbBrightWood;
 
         public static RLColor SuperBright = DbLight;
-        public static RLColor PlayerInactive = DbDark;
+        public static RLColor PlayerInactive = DbOldBlood + new RLColor(20,20,20);
 
         public static RLColor Slime = DbGrass;
         public static RLColor DarkSlime = DbVegetation;

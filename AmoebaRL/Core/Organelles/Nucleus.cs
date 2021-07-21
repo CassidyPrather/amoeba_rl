@@ -119,7 +119,7 @@ namespace AmoebaRL.Core.Organelles
 
         public void HandleGameOver()
         {
-            if (Map.Context.DMap.Actors.Where(a => a is Nucleus).Count() == 0)
+            if (!Map.Context.DMap.Actors.Where(a => a is Nucleus).Any())
             {
                 Map.Context.MessageLog.Add($"You lose. Final Score: {Map.PlayerMass.Count}.");
                 Map.Context.SchedulingSystem.Clear();
@@ -172,7 +172,7 @@ namespace AmoebaRL.Core.Organelles
     // Nucleus upgrade tree:
     // Eye Core: Line of Sight + 3
     //   Laser Core: Kill tank
-    //   Terror Core: Add one turn to schedule of adjacent enemies on move.
+    //   Terror Core: Add two turns to schedule of adjacent enemies on move.
     // Smart Core: Speed / 2
     //   Gravity Core: Nearest slime attempts to move to nearest adjacent empty on move (x2)
     //   Quantum Core: Superfast Internal (Speed / 4)
@@ -263,8 +263,8 @@ namespace AmoebaRL.Core.Organelles
             PossiblePaths.Clear();
         }
 
-        public override string Description => "An eye of this size is unnatural, and when it enters a space adjacent to a human, that human wastes a turn cowering in fear. " +
-                "It maintains the vision boost of its predecessor and it has a chance to act before enemies it terrified recover. " + NucleusAddendum();
+        public override string Description => "An eye of this size is unnatural, and when it enters a space adjacent to a human, that human wastes two turns cowering in fear. This effect can stack." +
+                "It maintains the vision boost of its predecessor." + NucleusAddendum();
 
         public override List<Item> OrganelleComponents()
         {
@@ -284,10 +284,10 @@ namespace AmoebaRL.Core.Organelles
                     int untilTurn = scheduledForTime.Value - Map.Context.SchedulingSystem.GetTime();
                     Map.Context.SchedulingSystem.Remove(a);
                     Terrified.Add(new Tuple<Actor, int>(a, a.Delay));
-                    a.Delay += untilTurn;
+                    a.Delay += untilTurn + 16;
                 }
                 else
-                    Map.Context.MessageLog.Add($"{a.Name} is already terrified");
+                    Map.Context.MessageLog.Add($"{a.Name} is already terrified."); // This is a bug
             }
         }
 
@@ -317,7 +317,7 @@ namespace AmoebaRL.Core.Organelles
             PossiblePaths.Clear();
         }
 
-        public override string Description => $"After moving outside the bounds of your organelles, other organelles attempt to fill the spaces adjacent to it. " +
+        public override string Description => $"After moving or swapping, other organelles attempt to fill the spaces adjacent to it. " +
                 $"This occurs up to {GravityAttempts} times per time the Gravity Core moves " +
                 $"with a maximum range of {MaxRange}. Despite its density, this core also " +
                 $"moves twice per turn. " + NucleusAddendum();
@@ -337,7 +337,7 @@ namespace AmoebaRL.Core.Organelles
                 List<ICell> adj = Map.Context.DMap.AdjacentWalkable(X,Y);
                 if(adj.Count > 0)
                 {
-                    bool gravityIgnore(Actor x) => x is Militia && !(x is Tank);
+                    static bool gravityIgnore(Actor x) => x is Militia && !(x is Tank); // Step on unarmored targets while moving.
                     ICell gravityTo = adj[Map.Context.Rand.Next(adj.Count - 1)];
                     // Find the nearest organelles (other than this or those adjacent to this) to gravityTo
                     // which can reach it without switching places with slime that is closer.
@@ -346,7 +346,7 @@ namespace AmoebaRL.Core.Organelles
                             DungeonMap.TaxiDistance(Map.Context.DMap.GetCell(a.X, a.Y), gravityTo) <= MaxRange && 
                             !(a == this) &&
                             a.PathExists(gravityIgnore, gravityTo.X, gravityTo.Y)
-                            ).Cast<Organelle>().ToList();
+                        ).Cast<Organelle>().ToList();
                     while(nearest.Count > 0)
                     {
                         Organelle sel = nearest[Map.Context.Rand.Next(nearest.Count - 1)];
@@ -355,9 +355,6 @@ namespace AmoebaRL.Core.Organelles
                         try
                         {
                             p = sel.PathIgnoring(gravityIgnore, gravityTo.X, gravityTo.Y);
-                            //p = DungeonMap.QuickShortestPath(Map.Context.DMap,
-                            //    Map.Context.DMap.GetCell(X, Y),
-                            //    Map.Context.DMap.GetCell(gravityTo.X, gravityTo.Y));
                         }
                         catch (PathNotFoundException) { }
                         if(p != null)

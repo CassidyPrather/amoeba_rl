@@ -153,7 +153,15 @@ namespace AmoebaRL.Core
             SetIsWalkable(toAdd.X, toAdd.Y, false);
             Context.SchedulingSystem.Add(toAdd);
             if (toAdd is Organelle)
+            {
                 UpdatePlayerFieldOfView();
+                foreach (ICell adj in Adjacent(toAdd.X, toAdd.Y))
+                {
+                    Actor mightEngulf = GetActorAt(adj.X, adj.Y);
+                    if (mightEngulf is NPC n)
+                        n.Engulf();
+                }
+            }
         }
 
         public void AddItem(Item toAdd)
@@ -375,14 +383,52 @@ namespace AmoebaRL.Core
             return found;
         }
 
-
+        /// <summary>
+        /// Finds all of the <see cref="Actor"/>s in <see cref="Actors"/>, meeting <paramref name="filterBy"/>,
+        /// that are the minimum distance from (<paramref name="x"/>, <paramref name="y"/>).
+        /// </summary>
+        /// <param name="x">The horizontal coordinate to test for closeness to.</param>
+        /// <param name="y">The vertical coordinate to test for closeness to.</param>
+        /// <param name="filterBy">Determines whether to include an actor in the search.</param>
+        /// <returns>The <see cref="Actor"/>s in <see cref="Actors"/>, meeting <paramref name="filterBy"/>,
+        /// that are the minimum distance from (<paramref name="x"/>, <paramref name="y"/>).</returns>
         public List<Actor> NearestActors(int x, int y, Func<Actor, bool> filterBy)
         {
-            IEnumerable<Actor> Candidates = Actors.Where(filterBy);
+            // GJ complained about lag in this implementation:
+            /* IEnumerable<Actor> Candidates = Actors.Where(filterBy);
             if (Candidates.Count() == 0)
                 return Candidates.ToList();
             int shortestDistance = Candidates.Min(c => TaxiDistance(GetCell(c.X, c.Y), GetCell(x, y)));
-            return Candidates.Where(c => TaxiDistance(GetCell(c.X, c.Y), GetCell(x, y)) == shortestDistance).ToList();
+            return Candidates.Where(c => TaxiDistance(GetCell(c.X, c.Y), GetCell(x, y)) == shortestDistance).ToList();*/
+            List<ICell> seen = new() { GetCell(x, y) };
+            List<ICell> search = new() { GetCell(x, y) };
+            List<Actor> found = new();
+            while(search.Count > 0)
+            {
+                List<ICell> nextSearch = new();
+                
+                foreach(ICell candidate in search)
+                {
+                    Actor here = GetActorAt(candidate.X, candidate.Y);
+                    if (filterBy(here))
+                        found.Add(here);
+                    else if(found.Count == 0)
+                    {
+                        foreach(ICell adj in Adjacent(candidate.X, candidate.Y))
+                        {
+                            if(!seen.Contains(adj))
+                            {
+                                seen.Add(adj);
+                                nextSearch.Add(adj);
+                            }
+                        }
+                    }
+                }
+                if (found.Count > 0)
+                    return found;
+                search = nextSearch;
+            }
+            return found;
         }
 
         public List<ICell> NearestNoActor(int x, int y)

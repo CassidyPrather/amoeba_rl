@@ -22,7 +22,8 @@ namespace AmoebaRL
                     DefaultSpawnRate = 50,
                     EvolutionRate = 5,
                     CityArmor = 160,
-                    MaxBudget = 6
+                    MaxBudget = 6,
+                    GraceCities = 0
                 };
                 Console.WriteLine("GJ mode enabled.");
             }
@@ -36,7 +37,8 @@ namespace AmoebaRL
                     DefaultSpawnRate = 75,
                     EvolutionRate = 7,
                     CityArmor = 100,
-                    MaxBudget = 5
+                    MaxBudget = 5,
+                    GraceCities = 4
                 };
                 Console.WriteLine("Easy mode enabled.");
             }

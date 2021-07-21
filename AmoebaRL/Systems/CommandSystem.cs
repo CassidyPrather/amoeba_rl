@@ -373,8 +373,19 @@ namespace AmoebaRL.Systems
                 }
             }
 
-            if (success && player is IPostAttackMove p)
-                p.DoPostAttackMove();
+            if (success)
+            { 
+                // Check for engulf near target.
+                // Also need to check this when playermass is added to the map.
+                foreach(ICell adj in player.Map.Adjacent(player.X, player.Y))
+                {
+                    Actor mightEngulf = player.Map.GetActorAt(adj.X, adj.Y);
+                    if (mightEngulf is NPC n)
+                        n.Engulf();
+                }
+                if(player is IPostAttackMove p)
+                    p.DoPostAttackMove();
+            }
             return success;
         }
 

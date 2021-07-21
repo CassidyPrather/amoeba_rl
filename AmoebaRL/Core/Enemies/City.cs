@@ -178,7 +178,7 @@ namespace AmoebaRL.Core.Enemies
         public void Destroy()
         {
             Map.RemoveCity(this);
-            if(Map.Cities.Count == 0)
+            if(Map.Cities.Count <= Map.Context.GraceCities)
             {
                 Map.Context.MessageLog.Add("The humans try to trigger a cave-in, but you slip through just in time! You escape to the surface and live out the rest of your days in peace. ");
                 Map.Context.MessageLog.Add($"Final score: {Map.PlayerMass.Count}. Time to win (A turn is 16 time units): {Map.Context.SchedulingSystem.GetTime()}.");
@@ -189,7 +189,15 @@ namespace AmoebaRL.Core.Enemies
             else
             {
                 Map.Context.MessageLog.Add("The humans trigger a cave-in, blocking off this exit to the surface!");
-                Map.Context.MessageLog.Add($"{Map.Cities.Count} cities remain...");
+                // Map.Context.MessageLog.Add($"{Map.Cities.Count} cities remain...");
+                if(Map.Cities.Count > Map.Context.GraceCities + 1)
+                {
+                    Map.Context.MessageLog.Add($"You were able to glimpse their stockpile: The humans have {Map.Cities.Count - Map.Context.GraceCities - 1} blast charges remaining...");
+                }
+                else
+                {
+                    Map.Context.MessageLog.Add("The humans are out of blast charges! Now is your chance, find an exit!");
+                }
             }
         }
     }

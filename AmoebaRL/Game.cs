@@ -25,6 +25,7 @@ namespace AmoebaRL
         private int maxBudget = 5;
         private int cityArmor = 100;
         private int numCities = 12;
+        private int graceCities = 4;
 
         public enum Mode
         {
@@ -74,6 +75,11 @@ namespace AmoebaRL
         // Ideas for more options:
         // +/- Require FOV?
         // Max enemies?
+
+        /// <summary>
+        /// The number of cities the player can leave alive and still win.
+        /// </summary>
+        public int GraceCities { get => graceCities; set => graceCities = value; }
         #endregion
 
         #region Gamewide Handles
@@ -140,6 +146,9 @@ namespace AmoebaRL
             /// The number of cities to generate.
             /// </summary>
             public int NumCities { get; set; } = 12;
+
+            /// <summary>The number of cities allowed to be left alive while still winning the game.</summary>
+            public int GraceCities = 4;
         }
 
         /// <summary>
@@ -156,6 +165,7 @@ namespace AmoebaRL
             MaxBudget = schema.MaxBudget;
             CityArmor = schema.CityArmor;
             NumCities = schema.NumCities;
+            GraceCities = schema.GraceCities;
         }
 
         public Game(GameConfigurationSchema options = null)
