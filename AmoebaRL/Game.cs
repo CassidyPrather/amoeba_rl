@@ -354,8 +354,6 @@ namespace AmoebaRL
                 {
                     if (Showing == Mode.ORGANELLE) // Should never happen.
                         Showing = Mode.MESSAGE;
-                    else if (Showing == Mode.MESSAGE)
-                        Graphics.End(); // Quit the game
                 }
             }
             return false;
