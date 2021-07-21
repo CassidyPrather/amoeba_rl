@@ -130,6 +130,8 @@ namespace AmoebaRL.Core
 
         public Entity GetVFX(int x, int y) => Effects.FirstOrDefault(a => a.X == x && a.Y == y);
 
+        public Entity GetActorOrItem(ICell coord) => GetActorOrItem(coord.X, coord.Y);
+
         public Entity GetActorOrItem(int x, int y)
         {
             Entity firstChoice = GetActorAt(x, y);

@@ -240,9 +240,9 @@ namespace AmoebaRL.Core
         /// <param name="y">Vertical coordinate of target location.</param>
         /// <returns>A shortest contiguous group of adjacent cells between this space and a target location that is not obstructed.
         /// Null if none exists.</returns>
-        public Path PathIgnoring(Func<Actor,bool> ignoreIf, int x, int y)
+        public Path PathIgnoring<T>(Func<T,bool> ignoreIf, int x, int y) where T : Entity
         {
-            IEnumerable<Actor> ignore = Map.Actors.Where(ignoreIf);
+            IEnumerable<Actor> ignore = Map.Actors.Where(x => x is T x_t && ignoreIf(x_t));
             List<bool> wasAlreadyIgnored = new List<bool>();
             foreach (Actor toIgnore in ignore)
             {
@@ -270,10 +270,41 @@ namespace AmoebaRL.Core
                 alreadyIgnored.MoveNext();
                 Map.SetIsWalkable(toIgnore.X, toIgnore.Y, alreadyIgnored.Current);
             }
-
-
             return found;
+        }
 
+        public Path PathThrough<T>(Func<T,bool> throughIf, int x, int y) where T : Entity
+        {
+            IEnumerable<Actor> canOnlyPathThrough = Map.Actors.Where(x => x is T x_t && throughIf(x_t));
+            IEnumerable<ICell> emptyCells = Map.GetAllCells().Where(c => c.IsWalkable).ToList();
+            foreach (ICell tempBlock in emptyCells)
+                Map.SetIsWalkable(tempBlock.X, tempBlock.Y, false);
+            List<bool> wasAlreadyIgnored = new List<bool>();
+            foreach (Actor toIgnore in canOnlyPathThrough)
+            {
+                wasAlreadyIgnored.Add(Map.IsWalkable(toIgnore.X, toIgnore.Y));
+                Map.SetIsWalkable(toIgnore.X, toIgnore.Y, true);
+            }
+
+            Path found = null;
+            try
+            {
+                found = DungeonMap.QuickShortestPath(Map.Context.DMap, Map.GetCell(X, Y), Map.GetCell(x, y));
+            }
+            catch (PathNotFoundException)
+            {
+
+            }
+
+            IEnumerator<bool> alreadyIgnored = wasAlreadyIgnored.GetEnumerator();
+            foreach (Actor toIgnore in canOnlyPathThrough)
+            {
+                alreadyIgnored.MoveNext();
+                Map.SetIsWalkable(toIgnore.X, toIgnore.Y, alreadyIgnored.Current);
+            }
+            foreach (ICell tempBlock in emptyCells)
+                Map.SetIsWalkable(tempBlock.X, tempBlock.Y, true);
+            return found;
         }
 
         /// <summary>
@@ -281,35 +312,64 @@ namespace AmoebaRL.Core
         /// </summary>
         /// <param name="discard">Discarded.</param>
         /// <returns><c>false</c></returns>
-        protected static bool IgnoreNone(Actor discard) => false;
+        protected static bool IgnoreNone<T>(T discard) => false;
 
         /// <summary>
         /// Finds the list of shortest <see cref="Path"/>s from this to each of <paramref name="potentialTargets"/>.
         /// This only includes <see cref="Path"/>s that could be generated without obstructions.
         /// An obstruction includes a location which is not <see cref="Map.IsWalkable(int, int)"/>.
         /// </summary>
-        /// <param name="potentialTargets">The <see cref="Actor"/>s to calculate paths to.</param>
+        /// <param name="potentialTargets">The <typeparamref name="T"/>s to calculate paths to.</param>
         /// <returns>The unobstructed <see cref="Path"/>s to <paramref name="potentialTargets"/> with the minimum length.</returns>
-        public List<Path> PathsToNearest(List<Actor> potentialTargets) => PathsToNearest(potentialTargets, IgnoreNone);
+        public List<Path> PathsToNearest<T>(IEnumerable<T> potentialTargets) where T : Entity => PathsToNearest(potentialTargets, IgnoreNone);
 
         /// <summary>
         /// Finds the list of shortest <see cref="Path"/>s from this to each of <paramref name="potentialTargets"/>.
         /// This only includes <see cref="Path"/>s that could be generated without obstructions.
         /// An obstruction includes a location which is not <see cref="Map.IsWalkable(int, int)"/> and does not meet <paramref name="ignoring"/>.
         /// </summary>
-        /// <param name="potentialTargets">The <see cref="Actor"/>s to calculate paths to.</param>
+        /// <param name="potentialTargets">The <typeparamref name="T"/>s to calculate paths to.</param>
         /// <returns>The unobstructed <see cref="Path"/>s to <paramref name="potentialTargets"/> with the minimum length.</returns>
-        public List<Path> PathsToNearest(List<Actor> potentialTargets, Func<Actor, bool> ignoring)
+        public List<Path> PathsToNearest<T>(IEnumerable<T> potentialTargets, Func<T, bool> ignoring) where T : Entity
         {
             List<Path> nearestPaths = new List<Path>();
             Path attempt;
             int nearestTargetDistance = int.MaxValue;
-            foreach (Actor candidate in potentialTargets)
+            foreach (T candidate in potentialTargets)
             {
                 attempt = null;
                 try
                 {
                     attempt = PathIgnoring(ignoring, candidate.X, candidate.Y);
+                }
+                catch (PathNotFoundException) { }
+                if (attempt != null)
+                {
+                    if (attempt.Length <= nearestTargetDistance)
+                    {
+                        if (attempt.Length < nearestTargetDistance)
+                        {
+                            nearestPaths.Clear();
+                            nearestTargetDistance = attempt.Length;
+                        }
+                        nearestPaths.Add(attempt);
+                    }
+                }
+            }
+            return nearestPaths;
+        }
+
+        public List<Path> PathsThroughToNearest<T>(IEnumerable<T> potentialTargets, Func<T, bool> ignoring) where T : Entity
+        {
+            List<Path> nearestPaths = new List<Path>();
+            Path attempt;
+            int nearestTargetDistance = int.MaxValue;
+            foreach (T candidate in potentialTargets)
+            {
+                attempt = null;
+                try
+                {
+                    attempt = PathThrough(ignoring, candidate.X, candidate.Y);
                 }
                 catch (PathNotFoundException) { }
                 if (attempt != null)

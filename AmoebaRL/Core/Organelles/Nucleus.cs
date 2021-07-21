@@ -354,7 +354,7 @@ namespace AmoebaRL.Core.Organelles
                         Path p = null;
                         try
                         {
-                            p = sel.PathIgnoring(gravityIgnore, gravityTo.X, gravityTo.Y);
+                            p = sel.PathIgnoring<Actor>(gravityIgnore, gravityTo.X, gravityTo.Y);
                         }
                         catch (PathNotFoundException) { }
                         if(p != null)

@@ -19,7 +19,7 @@ namespace AmoebaRL.Core.Organelles
             Awareness = 0;
             PossiblePaths = new List<UpgradePath>()
             {
-                new UpgradePath(2, CraftingMaterial.Resource.CALCIUM, () => new ReinforcedMembrane()),
+                new UpgradePath(1, CraftingMaterial.Resource.CALCIUM, () => new ReinforcedMembrane()),
                 new UpgradePath(1, CraftingMaterial.Resource.ELECTRONICS, () => new Maw())
             };
         }
@@ -49,13 +49,18 @@ namespace AmoebaRL.Core.Organelles
         public override List<Item> OrganelleComponents()
         {
             List<Item> source = base.OrganelleComponents();
-            source.AddRange(new[] { new CalciumDust(), new CalciumDust() });
+            source.AddRange(new[] { new CalciumDust() });
             return source;
         }
     }
 
     public class Maw : Membrane, IProactive
     {
+        /// <summary>
+        /// The range at which the maw will attempt to swap through organelles to get to things it wants to eat.
+        /// </summary>
+        public int HungerRange { get; set; } = 2;
+
         public Maw()
         {
             Name = "Maw";
@@ -69,23 +74,43 @@ namespace AmoebaRL.Core.Organelles
             };
         }
 
-        public override string Description => "A mouth in the side of the ooze welcomes in any delicious meal which gets too close to it. Immune to melee attacks, other than those from tanks and mechs." +
-                " Automatically attacks adjacent enemies, except for caravans, tanks, and mechs.";
+        public override string Description => "A mouth in the side of the ooze welcomes in any delicious meal which gets too close. " +
+            "Immune to melee attacks except those from tanks and mechs. " +
+                $"Automatically attacks adjacent enemies and consumables, except for caravans, tanks, and mechs. " +
+            $"Otherwise, swaps with organelles to get closer to targets it can smell ({HungerRange} tile range).";
+
+        /// <summary>
+        /// Checks to see if this Maw wants to eat <paramref name="check"/>.
+        /// </summary>
+        /// <param name="check">The <see cref="Entity"/> to check for attractiveness.</param>
+        /// <returns>Whether this is hungry for <paramref name="check"/>.</returns>
+        public virtual bool IsHungryFor(Entity check)
+        {
+            return (check is Militia && !(check is Tank)) || check is Item;
+        }
 
         public virtual void Act()
         {
-            List<Actor> seenTargets = Seen(Map.Context.DMap.Actors).Where(s=> s is Militia).ToList();
-            if (!seenTargets.All(t => t is Tank))
-                seenTargets = seenTargets.Where(t => !(t is Tank)).ToList();
-            if (seenTargets.Count > 0)
-                ActToTargets(seenTargets);
+            IEnumerable<ICell> smellArea = Map.GetCellsInDiamond(X, Y, HungerRange);
+            IEnumerable<Entity> desireTiles = smellArea.Select(smelledCell => Map.GetActorOrItem(smelledCell)).Where(smelledCell => IsHungryFor(smelledCell));
+            if(desireTiles.Any())
+            { 
+                int minTaxicabDistance = desireTiles.Min(c => DungeonMap.TaxiDistance(this, c));
+                IEnumerable<Entity> nearestDesireTiles = desireTiles.Where(c => DungeonMap.TaxiDistance(this, c) == minTaxicabDistance);
+                /*List<Actor> seenTargets = Seen(Map.Actors).Where(s=> s is Militia).ToList();
+                if (!seenTargets.All(t => t is Tank))
+                    seenTargets = seenTargets.Where(t => !(t is Tank)).ToList();
+                if (seenTargets.Count > 0)
+                    ActToTargets(seenTargets);*/
+                ActToTargets(nearestDesireTiles);
+            }
         }
 
-        public virtual void ActToTargets(List<Actor> seenTargets) => ActToTargets(seenTargets, IgnoreNone);
+        public virtual void ActToTargets(IEnumerable<Entity> seenTargets) => ActToTargets(seenTargets, x => x is Organelle);
 
-        public virtual void ActToTargets(List<Actor> seenTargets, Func<Actor,bool> ignoring)
+        public virtual void ActToTargets(IEnumerable<Entity> seenTargets, Func<Entity,bool> through)
         {
-            List<Path> actionPaths = PathsToNearest(seenTargets, ignoring);
+            List<Path> actionPaths = PathsThroughToNearest<Entity>(seenTargets, through);
             if (actionPaths.Count > 0)
             {
                 int pick = Map.Context.Rand.Next(0, actionPaths.Count - 1);
@@ -93,7 +118,9 @@ namespace AmoebaRL.Core.Organelles
                 {
                     //Formerly: path.Steps.First()
                     ICell nextStep = actionPaths[pick].StepForward();
-                    Map.Context.CommandSystem.AttackMoveOrganelle(this, nextStep.X, nextStep.Y);
+                    Entity stepDesire = Map.GetActorOrItem(nextStep.X, nextStep.Y);
+                    if (IsHungryFor(stepDesire) || stepDesire is Organelle)
+                        Map.Context.CommandSystem.AttackMoveOrganelle(this, nextStep.X, nextStep.Y);
                 }
                 catch (NoMoreStepsException)
                 {
@@ -115,8 +142,9 @@ namespace AmoebaRL.Core.Organelles
             PossiblePaths.Clear();
         }
 
-        public override string Description => "The high concentration of calcium has resulted in a localized gravity distortion which protects all adjacent allies from melee attacks, except those made by tanks and mechs."
-                + " It is immune tanks and mechs itself, killing those who engage with it in melee, but it is vulnerable to ranged attacks.";
+        public override string Description => "The high concentration of calcium has resulted in a localized gravity distortion which protects " +
+            " allies in range 1 from all melee attacks, except those made by tanks and mechs, and allies in range 3 from militia melee."
+                + " It survives and kills any enemy that attacks it in melee.";
 
         public override List<Item> OrganelleComponents()
         {
@@ -159,13 +187,12 @@ namespace AmoebaRL.Core.Organelles
             PossiblePaths.Clear();
         }
 
-        public override string Description => "Built strong bones, and the bones were teeth. Automatically attacks adjacent enemies, including caravans, tanks, and mechs. Immune to melee.";
+        public override string Description => "Built strong bones, and the bones were teeth. Automatically attacks adjacent enemies, including caravans, tanks, and mechs. Immune to melee." +
+            $"Otherwise, swaps with organelles to get closer to targets it can smell ({HungerRange} tile range).";
 
-        public override void Act()
+        public override bool IsHungryFor(Entity check)
         {
-            List<Actor> seenTargets = Seen(Map.Context.DMap.Actors).Where(s => s is Militia).ToList();
-            if (seenTargets.Count > 0)
-                ActToTargets(seenTargets);
+            return base.IsHungryFor(check) || check is Tank;
         }
 
         public override List<Item> OrganelleComponents()
@@ -215,7 +242,7 @@ namespace AmoebaRL.Core.Organelles
                     seenTargets = seenTargets.Where(t => !(t is Tank)).ToList();
             }
             if (seenTargets.Count > 0 && brave)
-                ActToTargets(seenTargets, x => x.Slime > 0);
+                ActToTargets(seenTargets, x => x is Actor x_act && x_act.Slime > 0);
         }
 
         public virtual bool MinimizeTerrorMove(IEnumerable<Actor> terrorizers)

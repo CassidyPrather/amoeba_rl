@@ -14,6 +14,8 @@ namespace AmoebaRL.Systems
 {
     public class CommandSystem
     {
+        private const int LONG_RANGE_FF_DIST = 3;
+
         public class SlimePathfind
         {
             public Actor current;
@@ -166,7 +168,16 @@ namespace AmoebaRL.Systems
         {
             bool saved = false;
             List<Actor> adj = CommandTo.DMap.AdjacentActors(victim.X, victim.Y);
+            IEnumerable<Actor> ffCheck = CommandTo.DMap.GetCellsInDiamond(victim.X, victim.Y, LONG_RANGE_FF_DIST).Select(x => CommandTo.DMap.GetActorAt(x.X, x.Y));
             if (!(monster is Tank))
+            {
+                saved = ffCheck.Any(x => x is ForceField);
+                if(saved)
+                {
+                    CommandTo.MessageLog.Add($"An energy mantle force protects the {victim.Name} from the {monster.Name}");
+                }
+            }
+            if(!saved)
             {
                 saved = adj.Where(a => a is ForceField).Count() > 0;
                 if (saved)
@@ -182,7 +193,14 @@ namespace AmoebaRL.Systems
                     saved = true;
                     NonNewtonianMembrane savior = nnms[CommandTo.Rand.Next(nnms.Count() - 1)];
                     CommandTo.DMap.Swap(savior, victim);
-                    CommandTo.MessageLog.Add($"The { savior.Name } rematerializes and protects the {victim.Name} from the {monster.Name}");
+                    CommandTo.MessageLog.Add($"The { savior.Name } rematerializes and protects the {victim.Name} from the {monster.Name}!");
+                    if(monster is NPC n)
+                    {
+                        n.Die();
+                        CommandTo.MessageLog.Add($"{monster.Name} is killed by the rematerializing phase membrane!!");
+                    }
+
+
                 }
             }
 

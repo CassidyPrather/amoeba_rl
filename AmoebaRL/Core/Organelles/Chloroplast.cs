@@ -289,7 +289,7 @@ namespace AmoebaRL.Core.Organelles
                     {
                         stuck = false;
                         getsToGo = wants[Map.Context.Rand.Next(wants.Count - 1)];
-                        p = getsToGo.PathIgnoring(x =>
+                        p = getsToGo.PathIgnoring<Organelle>(x =>
                                 Map.PlayerMass.Contains(x) &&
                                 !(x is Extractor) &&
                                 !(x is DissolvingNPC && x.AdjacentTo(X, Y)),
