@@ -43,7 +43,7 @@ namespace AmoebaRL.Core.Enemies
                     $"killing friendlies and enemies alike. Fortunately, organelles destroyed " +
                     $"by this shot drop all of the components used to build them.";
                 if (Firing < FiringTime)
-                    msg += $" Fires in {Firing} turns.";
+                    msg += $" Fires in {Firing + 1} turn{(Firing > 0 ? "s" : "")}.";
                 return msg;
             }
         }

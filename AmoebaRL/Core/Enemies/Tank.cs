@@ -164,6 +164,8 @@ namespace AmoebaRL.Core.Enemies
 
             public override string Flavor => $"A glimmer of loot is visible beneath the cracking armor.";
 
+            public override string NameOfResult => "Calcium (50%) or Electronics (50%)";
+
             public override Actor DigestsTo
             {
                 get

@@ -274,18 +274,16 @@ namespace AmoebaRL.Core.Enemies
         public override string DescBody => DissolvingAddendum();
 
         /// <summary>Stores <see cref="NameOfResult"/> on first query so that <see cref="DigestsTo"/> doesn't have to be queried repeatedly.</summary>
-        private string CachedResultName;
+        private string CachedResultName = null;
 
-        /// <summary>
-        /// <see cref="DigestsTo"/>'s <see cref="Actor.Name"/>.
-        /// </summary>
-        public string NameOfResult
+        /// <summary><see cref="DigestsTo"/>'s <see cref="Actor.Name"/>.</summary>
+        public virtual string NameOfResult
         {
             get
             {
                 // Null coalescing not available until C# 8:
                 // CachedResultName ??= DigestsTo.Name;
-                if (CachedResultName != null)
+                if (CachedResultName == null) // formerly !=, causing the bug
                     CachedResultName = DigestsTo.Name;
                 return CachedResultName;
             }

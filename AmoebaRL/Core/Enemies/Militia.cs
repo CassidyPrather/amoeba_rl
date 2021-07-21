@@ -20,7 +20,7 @@ namespace AmoebaRL.Core.Enemies
             Name = "Militia";
         }
 
-        public override string Description => "A meager human who took up arms to defend its pitiful life. Nothing special about it. " +
+        public override string DescBody => "A meager human who took up arms to defend its pitiful life. Nothing special about it. " +
                 "Like all humans, it always tries to attack the nearest organelle. " +
                 "Also like all humans, it can only see up to 3 cells away has no memory of anything it can't see.";
 
