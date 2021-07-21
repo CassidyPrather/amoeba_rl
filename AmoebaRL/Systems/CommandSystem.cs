@@ -132,18 +132,18 @@ namespace AmoebaRL.Systems
                 {
                     if(victim is ReinforcedMembrane || victim is ReinforcedMaw)
                     {
-                        CommandTo.MessageLog.Add($"The {monster.Name} is impaled by sharp {victim.Name} protiens!");
+                        CommandTo.MessageLog.Add($"The {monster.Name} is impaled by sharp {victim.Name} proteins!");
                         i.Die();
                     }
                     else
                     {
-                        CommandTo.MessageLog.Add($"The {monster.Name} shrugs off the {victim.Name}'s protiens");
+                        CommandTo.MessageLog.Add($"The {monster.Name} shrugs off the {victim.Name}'s proteins");
                         m.Destroy();
                     }
                 }
                 else
                 {
-                    CommandTo.MessageLog.Add($"The {monster.Name} is impaled by sharp {victim.Name} protiens!");
+                    CommandTo.MessageLog.Add($"The {monster.Name} is impaled by sharp {victim.Name} proteins!");
                     i.Die();
                 }
             }    
