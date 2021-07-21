@@ -294,19 +294,28 @@ namespace AmoebaRL.Core
             SetCellProperties(cell.X, cell.Y, cell.IsTransparent, isWalkable, cell.IsExplored);
         }
 
-        private bool NotUnderPlayer(ICell lootSpot)
+        private bool NoItemAndNotUnderPlayer(ICell lootSpot)
         {
+            Item itemAt = GetItemAt(lootSpot.X, lootSpot.Y);
+            if (itemAt != null)
+                return false;
             Actor actAt = GetActorAt(lootSpot.X, lootSpot.Y);
             if (actAt == null)
                 return true;
             return !PlayerMass.Contains(actAt);
         }
 
+        private bool NotUnderActor(ICell lootSpot)
+        {
+            Actor actAt = GetActorAt(lootSpot.X, lootSpot.Y);
+            return actAt == null;
+        }
+
         private bool NotThroughWalls(ICell candidate) => !IsWall(candidate);
 
-        public ICell NearestLootDrop(int x, int y) => NearestLootDrop(x, y, NotUnderPlayer, NotThroughWalls);
+        public ICell NearestLootDrop(int x, int y) => NearestLootDrop(x, y, NoItemAndNotUnderPlayer, NotThroughWalls);
 
-        public List<ICell> NearestLootDrops(int x, int y) => NearestLootDrops(x, y, NotUnderPlayer, NotThroughWalls);
+        public List<ICell> NearestLootDrops(int x, int y) => NearestLootDrops(x, y, NoItemAndNotUnderPlayer, NotThroughWalls);
 
         // Helpers
         public ICell NearestLootDrop(int x, int y, Func<ICell, bool> legalLootDrop, Func<ICell, bool> legalLootPath)
@@ -317,10 +326,10 @@ namespace AmoebaRL.Core
               return candidates[Context.Rand.Next(0, candidates.Count - 1)];
         }
 
-        public List<ICell> NearestLootDrops(int x, int y, List<ICell> seen, List<ICell> seenPerimeter) => NearestLootDrops(x, y, NotUnderPlayer, NotThroughWalls, seen, seenPerimeter);
+        public List<ICell> NearestLootDrops(int x, int y, List<ICell> seen, List<ICell> seenPerimeter) => NearestLootDrops(x, y, NoItemAndNotUnderPlayer, NotThroughWalls, seen, seenPerimeter);
 
         /// <summary>
-        /// Finds the set of nearest locations which an <see cref="Item"/> can appear in to an origin.
+        /// Finds the set of nearest locations which something can appear in to an origin.
         /// </summary>
         /// <param name="x">The x coordinate of the point to try to be nearest to.</param>
         /// <param name="y">The y coordinate of the point to try to be nearest to.</param>
@@ -367,7 +376,7 @@ namespace AmoebaRL.Core
                 
                 foreach (ICell c in candidates)
                 {
-                    if (GetItemAt(c.X, c.Y) == null && !IsWall(c) && !Cities.Contains(GetActorAt(c.X, c.Y)) && legalLootDrop(c))
+                    if (!IsWall(c) && !Cities.Contains(GetActorAt(c.X, c.Y)) && legalLootDrop(c))
                         found.Add(c);
                     else
                     {
@@ -435,8 +444,9 @@ namespace AmoebaRL.Core
 
         public List<ICell> NearestNoActor(int x, int y)
         {
+            return NearestLootDrops(x, y, NotUnderActor, NotThroughWalls);
             // implementation wise this is very similar to nearestLootDrops so try to merge the functionalities maybe.
-            List<ICell> seen = new List<ICell>();
+            /*List<ICell> seen = new List<ICell>();
             List<ICell> frontier = new List<ICell>();
             List<ICell> candidates = new List<ICell>() { GetCell(x, y) };
             List<ICell> found = new List<ICell>();
@@ -457,7 +467,7 @@ namespace AmoebaRL.Core
                 candidates.AddRange(frontier);
                 frontier.Clear();
             }
-            return found;
+            return found;*/
         }
 
         public List<ICell> AdjacentWalkable(ICell from) => AdjacentWalkable(from.X, from.Y);

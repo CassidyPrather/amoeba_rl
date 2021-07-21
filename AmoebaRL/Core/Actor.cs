@@ -64,6 +64,11 @@ namespace AmoebaRL.Core
         public void BecomeItem(Item i)
         {
             ICell lands = Map.NearestLootDrop(X, Y);
+            if(lands == null)
+            {
+                Map.Context.MessageLog.Add($"The {i.Name} had nowhere to drop and was crushed!");
+                return;
+            }
             i.X = lands.X;
             i.Y = lands.Y;
             Map.AddItem(i);
