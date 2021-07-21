@@ -15,6 +15,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Update="README.txt">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
     <None Update="terminal12x12_gs_ro.png">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
