@@ -44,7 +44,8 @@ For those unfamiliar, to launch a program with a command line argument, just add
 # Credits
 
 Extensive playtesting, design, and support from JackNine
-Further playtesting from Qu and Decinym
+Extensive playtesting and bug reports from GJ
+Further playtesting and reports from Qu, Kyzrati, and Decinym
 Engine: https://github.com/FaronBracy/RogueSharp
 Font: https://github.com/libtcod/libtcod/blob/develop/data/fonts/terminal12x12_gs_ro.png
 .NET 5.0 by Microsoft
