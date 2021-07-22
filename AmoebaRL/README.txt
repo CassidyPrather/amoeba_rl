@@ -2,7 +2,7 @@
 
 Play as a giant, constantly evolving amoeba and fight off intensifying waves of humans trying to protect their cities. Craft new organelles and cores to respond to escalating threats. Can you destroy all 16 city gates and escape to the surface?
 
-Post 7DRL patch (v3.1.0). Fixes another gravity core crash reported by GJ.
+Post 7DRL patch (v3.2.0). Fixes another gravity core crash reported by GJ, and disabled debug options.
 
 # Installation
 
