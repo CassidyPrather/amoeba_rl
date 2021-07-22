@@ -373,7 +373,6 @@ namespace AmoebaRL.Systems
             for (int i = 0; i < INITIAL_SLIME; i++)
                     playerMass.Add(new Cytoplasm());
             playerMass.Add(new Nucleus());
-            playerMass.Add(new GravityCore());
 
 
             List<ICell> initialSlime;
