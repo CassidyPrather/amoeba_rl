@@ -359,8 +359,15 @@ namespace AmoebaRL.Core.Organelles
                         catch (PathNotFoundException) { }
                         if(p != null)
                         {
-                            ICell next = p.StepForward();
-                            Map.Context.CommandSystem.AttackMoveOrganelle(sel, next.X, next.Y);
+                            try
+                            {
+                                ICell next = p.StepForward();
+                                Map.Context.CommandSystem.AttackMoveOrganelle(sel, next.X, next.Y);
+                            }
+                            catch(Exception e)
+                            {
+                                Console.Error.WriteLine(e);
+                            }
                             nearest.Clear();
                         }
                     }
