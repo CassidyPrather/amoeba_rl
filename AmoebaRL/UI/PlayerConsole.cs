@@ -33,32 +33,49 @@ namespace AmoebaRL.UI
 
         public void DrawContent(Game content)
         {
+            // Get info
             OrganelleLog log = content.OrganelleLog;
-            
             List<Actor> loggable = log.GetLoggable();
+            IDescribable examined = null;
+            if (content.ExamineCursor != null)
+                examined = content.ExamineCursor.Under();
+
+            // Clear, set header.
             Clear();
             SetBackColor(0, 0, Width, Height, Palette.OrganelleConsoleBG);
             Print(1, 1, "Organelles", Palette.TextHeading);
             Print(1, 2, $"Mass: {content.DMap.PlayerMass.Count}", Palette.TextBody);
+            // -- Header info
             float niceturn = ((float)content.SchedulingSystem.GetTime()) / (16f);
             niceturn = Math.Max(niceturn, log.NiceTurnBuffer);
             log.NiceTurnBuffer = niceturn;
             Print(1, 3, $"Turn: {niceturn}", Palette.TextBody);
-            int effectivePage = log.page;
+
+            // Determine what page we should show
+
+            int effectivePage = log.page; 
+            if (examined != null)
+            {
+                for (int i = 0; i < loggable.Count; i++)
+                { 
+                    if(loggable[i] == examined)
+                    {
+                        effectivePage = i / _maxLines;
+                    }
+                }
+            }
             if(effectivePage != 0)
-                effectivePage = log.page % (loggable.Count() / _maxLines);
+                effectivePage = effectivePage % ((int)Math.Ceiling((float)loggable.Count() / (float)_maxLines)); 
+
+            // Write each line of the log
             for (int i = effectivePage * _maxLines; i < loggable.Count(); i++)
             {
                 Actor target = loggable[i];
                 int row = i + 5 - effectivePage * _maxLines;
 
-                if (content.ExamineCursor != null)
+                if (examined != null && examined == target)
                 {
-                    IDescribable examined = content.ExamineCursor.Under();
-                    if (examined != null && examined == target)
-                    {
-                        Print(1, row, ">", Palette.Cursor);
-                    }
+                    Print(1, row, ">", Palette.Cursor);
                 }
 
                 if (i == log.idx && content.Showing == Game.Mode.ORGANELLE)
@@ -148,8 +165,8 @@ namespace AmoebaRL.UI
 
             if (loggable.Count > _maxLines)
             {
-                Print(0, _maxLines - 1, $"Q{(char)30}", Palette.TextHeading, Palette.Slime);
-                Print(Width - 2, _maxLines - 1, $"E{(char)31}", Palette.TextHeading, Palette.Slime);
+                Print(0, _maxLines + 3, $"Q{(char)30}", Palette.TextHeading, Palette.Slime);
+                Print(Width - 2, _maxLines + 3, $"E{(char)31}", Palette.TextHeading, Palette.Slime);
             }
         }
     }

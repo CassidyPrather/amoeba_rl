@@ -360,6 +360,14 @@ namespace AmoebaRL
                     DMap.AddEntity(ExamineCursor);
                     // Enter Examine Mode
                 }
+                else if (keyPress.Key == RLKey.Q)
+                {
+                    OrganelleLog.Page(-1);
+                }
+                else if (keyPress.Key == RLKey.E)
+                {
+                    OrganelleLog.Page(1);
+                }
                 else if (keyPress.Key == RLKey.Escape)
                 {
                     if (Showing == Mode.ORGANELLE) // Should never happen.

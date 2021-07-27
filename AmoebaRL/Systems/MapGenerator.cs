@@ -374,7 +374,6 @@ namespace AmoebaRL.Systems
                     playerMass.Add(new Cytoplasm());
             playerMass.Add(new Nucleus());
 
-
             List<ICell> initialSlime;
             do
             {
@@ -465,7 +464,7 @@ namespace AmoebaRL.Systems
                 candidates.Remove(selected);
                 selection.Add(selected);
                 List<ICell> newCandidates = AdjacentWalkable(selected);
-                candidates.AddRange(newCandidates.Where(c => !selection.Contains(c)));
+                candidates.AddRange(newCandidates.Where(c => !selection.Contains(c) && !candidates.Contains(c)));
             }
             return selection;
         }
