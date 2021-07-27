@@ -205,14 +205,7 @@ namespace AmoebaRL
 
             // Create a new MessageLog and print the random seed used to generate the level
             MessageLog = new MessageLog();
-            MessageLog.Add("Arrow keys: Move / Select");
-            MessageLog.Add("Space: Wait");
-            MessageLog.Add("X: Toggle examine mode");
-            MessageLog.Add("Z: Toggle organelle mode");
-            MessageLog.Add("ESC: Back to player mode");
-            MessageLog.Add("A, D: Cycle active nucleus");
-            MessageLog.Add("Destroy all cities to win");
-            MessageLog.Add("Consult the \"README\" file to review these instructions and more");
+            WriteF1Instructions();
             OrganelleLog = new OrganelleLog(DMap.PlayerMass);
 
             // Set up the graphics.
@@ -222,6 +215,18 @@ namespace AmoebaRL
             Graphics.Run();
             // Launch the game!
             // CommandSystem.AdvanceTurn();
+        }
+
+        private void WriteF1Instructions()
+        {
+            MessageLog.Add("Arrow keys: Move / Select");
+            MessageLog.Add("Space: Wait");
+            MessageLog.Add("X: Toggle examine mode");
+            MessageLog.Add("Z: Toggle organelle browsing mode");
+            MessageLog.Add("ESC: Back to player mode");
+            MessageLog.Add("A, D: Cycle active nucleus");
+            MessageLog.Add($"Destroy {NumCities - GraceCities} cities to win");
+            MessageLog.Add("Consult the \"README\" file to review these instructions and more. F1 to show these messages again.");
         }
 
         /// <summary>
@@ -300,6 +305,10 @@ namespace AmoebaRL
                     ExamineCursor = null;
                     Showing = Mode.MESSAGE;
                 }
+                else if (keyPress.Key == RLKey.F1)
+                {
+                    WriteF1Instructions();
+                }
             }
             return false;
         }
@@ -373,6 +382,10 @@ namespace AmoebaRL
                     if (Showing == Mode.ORGANELLE) // Should never happen.
                         Showing = Mode.MESSAGE;
                 }
+                else if (keyPress.Key == RLKey.F1)
+                {
+                    WriteF1Instructions();
+                }
             }
             return false;
         }
@@ -417,6 +430,11 @@ namespace AmoebaRL
                 {
                     Showing = Mode.MESSAGE;
                     // Go back to play mode
+                }
+
+                else if (keyPress.Key == RLKey.F1)
+                {
+                    WriteF1Instructions();
                 }
             }
             return false;
