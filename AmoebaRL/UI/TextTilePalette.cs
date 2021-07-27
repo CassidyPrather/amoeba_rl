@@ -36,11 +36,11 @@ namespace AmoebaRL.UI
                 case nameof(SiliconDust):
                     return new TextTile(e, '%', Palette.Electronics, Palette.FloorBackgroundFov, VisibilityCondition.LOS_ONLY);
                 case nameof(BarbedWire):
-                    return new TextTile(e, 'b', Palette.OrganelleInactive, Palette.FloorBackgroundFov, VisibilityCondition.LOS_ONLY);
+                    return new TextTile(e, '*', Palette.OrganelleInactive, Palette.FloorBackgroundFov, VisibilityCondition.LOS_ONLY);
                 case nameof(Plant):
-                    return new TextTile(e, 'l', Palette.OrganelleInactive, Palette.FloorBackgroundFov, VisibilityCondition.LOS_ONLY);
+                    return new TextTile(e, '?', Palette.OrganelleInactive, Palette.FloorBackgroundFov, VisibilityCondition.LOS_ONLY);
                 case nameof(DNA):
-                    return new TextTile(e, 'X', Palette.OrganelleInactive, Palette.FloorBackgroundFov, VisibilityCondition.LOS_ONLY);
+                    return new TextTile(e, '&', Palette.OrganelleInactive, Palette.FloorBackgroundFov, VisibilityCondition.LOS_ONLY);
 
                 /* Actors */
                 /* Organelles */
