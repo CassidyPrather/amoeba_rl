@@ -45,6 +45,12 @@ namespace AmoebaRL.Core
         /// <remarks>May later be used as a shorthand for faction.</remarks>
         public int Slime { get; set; } = 0;
 
+        /// <summary>
+        /// Uses <see cref="Slime"/> to quickly guess whether a tile is aligned with the player.
+        /// </summary>
+        /// <returns>Whether this is probably alignede with the player.</returns>
+        public bool IsPlayerAligned() => Slime > 0;
+
         // ISchedulable
         /// </inheritdoc>
         public int Time
@@ -132,20 +138,41 @@ namespace AmoebaRL.Core
         }
 
         /// <summary>
+        /// Determines which actors in <see cref="FOV(bool)"/> meet <paramref name="filter"/>.
+        /// </summary>
+        /// <param name="filter">The possible set of actors which might be in <see cref="FOV(bool)"/> to include in the output.</param>
+        /// <param name="lightWalls">Whether to include the first non-transparent actor hit in each FOV trace in the output.</param>
+        /// <returns>All of the <see cref="Actor"/>s which are in <see cref="FOV(bool)"/> and pass <paramref name="filter"/>.</returns>
+        public List<Actor> Seen(Func<Actor, bool> filter, bool lightWalls = true)
+        {
+            List<Actor> seenTargets = new();
+            IEnumerable<ICell> testTo = Map.GetCellsInDiamond(X, Y, Awareness);
+            foreach (ICell c in testTo)
+            {
+                Actor evaluateFilterOver = Map.GetActorAt(c.X, c.Y);
+                if (evaluateFilterOver != null && filter(evaluateFilterOver))
+                    seenTargets.Add(evaluateFilterOver);
+            }
+            return seenTargets;
+        }
+
+        /// <summary>
         /// Determines which of <paramref name="testSightTo"/> are in <see cref="FOV(bool)"/>.
         /// </summary>
         /// <param name="testSightTo">The possible set of actors which might be in <see cref="FOV(bool)"/> to include in the output.</param>
         /// <param name="lightWalls">Whether to include the first non-transparent actor hit in each FOV trace in the output.</param>
         /// <returns>All of the <see cref="Actor"/>s which are in both <see cref="FOV(bool)"/> and <paramref name="testSightTo"/>.</returns>
-        public List<Actor> Seen(List<Actor> testSightTo, bool lightWalls = true)
+        public List<Actor> Seen(IEnumerable<Actor> testSightTo, bool lightWalls = true)
         {
-            List<Actor> seenTargets = new List<Actor>();
+            
+            List<Actor> seenTargets = new();
             FieldOfView selfFOV = FOV(lightWalls);
             foreach (Actor a in testSightTo)
             {
                 if (selfFOV.IsInFov(a.X, a.Y))
                     seenTargets.Add(a);
             }
+
             return seenTargets;
         }
 

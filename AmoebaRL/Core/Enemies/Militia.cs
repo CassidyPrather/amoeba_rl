@@ -31,8 +31,9 @@ namespace AmoebaRL.Core.Enemies
         public override void Act()
         {
             if(!Engulf())
-            { 
-                List<Actor> seenTargets = Seen(Map.PlayerMass);
+            {
+                //List<Actor> seenTargets = Seen(Map.PlayerMass);
+                List<Actor> seenTargets = Seen(act => act.IsPlayerAligned());
                 if (seenTargets.Count > 0)
                     ActToTargets(seenTargets);
                 else

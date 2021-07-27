@@ -139,7 +139,7 @@ namespace AmoebaRL.Core.Enemies
         {
             if(!Engulf())
             {
-                List<Actor> seenTargets = Seen(Map.PlayerMass);
+                List<Actor> seenTargets = Seen(act => act.IsPlayerAligned());
                 if (seenTargets.Count > 0)
                 {
                     ICell fleeTarget = ImmediateUphillStep(seenTargets, false);

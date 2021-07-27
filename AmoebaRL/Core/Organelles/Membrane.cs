@@ -222,7 +222,8 @@ namespace AmoebaRL.Core.Organelles
         // Eat everything you see that you can. Retreat from tanks. Don't commit suicide.
         public override void Act()
         {
-            List<Actor> seenTargets = Seen(Map.Context.DMap.Actors).Where(s => s is Militia && !(s is Caravan)).ToList();
+            //List<Actor> seenTargets = Seen(Map.Context.DMap.Actors).Where(s => s is Militia && !(s is Caravan)).ToList();
+            List<Actor> seenTargets = Seen(s => s is Militia && !(s is Caravan));
             bool brave = true;
             // Future checks to see if t is caravan occur in this function, but I don't think they're needed.
             if (!seenTargets.All(t => !(!(t is Caravan) && t is Tank)))
