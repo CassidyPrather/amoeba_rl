@@ -224,7 +224,11 @@ namespace AmoebaRL.Core.Organelles
 
             // This will need to be manually updated when new organelles are added.
             Organelle produced;
-            int choice = Map.Context.Rand.Next(4);
+            int choice;
+            if (Map.PlayerMass.Count(x => x.Name == "Nucleus") > 4)
+                choice = Map.Context.Rand.Next(3);
+            else
+                choice = Map.Context.Rand.Next(4);
             if (choice < 2)
                 produced = new Membrane();
             else if (choice < 4)
@@ -239,8 +243,9 @@ namespace AmoebaRL.Core.Organelles
             return true;
         }
 
-        public override string Description => $"By integrating nanomachines into the protien folding process, new organelles can be produced. Rarely, this can result in the production of new DNA!" +
-                $" However, it is very slow. Next product in {NextFood} turns.";
+        public override string Description => $"By integrating nanomachines into the protien folding process, new organelles can be produced. " +
+            $"This can result in the production of new DNA, so long as no more than 4 unupgraded nuclei are owned." +
+            $" However, it is very slow. Next product in {NextFood} turns.";
 
         public override List<Item> OrganelleComponents()
         {
