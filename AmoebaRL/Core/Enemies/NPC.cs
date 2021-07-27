@@ -203,7 +203,7 @@ namespace AmoebaRL.Core.Enemies
                 transformation.Y = Y;
                 Map.AddActor(transformation);
                 Map.PlayerMass.Add(transformation);
-                Map.UpdatePlayerFieldOfView();
+                //Map.UpdatePlayerFieldOfView();
             }
         }
 
@@ -225,7 +225,7 @@ namespace AmoebaRL.Core.Enemies
                     Map.AddActor(bounty);
                     Map.PlayerMass.Add(bounty);
                     Overfill = 0;
-                    Map.UpdatePlayerFieldOfView();
+                    //Map.UpdatePlayerFieldOfView();
                 }
                 return true;
             }

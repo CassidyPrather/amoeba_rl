@@ -82,7 +82,7 @@ namespace AmoebaRL.Core.Organelles
                         Map.RemoveActor(this);
                         Actor result = BecomeActor(CurrentPath.Result());
                         Map.PlayerMass.Add(result);
-                        Map.UpdatePlayerFieldOfView(); // Otherwise crafted material might not be shown.
+                        //Map.UpdatePlayerFieldOfView(); // Otherwise crafted material might not be shown.
                         if (result is Nucleus n) // Edge case; removing/adding scheduled player can cause unwanted swapping.
                             n.SetAsActiveNucleus();
                         Map.Context.MessageLog.Add($"The {oldName} absorbs the {CraftingMaterial.ResourceName(material)} and transforms into a {result.Name}!");

@@ -55,7 +55,7 @@ namespace AmoebaRL.Core.Organelles
                     Map.PlayerMass.Add(byproduct);
                     Map.Context.DMap.RemoveActor(this);
                     BecomeActor(byproduct);
-                    Map.Context.DMap.UpdatePlayerFieldOfView();
+                    //Map.Context.DMap.UpdatePlayerFieldOfView();
                     break;
                 }
             }
@@ -75,7 +75,7 @@ namespace AmoebaRL.Core.Organelles
                     Map.PlayerMass.Add(byproduct);
                     Map.Context.DMap.RemoveActor(this);
                     BecomeActor(byproduct);
-                    Map.Context.DMap.UpdatePlayerFieldOfView();
+                    //Map.Context.DMap.UpdatePlayerFieldOfView();
                     return true;
                 }
                 return false;

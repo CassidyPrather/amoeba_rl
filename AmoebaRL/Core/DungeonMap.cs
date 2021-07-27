@@ -65,7 +65,9 @@ namespace AmoebaRL.Core
             }
         }
 
-        // This method will be called any time we move the player to update field-of-view
+        /// <summary>
+        /// Sets <see cref="Map.ComputeFov(int, int, int, bool)"/> based on what the player can see.
+        /// </summary>
         public void UpdatePlayerFieldOfView()
         {
             IEnumerator<Actor> grantsVision = PlayerMass.Where(a => a.Awareness >= 0).GetEnumerator();
@@ -156,7 +158,7 @@ namespace AmoebaRL.Core
             Context.SchedulingSystem.Add(toAdd);
             if (toAdd is Organelle)
             {
-                UpdatePlayerFieldOfView();
+                //UpdatePlayerFieldOfView();
                 foreach (ICell adj in Adjacent(toAdd.X, toAdd.Y))
                 {
                     Actor mightEngulf = GetActorAt(adj.X, adj.Y);
@@ -190,7 +192,7 @@ namespace AmoebaRL.Core
             // Game.Player = player; // would like to move away from this handle altogether.
             Actors.Add(player);
             SetIsWalkable(player.X, player.Y, false);
-            UpdatePlayerFieldOfView();
+            //UpdatePlayerFieldOfView();
             Context.SchedulingSystem.Add(player);
         }
 
@@ -208,7 +210,7 @@ namespace AmoebaRL.Core
             if(PlayerMass.Contains(a))
             {
                 PlayerMass.Remove(a);
-                UpdatePlayerFieldOfView();
+                //UpdatePlayerFieldOfView();
                 // It is okay for the player mass to be disjoint.
             }
             SetIsWalkable(a.X, a.Y, true);
@@ -234,7 +236,7 @@ namespace AmoebaRL.Core
             RemoveActor(c);
             SetCellProperties(c.X, c.Y, true, true, true);
             Cities.Remove(c);
-            UpdatePlayerFieldOfView();
+            //UpdatePlayerFieldOfView();
         }
 
         #endregion
@@ -267,10 +269,10 @@ namespace AmoebaRL.Core
                 // The new cell the actor is on is now not walkable
                 SetIsWalkable(actor.X, actor.Y, false);
                 // Don't forget to update the field of view if we just repositioned the player
-                if (PlayerMass.Contains(actor))
+                /*if (PlayerMass.Contains(actor))
                 {
                     UpdatePlayerFieldOfView();
-                }
+                }*/
                 return true;
             }
             return false;
@@ -283,8 +285,8 @@ namespace AmoebaRL.Core
             a.Y = b.Y;
             b.X = buffer.X;
             b.Y = buffer.Y;
-            if ((a.Slime > 0 && a.Awareness != 0) || (b.Slime > 0 && b.Awareness != 0))
-                UpdatePlayerFieldOfView();
+            /*if ((a.Slime > 0 && a.Awareness != 0) || (b.Slime > 0 && b.Awareness != 0))
+                UpdatePlayerFieldOfView();*/
         }
 
         // A helper method for setting the IsWalkable property on a Cell

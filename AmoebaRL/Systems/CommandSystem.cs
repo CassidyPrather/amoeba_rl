@@ -61,13 +61,16 @@ namespace AmoebaRL.Systems
                 ISchedulable nextUp = CommandTo.SchedulingSystem.Get();
                 if (nextUp is Nucleus n)
                 {
+                    CommandTo.DMap.UpdatePlayerFieldOfView();
                     IsPlayerTurn = true;
+                    
                     //CommandTo.SchedulingSystem.Add(nextUp); // We want the same nucleus to go again, if possible.
                     n.SetAsActiveNucleus();
                     
                 }
                 else if (nextUp is PostMortem)
                 {
+                    CommandTo.DMap.UpdatePlayerFieldOfView();
                     IsPlayerTurn = true;
                     CommandTo.ActivePlayer = null;
                     CommandTo.SchedulingSystem.Add(nextUp);
