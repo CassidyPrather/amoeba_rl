@@ -271,14 +271,20 @@ impl Sim {
             let target_name = self.actors[target].name;
             if self.actors[target].slime > 0 {
                 self.swap_actors(mover, target);
+                // Spending a material can replace the mover with the thing it
+                // upgraded into, so nothing below may assume it still exists.
                 if actors::is_crafting_material(target_kind) {
                     self.try_upgrade(target, mover);
                 }
-                if self.actors[mover].kind == Kind::QuantumCore {
+                if self
+                    .actors
+                    .get(mover)
+                    .is_some_and(|a| a.kind == Kind::QuantumCore)
+                {
                     self.actors[mover].delay /= 2;
                     self.set_active_nucleus(mover);
                 }
-                self.cues.push(Cue::Swap);
+                self.cue(Cue::Swap);
                 success = true;
             } else if actors::is_npc(target_kind) && self.actors[target].armor > 0 {
                 let mover_kind = self.actors[mover].kind;
@@ -287,20 +293,20 @@ impl Sim {
                         "The {target_name} is crushed by the jaws of the {mover_name}!"
                     ));
                     self.eat_actor(mover, target);
-                    self.cues.push(Cue::Eat);
+                    self.cue(Cue::Eat);
                     success = true;
                 } else if mover_kind == Kind::LaserCore {
                     self.messages.add(&format!(
                         "The {target_name} is obliterated by the {mover_name}'s laser beam!"
                     ));
                     self.eat_actor(mover, target);
-                    self.cues.push(Cue::Eat);
+                    self.cue(Cue::Eat);
                     success = true;
                 } else {
                     self.messages.add(&format!(
                         "The {target_name}'s armor is too strong for the {mover_name}!"
                     ));
-                    self.cues.push(Cue::Bump);
+                    self.cue(Cue::Bump);
                 }
             } else if actors::is_city(target_kind) {
                 let armor = self.actors[target].armor;
@@ -313,13 +319,13 @@ impl Sim {
                     self.messages.add(&format!(
                         "There is not enough mass to destroy the {target_name}! (Have {mass}, need {armor})"
                     ));
-                    self.cues.push(Cue::Bump);
+                    self.cue(Cue::Bump);
                 }
             } else if actors::is_eatable(target_kind) {
                 self.messages
                     .add(&format!("The {mover_name} consumes the {target_name}."));
                 self.eat_actor(mover, target);
-                self.cues.push(Cue::Eat);
+                self.cue(Cue::Eat);
                 success = true;
             }
         } else if let Some(item) = self.item_at(dest) {
@@ -328,16 +334,16 @@ impl Sim {
             success = self.ingest(mover, item) || {
                 let walked = self.move_organelle(mover, dest);
                 if walked {
-                    self.cues.push(Cue::Step);
+                    self.cue(Cue::Step);
                 }
                 walked
             };
         } else {
             success = self.move_organelle(mover, dest);
             if success {
-                self.cues.push(Cue::Step);
+                self.cue(Cue::Step);
             } else {
-                self.cues.push(Cue::Bump);
+                self.cue(Cue::Bump);
             }
         }
         if success {
@@ -355,12 +361,15 @@ impl Sim {
                     }
                 }
             }
-            if self
-                .actors
-                .get(mover)
-                .is_some_and(|a| a.kind == Kind::QuantumCore)
-            {
-                self.actors[mover].delay = 8;
+            // Whatever the mover does *after* arriving: the quantum core banks
+            // its full speed again, the gravity core hauls its neighbours up,
+            // and the terror core takes the turn off whoever it has just come
+            // to stand beside.
+            match self.actors.get(mover).map(|a| a.kind) {
+                Some(Kind::QuantumCore) => self.actors[mover].delay = 8,
+                Some(Kind::GravityCore) => self.gravity_pull(mover),
+                Some(Kind::TerrorCore) => self.terrify(mover),
+                _ => {}
             }
         }
         success
@@ -449,7 +458,7 @@ impl Sim {
         if kind == ItemKind::Nutrient {
             self.remove_item(item);
             self.add_actor(product, pos);
-            self.cues.push(Cue::Ingest);
+            self.cue(Cue::Ingest);
             self.attack_move(eating, pos);
             return true;
         }
@@ -480,7 +489,7 @@ impl Sim {
             kind.name(),
             product.name()
         ));
-        self.cues.push(Cue::Ingest);
+        self.cue(Cue::Ingest);
         if !transforms_self {
             self.attack_move(eating, pos);
         }
@@ -538,7 +547,7 @@ impl Sim {
             self.messages.add(&format!("The {name} is engulfed!"));
             self.on_eaten_actor(id);
         }
-        self.cues.push(Cue::Engulf);
+        self.cue(Cue::Engulf);
         true
     }
 
@@ -614,7 +623,7 @@ impl Sim {
                 product.name()
             ));
         }
-        self.cues.push(Cue::Digest);
+        self.cue(Cue::Digest);
     }
 
     /// Cash in a dissolving human's banked overfill for a free product.
@@ -683,7 +692,7 @@ impl Sim {
             self.become_item(*first, pos);
         }
         if was_nucleus {
-            self.cues.push(Cue::NucleusLost);
+            self.cue(Cue::NucleusLost);
             self.handle_game_over();
         }
     }
@@ -706,13 +715,13 @@ impl Sim {
             self.become_item(component, pos);
         }
         if was_nucleus {
-            self.cues.push(Cue::NucleusLost);
+            self.cue(Cue::NucleusLost);
             self.handle_game_over();
         }
     }
 
     /// Drop an item as near to `from` as there is room for.
-    fn become_item(&mut self, kind: ItemKind, from: Coord) {
+    pub(crate) fn become_item(&mut self, kind: ItemKind, from: Coord) {
         let drops = self.nearest_loot_drops(from);
         if let Some(cell) = self.pick(&drops) {
             self.add_item(kind, cell);
@@ -727,11 +736,13 @@ impl Sim {
     /// A nucleus dodges death by trading places with a neighbouring
     /// organelle, which takes the hit instead.
     ///
+    /// Somewhere nothing is aiming is preferred, so a nucleus does not dive out
+    /// of a militiaman's way into a hunter's line — but if that is the only
+    /// cover there is, it takes it.
+    ///
     /// Returns the sacrifice, or `None` if there was nobody to hide behind.
     pub fn retreat(&mut self, nucleus: ActorId) -> Option<ActorId> {
         let pos = self.actors.get(nucleus)?.pos;
-        // STAGE2: the original preferred sacrifices that were not standing
-        // under a hunter's reticle. Reticles arrive with the hunter AI.
         let sacrifices: Vec<ActorId> = self
             .player_mass
             .iter()
@@ -745,7 +756,17 @@ impl Sim {
                     })
             })
             .collect();
-        let chosen = self.pick(&sacrifices)?;
+        let unpainted: Vec<ActorId> = sacrifices
+            .iter()
+            .copied()
+            .filter(|&id| self.actors.get(id).is_some_and(|a| !self.reticle_at(a.pos)))
+            .collect();
+        let pool = if unpainted.is_empty() {
+            &sacrifices
+        } else {
+            &unpainted
+        };
+        let chosen = self.pick(pool)?;
         self.swap_actors(nucleus, chosen);
         Some(chosen)
     }
@@ -770,7 +791,7 @@ impl Sim {
         self.phase = Phase::GameOver { won: false };
         self.player_turn = true;
         self.active = None;
-        self.cues.push(Cue::Lose);
+        self.cue(Cue::Lose);
     }
 
     // -- gates --------------------------------------------------------------
@@ -784,7 +805,7 @@ impl Sim {
         self.remove_actor(id);
         // The gate's tile becomes open cavern, and you have already seen it.
         self.grid.set_props(pos, true, true, true);
-        self.cues.push(Cue::CityDestroyed);
+        self.cue(Cue::CityDestroyed);
         #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
         let remaining = self.cities.len() as i32;
         if remaining <= self.rules.grace_cities {
@@ -822,58 +843,15 @@ impl Sim {
         self.phase = Phase::GameOver { won: true };
         self.player_turn = true;
         self.active = None;
-        self.cues.push(Cue::Win);
-    }
-
-    // -- crafting -----------------------------------------------------------
-
-    /// Offer a crafting material to something that might absorb it.
-    ///
-    /// STAGE2: upgrade resolution — locking in a path, counting progress, and
-    /// replacing the organelle with its result — lands with the rest of the
-    /// crafting system. Swapping into a material already routes here, which is
-    /// the only way a nucleus can ever be upgraded, so the seam is in place.
-    #[allow(
-        clippy::unused_self,
-        clippy::needless_pass_by_ref_mut,
-        clippy::missing_const_for_fn
-    )] // The signature is the seam; stage two fills the body in place.
-    fn try_upgrade(&mut self, _material: ActorId, _recipient: ActorId) -> bool {
-        false
+        self.cue(Cue::Win);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sim::grid::Grid;
-    use crate::sim::{Command, Difficulty, Phase, UiMode};
-
-    /// An empty walled arena with no generated content, ready to be posed.
-    fn sandbox(seed: u64) -> Sim {
-        let mut sim = Sim::new(seed, Difficulty::Normal);
-        sim.phase = Phase::Playing;
-        sim.grid = Grid::new(20, 20);
-        sim.actor_at = vec![None; 400];
-        sim.item_at = vec![None; 400];
-        for y in 0..20 {
-            for x in 0..20 {
-                let solid = x == 0 || y == 0 || x == 19 || y == 19;
-                sim.grid.set_props(Coord::new(x, y), !solid, !solid, true);
-            }
-        }
-        sim
-    }
-
-    fn line(sim: &mut Sim, kinds: &[Kind], start: Coord, step: Coord) -> Vec<ActorId> {
-        let mut at = start;
-        let mut ids = Vec::new();
-        for kind in kinds {
-            ids.push(sim.add_actor(*kind, at));
-            at = at + step;
-        }
-        ids
-    }
+    use crate::sim::tests::{line, sandbox};
+    use crate::sim::{Command, Phase, UiMode};
 
     #[test]
     fn a_straight_chain_shuffles_forward() {
@@ -1053,6 +1031,54 @@ mod tests {
             .count();
         assert_eq!(membranes, 1);
         assert_eq!(sim.actors[root].pos, Coord::new(6, 5));
+    }
+
+    #[test]
+    fn every_catalyst_grows_what_the_table_says() {
+        for (item, grown) in [
+            (ItemKind::Nutrient, Kind::Cytoplasm),
+            (ItemKind::CalciumDust, Kind::Calcium),
+            (ItemKind::SiliconDust, Kind::Electronics),
+            (ItemKind::BarbedWire, Kind::Membrane),
+            (ItemKind::Plant, Kind::Chloroplast),
+            (ItemKind::Dna, Kind::Nucleus),
+        ] {
+            let mut sim = sandbox(40);
+            let root = sim.add_actor(Kind::Nucleus, Coord::new(5, 5));
+            // One spare cytoplasm, which every catalyst but a nutrient spends.
+            sim.add_actor(Kind::Cytoplasm, Coord::new(5, 6));
+            sim.add_item(item, Coord::new(6, 5));
+            let before = sim.mass();
+            assert!(sim.attack_move(root, Coord::new(6, 5)), "{item:?}");
+            let made = sim
+                .player_mass
+                .iter()
+                .filter(|id| sim.actors[**id].kind == grown)
+                .count();
+            assert!(made >= 1, "{item:?} did not grow a {grown:?}");
+            let expected = if item == ItemKind::Nutrient {
+                before + 1
+            } else {
+                before
+            };
+            assert_eq!(sim.mass(), expected, "{item:?} changed the mass wrongly");
+            assert!(sim.item_at(Coord::new(6, 5)).is_none(), "{item:?} lingered");
+            assert_eq!(sim.actors[root].pos, Coord::new(6, 5), "{item:?}");
+        }
+    }
+
+    #[test]
+    fn a_cytoplasm_eating_a_catalyst_transforms_where_it_stands() {
+        let mut sim = sandbox(41);
+        sim.add_actor(Kind::Nucleus, Coord::new(9, 9));
+        let cell = sim.add_actor(Kind::Cytoplasm, Coord::new(5, 5));
+        sim.add_item(ItemKind::Plant, Coord::new(6, 5));
+        let before = sim.mass();
+        assert!(sim.attack_move(cell, Coord::new(6, 5)));
+        assert!(!sim.actors.contains(cell), "it spent itself");
+        let grown = sim.actor_at(Coord::new(6, 5)).expect("a chloroplast");
+        assert_eq!(sim.actors[grown].kind, Kind::Chloroplast);
+        assert_eq!(sim.mass(), before);
     }
 
     #[test]

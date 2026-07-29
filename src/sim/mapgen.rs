@@ -107,6 +107,8 @@ impl Sim {
         self.item_at = vec![None; cells];
         self.player_mass.clear();
         self.cities.clear();
+        self.reticles.clear();
+        self.terrified.clear();
         self.schedule.clear();
         self.active = None;
         self.player_turn = false;

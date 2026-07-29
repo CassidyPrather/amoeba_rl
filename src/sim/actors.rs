@@ -1417,6 +1417,20 @@ impl Actor {
     }
 }
 
+/// A hunter's painted targeting mark.
+///
+/// Not an actor and not an item: the original kept these in a separate effects
+/// layer, so nothing can stand on one, walk into one, or be blocked by one.
+/// They exist to be drawn, to be shot down, and to be avoided by a retreating
+/// nucleus.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Reticle {
+    /// The cell the mark covers.
+    pub pos: Coord,
+    /// The hunter or scout that painted it.
+    pub owner: ActorId,
+}
+
 /// A handle to an actor. Stable for the life of a run.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
 pub struct ActorId(usize);

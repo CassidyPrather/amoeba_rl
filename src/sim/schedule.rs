@@ -85,6 +85,30 @@ impl Schedule {
             .map(|(key, _)| *key)
     }
 
+    /// How many entries `id` holds. More than one means it will act more than
+    /// once before its next proper turn, which should never happen — it is the
+    /// exact corruption the terror core's fix is there to prevent.
+    #[cfg(test)]
+    pub(crate) fn entries_for(&self, id: ActorId) -> usize {
+        self.buckets
+            .values()
+            .map(|bucket| bucket.iter().filter(|&&q| q == id).count())
+            .sum()
+    }
+
+    /// The first actor holding more than one entry, if any does.
+    ///
+    /// Nothing should: two entries means two turns for the price of one, which
+    /// is the exact corruption the terror core's fix is there to prevent.
+    #[cfg(test)]
+    pub(crate) fn duplicate_entry(&self) -> Option<ActorId> {
+        let mut all: Vec<ActorId> = self.buckets.values().flatten().copied().collect();
+        all.sort_unstable();
+        all.windows(2)
+            .find(|pair| pair[0] == pair[1])
+            .map(|pair| pair[0])
+    }
+
     /// Whether anything at all is queued.
     pub(crate) fn is_empty(&self) -> bool {
         self.buckets.is_empty()

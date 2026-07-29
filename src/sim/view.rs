@@ -139,6 +139,9 @@ pub struct RenderView {
     /// Cells that will move when you do. Already reflected in the cell
     /// backgrounds; here as well so a frontend can do something else with it.
     pub highlight: Vec<Coord>,
+    /// Cells a hunter or scout is aiming at. Already blinking in the cells;
+    /// here as well so a frontend can warn about them some other way.
+    pub reticles: Vec<Coord>,
     /// Where the run is.
     pub phase: Phase,
     /// Which panel is open.
@@ -201,6 +204,7 @@ impl Sim {
                 .filter(|a| a.slime == 2)
                 .map(|a| a.pos)
                 .collect(),
+            reticles: self.reticles.iter().map(|r| r.pos).collect(),
             phase: self.phase,
             mode: self.mode,
         }
@@ -258,6 +262,15 @@ impl Sim {
     fn cell_view(&self, c: Coord, blink_on: bool) -> CellView {
         let base = self.base_tile(c);
         let cell = self.grid.cell(c);
+        // A reticle sits on top of whatever it covers and blinks off every
+        // other beat, which is how you see what is about to be shot.
+        if blink_on && cell.in_fov && self.reticle_at(c) {
+            return CellView {
+                glyph: 'X',
+                fg: palette::RETICLE_FOREGROUND,
+                bg: palette::RETICLE_BACKGROUND,
+            };
+        }
         if let Some(id) = self.actor_at(c)
             && let Some(actor) = self.actors.get(id)
         {
@@ -762,6 +775,86 @@ mod tests {
         assert_eq!(view.phase, Phase::Title);
         assert!(view.cells.iter().all(|c| c.glyph == ' '));
         assert!(view.organelles.is_empty());
+    }
+
+    #[test]
+    fn a_reticle_blinks_over_whatever_it_covers() {
+        let mut sim = crate::sim::tests::sandbox(20);
+        let hunter = sim.add_actor(Kind::Hunter, Coord::new(5, 5));
+        sim.add_actor(Kind::Cytoplasm, Coord::new(7, 5));
+        sim.add_actor(Kind::Nucleus, Coord::new(15, 15));
+        sim.update_player_fov();
+        sim.ranged_act(hunter);
+        let painted = Coord::new(7, 5);
+        assert!(sim.reticle_at(painted));
+        let on = sim.view(0).cell(painted.x, painted.y).unwrap();
+        assert_eq!(on.glyph, 'X');
+        assert_eq!(on.fg, palette::RETICLE_FOREGROUND);
+        assert_eq!(on.bg, palette::RETICLE_BACKGROUND);
+        // On the off beat the organelle underneath shows through again.
+        let off = sim.view(BLINK_SPEED).cell(painted.x, painted.y).unwrap();
+        assert_eq!(off.bg, palette::BODY_SLIME);
+        assert!(sim.view(0).reticles.contains(&painted));
+    }
+
+    #[test]
+    fn a_hunter_shows_an_arrow_while_it_is_aiming() {
+        let mut sim = crate::sim::tests::sandbox(21);
+        let hunter = sim.add_actor(Kind::Hunter, Coord::new(5, 5));
+        sim.add_actor(Kind::Cytoplasm, Coord::new(3, 5));
+        sim.add_actor(Kind::Nucleus, Coord::new(15, 15));
+        sim.update_player_fov();
+        // Light the hunter's cell by hand: the mass is deliberately far away so
+        // that the only thing it can line up on is the cytoplasm to the west.
+        sim.grid.append_fov(Coord::new(5, 5), 1, true);
+        let at = |sim: &Sim, frame| {
+            sim.view(frame)
+                .cell(5, 5)
+                .expect("the hunter is on the map")
+                .glyph
+        };
+        assert_eq!(at(&sim, 0), 'h', "at rest it is a hunter");
+        sim.ranged_act(hunter);
+        assert_eq!(at(&sim, 0), ARROW_LEFT, "aiming west");
+        assert_eq!(at(&sim, BLINK_SPEED), 'h', "and the arrow blinks");
+    }
+
+    #[test]
+    fn a_gate_flashes_its_countdown_and_then_its_queue() {
+        let mut sim = crate::sim::tests::sandbox(22);
+        sim.grid.set_props(Coord::new(6, 5), false, false, true);
+        let city = sim.add_actor(Kind::City, Coord::new(6, 5));
+        sim.update_player_fov();
+        let glyph = |sim: &Sim, frame| sim.view(frame).cell(6, 5).expect("the gate").glyph;
+        assert_eq!(glyph(&sim, 0), 'C', "far from a wave it is just a gate");
+        assert_eq!(glyph(&sim, BLINK_SPEED), 'C');
+        if let Extra::City(state) = &mut sim.actors[city].extra {
+            state.turns_to_next_wave = 4;
+        }
+        assert_eq!(glyph(&sim, 0), 'C');
+        assert_eq!(glyph(&sim, BLINK_SPEED), '4', "the countdown shows");
+        if let Extra::City(state) = &mut sim.actors[city].extra {
+            state.queue.push_back(Kind::Militia);
+            state.queue.push_back(Kind::Tank);
+        }
+        assert_eq!(glyph(&sim, BLINK_SPEED), '2', "the queue wins over it");
+        let cell = sim.view(BLINK_SPEED).cell(6, 5).unwrap();
+        assert_eq!(cell.bg, palette::RETICLE_FOREGROUND);
+    }
+
+    #[test]
+    fn an_armoured_human_shows_whether_it_is_about_to_act() {
+        let mut sim = crate::sim::tests::sandbox(23);
+        let tank = sim.add_actor(Kind::Tank, Coord::new(5, 5));
+        sim.add_actor(Kind::Nucleus, Coord::new(15, 15));
+        sim.update_player_fov();
+        sim.grid.append_fov(Coord::new(5, 5), 1, true);
+        let fg = |sim: &Sim| sim.view(0).cell(5, 5).expect("the tank").fg;
+        // A tank is scheduled forty-eight units out: three turns of resting.
+        assert_eq!(fg(&sim), palette::RESTING_TANK);
+        sim.schedule.remove(tank);
+        sim.schedule.add(tank, 16);
+        assert_eq!(fg(&sim), palette::CALCIUM, "one turn out, it wakes up");
     }
 
     #[test]

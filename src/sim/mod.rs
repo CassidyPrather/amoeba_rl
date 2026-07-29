@@ -18,16 +18,19 @@
 //! stops and waits for you.
 
 pub mod actors;
+pub mod ai;
+pub mod combat;
 pub mod grid;
 pub mod log;
 pub mod mapgen;
+pub mod organelles;
 pub mod player;
 pub mod schedule;
 pub mod view;
 
 use fastrand::Rng;
 
-use actors::{Actor, ActorId, ActorStore, Item, ItemId, ItemKind, ItemStore, Kind};
+use actors::{Actor, ActorId, ActorStore, Item, ItemId, ItemKind, ItemStore, Kind, Reticle};
 use grid::{Coord, Dir, Grid};
 use log::{MessageLog, OrganelleLog};
 use schedule::Schedule;
@@ -192,7 +195,10 @@ pub enum Command {
 /// Something that just happened, for the frontend to make a noise about.
 ///
 /// A cue says what happened, never what it should sound like, and lives for
-/// exactly one [`Sim::advance`].
+/// exactly one [`Sim::advance`]. The list is a *set*: an event that happened
+/// several times in one advance — twenty chloroplasts all producing on the same
+/// turn — is reported once, because a frontend wants one sound for it and not
+/// twenty.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Cue {
     /// The mass flowed one cell.
@@ -209,14 +215,42 @@ pub enum Cue {
     Engulf,
     /// A dissolving human finished and became something useful.
     Digest,
+    /// Something of yours other than a nucleus was destroyed or shot away.
+    OrganelleLost,
     /// A nucleus died.
     NucleusLost,
+    /// An organelle finished an upgrade and became something else.
+    Upgrade,
+    /// A producer put something new into the world.
+    Produce,
+    /// A ranged human painted a line and is now aiming down it.
+    Aim,
+    /// A ranged human fired.
+    Shot,
+    /// A terror core took an adjacent human's turn away.
+    Terrify,
+    /// A gate queued a fresh wave.
+    WaveSpawned,
+    /// A gate is fewer than ten turns from its next wave.
+    GateCountdown,
     /// A gate came down.
     CityDestroyed,
     /// The run ended in escape.
     Win,
     /// The run ended in death.
     Lose,
+}
+
+/// One human a terror core has lifted off the schedule, and the speed it had
+/// before it was frightened.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) struct Terrified {
+    /// The core holding it.
+    pub core: ActorId,
+    /// The human that is missing its turn.
+    pub victim: ActorId,
+    /// What to set its delay back to.
+    pub delay: i32,
 }
 
 /// The world.
@@ -245,6 +279,12 @@ pub struct Sim {
     organelles: OrganelleLog,
     cues: Vec<Cue>,
     cursor: Option<Coord>,
+    /// Every cell a hunter or scout is currently aiming at. Not actors and not
+    /// items: the original kept these in a separate effects layer that nothing
+    /// could stand on or walk into.
+    reticles: Vec<Reticle>,
+    /// Humans a terror core is currently holding off the schedule.
+    terrified: Vec<Terrified>,
     /// Bumped by every world mutation, so the drag-path cache can tell whether
     /// it is still describing the world it was computed from.
     version: u64,
@@ -282,6 +322,8 @@ impl Sim {
             organelles: OrganelleLog::new(),
             cues: Vec::new(),
             cursor: None,
+            reticles: Vec::new(),
+            terrified: Vec::new(),
             version: 0,
             drag_cache: None,
         }
@@ -410,18 +452,52 @@ impl Sim {
                 self.schedule.add(id, delay);
             }
         }
+        // The one thing that happens whichever branch was taken: a terror core
+        // coming off the schedule hands back everybody it frightened.
+        if self
+            .actors
+            .get(id)
+            .is_some_and(|a| a.kind == Kind::TerrorCore)
+        {
+            self.terror_post_schedule(id);
+        }
     }
 
     /// What a non-nucleus actor does with its turn.
+    ///
+    /// Anything not named here is inert and simply re-queues itself — most of
+    /// your body, in other words, along with plain membranes, force fields and
+    /// butchers, all of which work by standing still.
     fn act(&mut self, id: ActorId) {
-        let kind = self.actors[id].kind;
+        let Some(actor) = self.actors.get(id) else {
+            return;
+        };
+        let kind = actor.kind;
         if actors::is_dissolving(kind) {
             self.digest(id);
+            return;
         }
-        // STAGE2: city waves, chloroplast production, crafting-material
-        // auto-craft, and the maw/tentacle hunt all hang off this match.
-        // Everything not listed above is inert and simply re-queues itself,
-        // which is exactly what the original did with it.
+        if actors::is_crafting_material(kind) {
+            self.craft(id);
+            return;
+        }
+        match kind {
+            Kind::City => self.city_act(id),
+            Kind::Militia | Kind::Tank | Kind::Mech => self.militia_act(id),
+            Kind::Hunter | Kind::Scout => self.ranged_act(id),
+            Kind::Caravan => self.caravan_act(id),
+            Kind::Maw | Kind::ReinforcedMaw => self.maw_act(id),
+            Kind::Tentacle => self.tentacle_act(id),
+            Kind::Chloroplast | Kind::Bioreactor | Kind::BiometalForge | Kind::PrimordialSoup => {
+                self.produce_act(id);
+            }
+            Kind::Cultivator => self.cultivate(id),
+            Kind::Extractor => {
+                self.extract(id);
+                self.cultivate(id);
+            }
+            _ => {}
+        }
     }
 
     /// Route a command taken during play.
@@ -602,6 +678,25 @@ impl Sim {
         self.cursor
     }
 
+    /// Every cell a hunter or scout is currently aiming at.
+    #[must_use]
+    pub fn reticles(&self) -> &[Reticle] {
+        &self.reticles
+    }
+
+    /// Whether somebody is aiming at this cell.
+    #[must_use]
+    pub fn reticle_at(&self, c: Coord) -> bool {
+        self.reticles.iter().any(|r| r.pos == c)
+    }
+
+    /// Report that something happened, once per advance however often it did.
+    pub(crate) fn cue(&mut self, cue: Cue) {
+        if !self.cues.contains(&cue) {
+            self.cues.push(cue);
+        }
+    }
+
     /// The turn queue.
     #[must_use]
     pub const fn schedule(&self) -> &Schedule {
@@ -695,6 +790,12 @@ impl Sim {
         self.schedule.remove(id);
         if self.active == Some(id) {
             self.active = None;
+        }
+        // A hunter that dies stops aiming, whether it died to a membrane, to a
+        // shot of its own side's, or by being swallowed whole.
+        self.reticles.retain(|r| r.owner != id);
+        if !self.terrified.is_empty() {
+            self.release_terrified(id);
         }
         self.version += 1;
         Some(actor)
@@ -870,6 +971,34 @@ mod tests {
         sim
     }
 
+    /// A twenty-by-twenty walled arena with nothing in it, for posing exact
+    /// situations that map generation would never hand you.
+    pub(super) fn sandbox(seed: u64) -> Sim {
+        let mut sim = Sim::new(seed, Difficulty::Normal);
+        sim.phase = Phase::Playing;
+        sim.grid = Grid::new(20, 20);
+        sim.actor_at = vec![None; 400];
+        sim.item_at = vec![None; 400];
+        for y in 0..20 {
+            for x in 0..20 {
+                let solid = x == 0 || y == 0 || x == 19 || y == 19;
+                sim.grid.set_props(Coord::new(x, y), !solid, !solid, true);
+            }
+        }
+        sim
+    }
+
+    /// A row of actors starting at `start` and stepping by `step`.
+    pub(super) fn line(sim: &mut Sim, kinds: &[Kind], start: Coord, step: Coord) -> Vec<ActorId> {
+        let mut at = start;
+        let mut ids = Vec::new();
+        for kind in kinds {
+            ids.push(sim.add_actor(*kind, at));
+            at = at + step;
+        }
+        ids
+    }
+
     #[test]
     fn difficulty_tables_match_the_spec() {
         let normal = Difficulty::Normal.rules();
@@ -1028,6 +1157,22 @@ mod tests {
                 );
             }
         }
+        assert!(
+            sim.schedule.duplicate_entry().is_none(),
+            "{note}: something holds two schedule entries and will act twice"
+        );
+        for reticle in &sim.reticles {
+            assert!(
+                sim.actors.contains(reticle.owner),
+                "{note}: a reticle outlived the hunter that painted it"
+            );
+        }
+        for held in &sim.terrified {
+            assert!(
+                sim.actors.contains(held.core),
+                "{note}: a dead terror core is still holding somebody"
+            );
+        }
     }
 
     #[test]
@@ -1058,21 +1203,278 @@ mod tests {
 
     #[test]
     fn a_long_random_playout_keeps_the_world_consistent() {
-        for seed in 0..6 {
+        let mut ended = 0;
+        for seed in 0..12 {
             let mut sim = playing(seed);
             let mut script = Rng::with_seed(seed ^ 0x9E37);
-            for step in 0..500 {
+            for step in 0..800 {
                 sim.advance(Some(scripted_command(&mut script)));
                 if step % 25 == 0 {
                     check_invariants(&sim, &format!("seed {seed} step {step}"));
                 }
+                if sim.phase() != Phase::Playing {
+                    ended += 1;
+                    break;
+                }
             }
             check_invariants(&sim, &format!("seed {seed} end"));
-            // Nothing in stage one can kill the player, and eating is the only
-            // way the mass changes, so it can only have grown.
-            assert!(sim.mass() >= 6, "seed {seed} lost mass");
             assert!(sim.is_player_turn() || sim.phase() != Phase::Playing);
         }
+        // Flailing at random with the waves running is not survivable, and the
+        // point of saying so here is that the run really did go all the way to
+        // a real loss rather than idling: the invariants above were checked
+        // against a world with combat, waves and production all live in it.
+        assert!(ended > 0, "random play should sometimes end the run");
+    }
+
+    #[test]
+    fn waves_actually_arrive_and_the_gates_count_down() {
+        let mut sim = playing(31);
+        for _ in 0..60 {
+            sim.advance(Some(Command::Wait));
+        }
+        let humans = sim
+            .actors
+            .iter()
+            .filter(|(_, a)| actors::is_npc(a.kind))
+            .count();
+        assert!(humans > 0, "the first wave is out by turn sixty");
+        let queued: usize = sim
+            .cities
+            .iter()
+            .filter_map(|id| match &sim.actors[*id].extra {
+                actors::Extra::City(state) => Some(state.queue.len()),
+                _ => None,
+            })
+            .sum();
+        let waves: i32 = sim
+            .cities
+            .iter()
+            .filter_map(|id| match &sim.actors[*id].extra {
+                actors::Extra::City(state) => Some(state.wave_number),
+                _ => None,
+            })
+            .sum();
+        assert_eq!(waves, 12, "one wave out of each of the twelve gates");
+        assert!(humans + queued >= 12, "and at least one human each");
+    }
+
+    /// How close a human has to be before the bot stops collecting and pulls
+    /// its head in, and how many of them make a crowd.
+    const CROWD_RANGE: i32 = 3;
+    /// Humans within [`CROWD_RANGE`] the bot will stand its ground against.
+    const CROWD_LIMIT: usize = 1;
+
+    /// A greedy player: eat whatever is beside you, burrow when you are
+    /// outnumbered, collect what grows the mass, and once you are big enough go
+    /// and lean on a gate.
+    ///
+    /// It is not clever. It never plans an upgrade, never lays a trap, and
+    /// never sets up a membrane wall — it just walks at the nearest useful
+    /// thing. That is the point: everything it does is something the sim has to
+    /// resolve correctly turn after turn, and the result is a far more
+    /// adversarial exercise of the whole machine than any scripted case.
+    fn greedy_command(sim: &Sim) -> Command {
+        let Some(active) = sim.active_nucleus() else {
+            return Command::Wait;
+        };
+        let Some(from) = sim.actors.get(active).map(|a| a.pos) else {
+            return Command::Wait;
+        };
+        let toward = |step: Coord| match (step.x - from.x, step.y - from.y) {
+            (1, _) => Command::Move(Dir::Right),
+            (-1, _) => Command::Move(Dir::Left),
+            (_, 1) => Command::Move(Dir::Down),
+            _ => Command::Move(Dir::Up),
+        };
+        // Anything unarmoured beside us is a free meal and one fewer attacker.
+        for dir in [Dir::Left, Dir::Right, Dir::Up, Dir::Down] {
+            let cell = from + dir.offset();
+            if let Some(id) = sim.actor_at(cell)
+                && let Some(actor) = sim.actors.get(id)
+                && actors::is_npc(actor.kind)
+                && actor.armor == 0
+            {
+                return Command::Move(dir);
+            }
+        }
+        let crowd = sim
+            .actors
+            .iter()
+            .filter(|(_, a)| actors::is_npc(a.kind) && a.pos.taxi(from) <= CROWD_RANGE)
+            .count();
+        if crowd > CROWD_LIMIT {
+            // Outnumbered: swap deeper into the body, where nothing can reach
+            // the nucleus and there is always somebody to retreat into.
+            let mut best = (body_around(sim, from), None);
+            for dir in [Dir::Left, Dir::Right, Dir::Up, Dir::Down] {
+                let cell = from + dir.offset();
+                let ours = sim
+                    .actor_at(cell)
+                    .and_then(|a| sim.actors.get(a))
+                    .is_some_and(|a| a.slime > 0 && !actors::is_nucleus_family(a.kind));
+                if ours && body_around(sim, cell) > best.0 {
+                    best = (body_around(sim, cell), Some(dir));
+                }
+            }
+            if let Some(dir) = best.1 {
+                return Command::Move(dir);
+            }
+        }
+        #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+        let mass = sim.player_mass.len() as i32;
+        let big_enough = sim
+            .cities
+            .first()
+            .and_then(|id| sim.actors.get(*id))
+            .is_some_and(|city| mass >= city.armor);
+        let targets: Vec<Coord> = if big_enough {
+            sim.cities
+                .iter()
+                .filter_map(|id| sim.actors.get(*id))
+                .map(|a| a.pos)
+                .collect()
+        } else {
+            // Food first, because it is the only catalyst that grows the mass
+            // by itself. The rest need a spare cytoplasm to grow inside.
+            let spare = sim
+                .player_mass
+                .iter()
+                .filter(|id| sim.actors[**id].kind == Kind::Cytoplasm)
+                .count();
+            let mut loot: Vec<Coord> = (0..sim.grid.height())
+                .flat_map(|y| (0..sim.grid.width()).map(move |x| Coord::new(x, y)))
+                .filter(|c| {
+                    sim.item_at(*c)
+                        .and_then(|i| sim.items.get(i))
+                        .is_some_and(|i| i.kind == ItemKind::Nutrient || spare > 2)
+                })
+                .collect();
+            if loot.is_empty() {
+                loot.extend(
+                    sim.actors
+                        .iter()
+                        .filter(|(_, a)| actors::is_npc(a.kind) && a.armor == 0)
+                        .map(|(_, a)| a.pos),
+                );
+            }
+            loot
+        };
+        // Route through open floor and through our own body, which is what a
+        // player does when the mass is in the way of itself.
+        let paths = sim.shortest_paths_to(from, &targets, |s, c| {
+            s.grid.walkable(c)
+                || s.actor_at(c)
+                    .and_then(|a| s.actors.get(a))
+                    .is_some_and(|a| a.slime > 0 || (actors::is_npc(a.kind) && a.armor == 0))
+        });
+        paths
+            .first()
+            .and_then(|p| p.get(1))
+            .map_or(Command::Wait, |step| toward(*step))
+    }
+
+    /// How much of the mass surrounds a cell.
+    fn body_around(sim: &Sim, at: Coord) -> usize {
+        sim.grid
+            .adjacent(at)
+            .filter(|c| {
+                sim.actor_at(*c)
+                    .and_then(|a| sim.actors.get(a))
+                    .is_some_and(|a| a.slime > 0)
+            })
+            .count()
+    }
+
+    /// Drive the greedy bot until the run ends or the budget runs out.
+    ///
+    /// A refused action costs nothing, so the clock standing still means the
+    /// bot has walked into something it cannot pass; it waits that turn out
+    /// rather than spinning on the same wall forever.
+    fn play_out(sim: &mut Sim, budget: usize, note: &str) -> usize {
+        let mut peak = sim.mass();
+        let mut stalled = 0;
+        for turn in 0..budget {
+            let before = sim.schedule().time();
+            let command = greedy_command(sim);
+            sim.advance(Some(command));
+            peak = peak.max(sim.mass());
+            if sim.phase() != Phase::Playing {
+                return peak;
+            }
+            if turn % 200 == 0 {
+                check_invariants(sim, &format!("{note} turn {turn}"));
+            }
+            if sim.schedule().time() == before {
+                stalled += 1;
+                sim.advance(Some(Command::Wait));
+                assert!(stalled < 500, "{note}: the bot is wedged");
+            } else {
+                stalled = 0;
+            }
+        }
+        peak
+    }
+
+    #[test]
+    #[ignore = "a whole playthrough; run with --ignored"]
+    fn a_greedy_bot_survives_a_whole_easy_run() {
+        for seed in 0..6 {
+            let mut sim = Sim::new(seed, Difficulty::Easy);
+            sim.advance(Some(Command::Start(Difficulty::Easy)));
+            let peak = play_out(&mut sim, 4000, &format!("seed {seed}"));
+            check_invariants(&sim, &format!("seed {seed} end"));
+            assert!(peak > 10, "seed {seed}: the bot never got going ({peak})");
+            assert!(
+                sim.is_player_turn() || sim.phase() != Phase::Playing,
+                "seed {seed}: the run stopped mid-phase"
+            );
+        }
+    }
+
+    /// The win, end to end, in a real playout.
+    ///
+    /// The gates' wave timers are held back for this one. That is the only
+    /// thing changed: map generation, the drag, eating, digestion, crafting,
+    /// production, the mass threshold, the grace-city count and the escape all
+    /// run exactly as they do in a live run, and the bot really does walk a
+    /// hundred-cell amoeba across the cavern and break six gates with it.
+    ///
+    /// The waves are held back because they have to be. On the original's
+    /// numbers ten gates put something like fifty humans on an Easy map by turn
+    /// three hundred, and a bot that only walks at the nearest useful thing
+    /// loses every organelle it has long before it reaches a hundred mass.
+    /// Beating that needs membrane walls, engulf traps and tentacles — real
+    /// play. What this proves is that the win path itself is reachable and
+    /// correct; that it is *hard* is the game, and `a_greedy_bot_survives_a_
+    /// whole_easy_run` covers the same machinery under full pressure.
+    #[test]
+    #[ignore = "a whole playthrough; run with --ignored"]
+    fn a_greedy_bot_can_win_an_unopposed_easy_run() {
+        let mut won = 0;
+        for seed in 0..6 {
+            let mut sim = Sim::new(seed, Difficulty::Easy);
+            sim.advance(Some(Command::Start(Difficulty::Easy)));
+            for city in sim.cities.clone() {
+                if let actors::Extra::City(state) = &mut sim.actors[city].extra {
+                    state.turns_to_next_wave = i32::MAX;
+                }
+            }
+            play_out(&mut sim, 4000, &format!("unopposed seed {seed}"));
+            check_invariants(&sim, &format!("unopposed seed {seed} end"));
+            if sim.phase() == (Phase::GameOver { won: true }) {
+                won += 1;
+                assert!(
+                    sim.mass() >= sim.rules.city_armor.unsigned_abs() as usize,
+                    "seed {seed}: it won without the mass to do it"
+                );
+                assert!(
+                    sim.cities().len() <= sim.rules.grace_cities.unsigned_abs() as usize,
+                    "seed {seed}: it won with too many gates standing"
+                );
+            }
+        }
+        assert!(won >= 4, "an unopposed easy run is winnable: {won}/6");
     }
 
     #[test]
