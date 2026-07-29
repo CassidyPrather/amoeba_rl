@@ -1,0 +1,1087 @@
+//! The whole simulation: pure, deterministic, and macroquad-free.
+//!
+//! You are a set of organelles rather than a single body. There is no "player
+//! entity" anywhere in here — the mass is a list, your score is its length,
+//! and the gate you are trying to break needs a certain number of you leaning
+//! on it. Everything else follows from that.
+//!
+//! The frontend's only channel in is a [`Command`]; its only channels out are
+//! [`Sim::view`], which hands back a fully resolved grid of glyphs and
+//! colours, and [`Sim::cues`], which says what just happened so a sound can be
+//! chosen for it. Nothing in this module knows what a pixel or a sample is,
+//! and nothing in it reads a clock: the same seed and the same commands always
+//! produce the same run.
+//!
+//! Time is discrete and event-driven rather than fixed-step. Everything that
+//! acts sits in the [`schedule`], sixteen time units make a turn, and the
+//! world runs itself forward until a nucleus comes up — at which point it
+//! stops and waits for you.
+
+pub mod actors;
+pub mod grid;
+pub mod log;
+pub mod mapgen;
+pub mod player;
+pub mod schedule;
+pub mod view;
+
+use fastrand::Rng;
+
+use actors::{Actor, ActorId, ActorStore, Item, ItemId, ItemKind, ItemStore, Kind};
+use grid::{Coord, Dir, Grid};
+use log::{MessageLog, OrganelleLog};
+use schedule::Schedule;
+
+pub use view::RenderView;
+
+/// How hard the humans push back, and how big the cavern is.
+///
+/// The original picked this from the command line. There is no command line on
+/// the web, so it is a title-screen choice instead.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Hash)]
+pub enum Difficulty {
+    /// Twelve gates, eight of which you must break.
+    #[default]
+    Normal,
+    /// Fewer gates and slower waves.
+    Easy,
+    /// A wider cavern, sixteen gates, and every one of them must fall.
+    Gj,
+}
+
+impl Difficulty {
+    /// The constants this difficulty runs on.
+    #[must_use]
+    pub const fn rules(self) -> Rules {
+        match self {
+            Self::Normal => Rules {
+                map_width: 48,
+                map_height: 48,
+                spawn_rate: 50,
+                evolution_rate: 6,
+                max_budget: 5,
+                city_armor: 100,
+                num_cities: 12,
+                grace_cities: 4,
+            },
+            Self::Easy => Rules {
+                map_width: 48,
+                map_height: 48,
+                spawn_rate: 75,
+                evolution_rate: 7,
+                max_budget: 5,
+                city_armor: 100,
+                num_cities: 10,
+                grace_cities: 4,
+            },
+            Self::Gj => Rules {
+                map_width: 64,
+                map_height: 48,
+                spawn_rate: 50,
+                evolution_rate: 5,
+                max_budget: 6,
+                city_armor: 160,
+                num_cities: 16,
+                grace_cities: 0,
+            },
+        }
+    }
+
+    /// The name to show on a title screen.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Normal => "Normal",
+            Self::Easy => "Easy",
+            Self::Gj => "GJ",
+        }
+    }
+}
+
+/// Everything a [`Difficulty`] decides.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Rules {
+    /// Map columns. The original's console could not show more than 64.
+    pub map_width: i32,
+    /// Map rows. The original's console could not show more than 48.
+    pub map_height: i32,
+    /// Turns between a gate's waves, after the first.
+    pub spawn_rate: i32,
+    /// Waves per step up in wave budget.
+    pub evolution_rate: i32,
+    /// Ceiling on a wave's budget.
+    pub max_budget: i32,
+    /// Mass needed to break a gate.
+    pub city_armor: i32,
+    /// Gates the map is generated with.
+    pub num_cities: i32,
+    /// Gates you may leave standing and still escape.
+    pub grace_cities: i32,
+}
+
+impl Rules {
+    /// Gates you must actually destroy.
+    #[must_use]
+    pub const fn cities_required(&self) -> i32 {
+        self.num_cities - self.grace_cities
+    }
+}
+
+/// Where the run is.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Phase {
+    /// No map yet; waiting for a difficulty to be chosen.
+    Title,
+    /// A run in progress.
+    Playing,
+    /// The run is over and the map is frozen behind the final messages.
+    GameOver {
+        /// Whether you escaped rather than died.
+        won: bool,
+    },
+}
+
+/// Which panel the interface is showing, and therefore what the arrow keys do.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum UiMode {
+    /// The message log. Arrows move the active nucleus.
+    #[default]
+    Messages,
+    /// The organelle list. Arrows move the selection.
+    Organelles,
+    /// The examine cursor. Arrows move the cursor.
+    Examine,
+}
+
+/// Everything the player can ask for.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Command {
+    /// Leave the title screen and generate a map.
+    Start(Difficulty),
+    /// Move, swap, eat or break a gate in a direction.
+    Move(Dir),
+    /// Pass the turn.
+    Wait,
+    /// Hand control to the next or previous nucleus. Free.
+    CycleNucleus {
+        /// Forwards through the acquisition order, or backwards.
+        forward: bool,
+    },
+    /// Enter or leave examine mode.
+    ToggleExamine,
+    /// Move the examine cursor. Ignored outside examine mode.
+    MoveCursor(Dir),
+    /// Enter or leave the organelle browser.
+    ToggleOrganelles,
+    /// Move the organelle selection.
+    ScrollOrganelles(i32),
+    /// Move the organelle list by whole pages.
+    PageOrganelles(i32),
+    /// Leave whatever panel is open.
+    Back,
+    /// Print the controls into the message log.
+    Help,
+    /// Start a fresh run once this one is over. The seed comes from the
+    /// frontend, because the sim never reads a clock.
+    Restart {
+        /// Seed for the new run.
+        seed: u64,
+    },
+}
+
+/// Something that just happened, for the frontend to make a noise about.
+///
+/// A cue says what happened, never what it should sound like, and lives for
+/// exactly one [`Sim::advance`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Cue {
+    /// The mass flowed one cell.
+    Step,
+    /// An action was refused: a wall, armour, or too little mass.
+    Bump,
+    /// An organelle traded places with another.
+    Swap,
+    /// A human was consumed by contact.
+    Eat,
+    /// A catalyst was absorbed.
+    Ingest,
+    /// A sealed-in group of humans was captured at once.
+    Engulf,
+    /// A dissolving human finished and became something useful.
+    Digest,
+    /// A nucleus died.
+    NucleusLost,
+    /// A gate came down.
+    CityDestroyed,
+    /// The run ended in escape.
+    Win,
+    /// The run ended in death.
+    Lose,
+}
+
+/// The world.
+pub struct Sim {
+    seed: u64,
+    rng: Rng,
+    difficulty: Difficulty,
+    rules: Rules,
+    phase: Phase,
+    mode: UiMode,
+    grid: Grid,
+    actors: ActorStore,
+    items: ItemStore,
+    /// One slot per cell: the actor standing there, if any.
+    actor_at: Vec<Option<ActorId>>,
+    /// One slot per cell: the item lying there, if any.
+    item_at: Vec<Option<ItemId>>,
+    /// The mass, in acquisition order. Nucleus cycling and the sidebar both
+    /// depend on that order.
+    player_mass: Vec<ActorId>,
+    cities: Vec<ActorId>,
+    schedule: Schedule,
+    active: Option<ActorId>,
+    player_turn: bool,
+    messages: MessageLog,
+    organelles: OrganelleLog,
+    cues: Vec<Cue>,
+    cursor: Option<Coord>,
+    /// Bumped by every world mutation, so the drag-path cache can tell whether
+    /// it is still describing the world it was computed from.
+    version: u64,
+    drag_cache: Option<player::SlimeTree>,
+}
+
+impl Sim {
+    /// A sim sitting on the title screen.
+    ///
+    /// Nothing is generated until [`Command::Start`] arrives, so the frontend
+    /// can offer the difficulty choice the original took on the command line.
+    #[must_use]
+    pub fn new(seed: u64, difficulty: Difficulty) -> Self {
+        let rules = difficulty.rules();
+        let grid = Grid::new(rules.map_width, rules.map_height);
+        let cells = (rules.map_width * rules.map_height).unsigned_abs() as usize;
+        Self {
+            seed,
+            rng: Rng::with_seed(seed),
+            difficulty,
+            rules,
+            phase: Phase::Title,
+            mode: UiMode::Messages,
+            grid,
+            actors: ActorStore::new(),
+            items: ItemStore::new(),
+            actor_at: vec![None; cells],
+            item_at: vec![None; cells],
+            player_mass: Vec::new(),
+            cities: Vec::new(),
+            schedule: Schedule::new(),
+            active: None,
+            player_turn: false,
+            messages: MessageLog::new(),
+            organelles: OrganelleLog::new(),
+            cues: Vec::new(),
+            cursor: None,
+            version: 0,
+            drag_cache: None,
+        }
+    }
+
+    /// The seed this run was generated from.
+    #[must_use]
+    pub const fn seed(&self) -> u64 {
+        self.seed
+    }
+
+    /// The difficulty in force.
+    #[must_use]
+    pub const fn difficulty(&self) -> Difficulty {
+        self.difficulty
+    }
+
+    /// The constants in force.
+    #[must_use]
+    pub const fn rules(&self) -> Rules {
+        self.rules
+    }
+
+    /// Where the run is.
+    #[must_use]
+    pub const fn phase(&self) -> Phase {
+        self.phase
+    }
+
+    /// Which panel is open.
+    #[must_use]
+    pub const fn mode(&self) -> UiMode {
+        self.mode
+    }
+
+    /// What happened during the last [`Sim::advance`].
+    #[must_use]
+    pub fn cues(&self) -> &[Cue] {
+        &self.cues
+    }
+
+    /// Whether the world is waiting on the player.
+    #[must_use]
+    pub const fn is_player_turn(&self) -> bool {
+        self.player_turn
+    }
+
+    /// The current mass, which is also the score and the gate-breaking
+    /// threshold.
+    #[must_use]
+    pub fn mass(&self) -> usize {
+        self.player_mass.len()
+    }
+
+    /// The message log.
+    #[must_use]
+    pub const fn messages(&self) -> &MessageLog {
+        &self.messages
+    }
+
+    /// Feed one command, then run the world forward until it needs you again.
+    ///
+    /// A command that does not end the turn (cycling nuclei, opening a panel)
+    /// leaves the world exactly where it was. One that does ends up here with
+    /// the whole non-player phase already resolved, so a caller can treat this
+    /// as "one call, one turn".
+    pub fn advance(&mut self, command: Option<Command>) {
+        self.cues.clear();
+        match (self.phase, command) {
+            (Phase::Title, Some(Command::Start(difficulty))) => self.start(difficulty),
+            (Phase::GameOver { .. }, Some(Command::Restart { seed })) => {
+                let difficulty = self.difficulty;
+                *self = Self::new(seed, difficulty);
+                self.start(difficulty);
+            }
+            (Phase::Playing, Some(command)) => self.handle(command),
+            _ => {}
+        }
+        self.pump();
+    }
+
+    /// Generate a map and hand control to the first nucleus.
+    fn start(&mut self, difficulty: Difficulty) {
+        self.difficulty = difficulty;
+        self.rules = difficulty.rules();
+        self.phase = Phase::Playing;
+        self.mode = UiMode::Messages;
+        self.generate();
+        self.write_help();
+    }
+
+    /// Run the scheduler until a nucleus comes up or the run ends.
+    fn pump(&mut self) {
+        // Every inert organelle costs one scheduler round trip per turn, so a
+        // large mass makes this loop long but never unbounded. The guard is
+        // only here so a future bug cannot hang a browser tab.
+        let mut guard = 0_u32;
+        while self.phase == Phase::Playing && !self.player_turn && !self.schedule.is_empty() {
+            self.advance_turn_step();
+            guard += 1;
+            if guard > 1_000_000 {
+                break;
+            }
+        }
+        self.organelles.observe_time(self.schedule.time());
+    }
+
+    /// One trip through the original's `AdvanceTurn` loop body.
+    fn advance_turn_step(&mut self) {
+        let Some(id) = self.schedule.pop() else {
+            return;
+        };
+        let Some(actor) = self.actors.get(id) else {
+            return;
+        };
+        if actors::is_nucleus_family(actor.kind) {
+            // The only place the field of view is recomputed: doing it on
+            // every actor move was the original's worst performance sink.
+            self.update_player_fov();
+            self.player_turn = true;
+            self.set_active_nucleus(id);
+        } else {
+            self.act(id);
+            if let Some(actor) = self.actors.get(id) {
+                let delay = actor.delay;
+                self.schedule.add(id, delay);
+            }
+        }
+    }
+
+    /// What a non-nucleus actor does with its turn.
+    fn act(&mut self, id: ActorId) {
+        let kind = self.actors[id].kind;
+        if actors::is_dissolving(kind) {
+            self.digest(id);
+        }
+        // STAGE2: city waves, chloroplast production, crafting-material
+        // auto-craft, and the maw/tentacle hunt all hang off this match.
+        // Everything not listed above is inert and simply re-queues itself,
+        // which is exactly what the original did with it.
+    }
+
+    /// Route a command taken during play.
+    fn handle(&mut self, command: Command) {
+        let ends_turn = match command {
+            Command::Move(dir) => match self.mode {
+                UiMode::Examine => {
+                    self.move_cursor(dir);
+                    false
+                }
+                UiMode::Organelles => {
+                    self.scroll_organelles(if matches!(dir, Dir::Up | Dir::Left) {
+                        -1
+                    } else {
+                        1
+                    });
+                    false
+                }
+                UiMode::Messages => self.attack_move_player(dir),
+            },
+            Command::MoveCursor(dir) => {
+                self.move_cursor(dir);
+                false
+            }
+            Command::Wait => {
+                self.messages.add("You wait.");
+                true
+            }
+            Command::CycleNucleus { forward } => {
+                self.next_nucleus(if forward { 1 } else { -1 });
+                false
+            }
+            Command::ToggleExamine => {
+                self.toggle_examine();
+                false
+            }
+            Command::ToggleOrganelles => {
+                self.mode = if self.mode == UiMode::Organelles {
+                    UiMode::Messages
+                } else {
+                    self.cursor = None;
+                    UiMode::Organelles
+                };
+                false
+            }
+            Command::ScrollOrganelles(by) => {
+                self.scroll_organelles(by);
+                false
+            }
+            Command::PageOrganelles(by) => {
+                self.organelles.turn_page(by);
+                false
+            }
+            Command::Back => {
+                self.cursor = None;
+                self.mode = UiMode::Messages;
+                false
+            }
+            Command::Help => {
+                self.write_help();
+                false
+            }
+            Command::Start(_) | Command::Restart { .. } => false,
+        };
+        if ends_turn {
+            self.player_turn = false;
+        }
+    }
+
+    fn scroll_organelles(&mut self, by: i32) {
+        let count = self.loggable().count();
+        self.organelles.scroll(by, count);
+    }
+
+    fn toggle_examine(&mut self) {
+        if self.cursor.is_some() {
+            self.cursor = None;
+            self.mode = UiMode::Messages;
+            return;
+        }
+        // The cursor starts wherever attention already is: the highlighted
+        // organelle if the list is open, otherwise the active nucleus.
+        let start = if self.mode == UiMode::Organelles {
+            let count = self.loggable().count();
+            let idx = self.organelles.selected(count);
+            self.loggable().nth(idx).map(|id| self.actors[id].pos)
+        } else {
+            self.active.map(|id| self.actors[id].pos)
+        };
+        self.cursor = Some(
+            start.unwrap_or_else(|| Coord::new(self.grid.width() / 2, self.grid.height() / 2)),
+        );
+        self.mode = UiMode::Examine;
+    }
+
+    fn move_cursor(&mut self, dir: Dir) {
+        if let Some(cursor) = self.cursor {
+            let next = cursor + dir.offset();
+            self.cursor = Some(Coord::new(
+                next.x.clamp(0, self.grid.width() - 1),
+                next.y.clamp(0, self.grid.height() - 1),
+            ));
+        }
+    }
+
+    fn write_help(&mut self) {
+        self.messages.add("Arrow keys: Move / Select");
+        self.messages.add("Space: Wait");
+        self.messages.add("X: Toggle examine mode");
+        self.messages.add("Z: Toggle organelle browsing mode");
+        self.messages.add("ESC: Back to player mode");
+        self.messages.add("A, D: Cycle active nucleus");
+        let required = self.rules.cities_required();
+        self.messages
+            .add(&format!("Destroy {required} cities to win"));
+    }
+
+    // -- world queries ------------------------------------------------------
+
+    #[allow(clippy::cast_sign_loss)] // Guarded by the bounds check above it.
+    fn cell_index(&self, c: Coord) -> Option<usize> {
+        self.grid
+            .in_bounds(c)
+            .then(|| (c.y * self.grid.width() + c.x) as usize)
+    }
+
+    /// The actor standing at `c`, in constant time.
+    #[must_use]
+    pub fn actor_at(&self, c: Coord) -> Option<ActorId> {
+        self.actor_at[self.cell_index(c)?]
+    }
+
+    /// The item lying at `c`, in constant time.
+    #[must_use]
+    pub fn item_at(&self, c: Coord) -> Option<ItemId> {
+        self.item_at[self.cell_index(c)?]
+    }
+
+    /// The map.
+    #[must_use]
+    pub const fn grid(&self) -> &Grid {
+        &self.grid
+    }
+
+    /// The actor arena.
+    #[must_use]
+    pub const fn actors(&self) -> &ActorStore {
+        &self.actors
+    }
+
+    /// The item arena.
+    #[must_use]
+    pub const fn items(&self) -> &ItemStore {
+        &self.items
+    }
+
+    /// The mass, in acquisition order.
+    #[must_use]
+    pub fn player_mass(&self) -> &[ActorId] {
+        &self.player_mass
+    }
+
+    /// Gates still standing.
+    #[must_use]
+    pub fn cities(&self) -> &[ActorId] {
+        &self.cities
+    }
+
+    /// The nucleus under your control.
+    #[must_use]
+    pub const fn active_nucleus(&self) -> Option<ActorId> {
+        self.active
+    }
+
+    /// The examine cursor, if examine mode is open.
+    #[must_use]
+    pub const fn cursor(&self) -> Option<Coord> {
+        self.cursor
+    }
+
+    /// The turn queue.
+    #[must_use]
+    pub const fn schedule(&self) -> &Schedule {
+        &self.schedule
+    }
+
+    /// Sidebar state.
+    #[must_use]
+    pub const fn organelle_log(&self) -> &OrganelleLog {
+        &self.organelles
+    }
+
+    /// Solid rock: unwalkable and holding nothing.
+    ///
+    /// An actor-occupied cell is deliberately *not* a wall. That is what lets
+    /// bullets pass through bodies and loot-drop searches route around them.
+    #[must_use]
+    pub fn is_wall(&self, c: Coord) -> bool {
+        !self.grid.walkable(c) && self.actor_at(c).is_none() && self.item_at(c).is_none()
+    }
+
+    /// Nothing standing and nothing lying here.
+    #[must_use]
+    pub fn is_empty_cell(&self, c: Coord) -> bool {
+        self.actor_at(c).is_none() && self.item_at(c).is_none()
+    }
+
+    /// The mass entries the sidebar lists: everything but cytoplasm and raw
+    /// crafting materials, in acquisition order.
+    pub(crate) fn loggable(&self) -> impl Iterator<Item = ActorId> + '_ {
+        self.player_mass.iter().copied().filter(|id| {
+            self.actors
+                .get(*id)
+                .is_some_and(|a| a.kind != Kind::Cytoplasm && !actors::is_crafting_material(a.kind))
+        })
+    }
+
+    // -- world mutation -----------------------------------------------------
+
+    /// Place a new actor and wire it into every index.
+    ///
+    /// Adding an organelle next to a human runs that human's engulf check, so
+    /// growing into a gap can capture whoever was standing in it.
+    pub(crate) fn add_actor(&mut self, kind: Kind, pos: Coord) -> ActorId {
+        let mut actor = Actor::new(kind, pos);
+        if actors::is_city(kind) {
+            actor.armor = self.rules.city_armor;
+        }
+        let slime = actor.slime;
+        let delay = actor.delay;
+        let id = self.actors.spawn(actor);
+        if let Some(i) = self.cell_index(pos) {
+            self.actor_at[i] = Some(id);
+        }
+        self.grid.set_walkable(pos, false);
+        if slime > 0 {
+            self.player_mass.push(id);
+        }
+        if actors::is_city(kind) {
+            self.cities.push(id);
+        }
+        self.schedule.add(id, delay);
+        self.version += 1;
+        if actors::is_organelle(kind) {
+            let neighbours: Vec<Coord> = self.grid.adjacent(pos).collect();
+            for c in neighbours {
+                if let Some(other) = self.actor_at(c)
+                    && self
+                        .actors
+                        .get(other)
+                        .is_some_and(|a| actors::is_npc(a.kind))
+                {
+                    self.engulf(other);
+                }
+            }
+        }
+        id
+    }
+
+    /// Take an actor off the map. Its cell becomes walkable again.
+    pub(crate) fn remove_actor(&mut self, id: ActorId) -> Option<Actor> {
+        let actor = self.actors.remove(id)?;
+        if let Some(i) = self.cell_index(actor.pos)
+            && self.actor_at[i] == Some(id)
+        {
+            self.actor_at[i] = None;
+        }
+        self.grid.set_walkable(actor.pos, true);
+        self.player_mass.retain(|&m| m != id);
+        self.cities.retain(|&c| c != id);
+        self.schedule.remove(id);
+        if self.active == Some(id) {
+            self.active = None;
+        }
+        self.version += 1;
+        Some(actor)
+    }
+
+    /// Move an actor, but only onto a cell nothing is standing on.
+    pub(crate) fn set_actor_position(&mut self, id: ActorId, dest: Coord) -> bool {
+        if !self.grid.walkable(dest) || !self.actors.contains(id) {
+            return false;
+        }
+        let from = self.actors[id].pos;
+        if let Some(i) = self.cell_index(from) {
+            self.actor_at[i] = None;
+        }
+        self.grid.set_walkable(from, true);
+        if let Some(i) = self.cell_index(dest) {
+            self.actor_at[i] = Some(id);
+        }
+        self.grid.set_walkable(dest, false);
+        self.actors[id].pos = dest;
+        self.version += 1;
+        true
+    }
+
+    /// Exchange two actors' cells. Walkability is untouched, because both
+    /// cells stay occupied.
+    pub(crate) fn swap_actors(&mut self, a: ActorId, b: ActorId) {
+        if a == b || !self.actors.contains(a) || !self.actors.contains(b) {
+            return;
+        }
+        let pa = self.actors[a].pos;
+        let pb = self.actors[b].pos;
+        if let Some(i) = self.cell_index(pa) {
+            self.actor_at[i] = Some(b);
+        }
+        if let Some(i) = self.cell_index(pb) {
+            self.actor_at[i] = Some(a);
+        }
+        self.actors[a].pos = pb;
+        self.actors[b].pos = pa;
+        self.version += 1;
+    }
+
+    /// Drop an item on a cell that has none.
+    pub(crate) fn add_item(&mut self, kind: ItemKind, pos: Coord) -> Option<ItemId> {
+        let i = self.cell_index(pos)?;
+        if self.item_at[i].is_some() {
+            return None;
+        }
+        let id = self.items.spawn(Item { kind, pos });
+        self.item_at[i] = Some(id);
+        self.version += 1;
+        Some(id)
+    }
+
+    /// Take an item off the map.
+    pub(crate) fn remove_item(&mut self, id: ItemId) -> Option<Item> {
+        let item = self.items.remove(id)?;
+        if let Some(i) = self.cell_index(item.pos)
+            && self.item_at[i] == Some(id)
+        {
+            self.item_at[i] = None;
+        }
+        self.version += 1;
+        Some(item)
+    }
+
+    /// Recompute what the mass can see: the union of a taxicab diamond around
+    /// every organelle in it. A cytoplasm with no awareness still lights its
+    /// own cell, which is why your own body is never dark.
+    pub(crate) fn update_player_fov(&mut self) {
+        self.grid.clear_fov();
+        let lights: Vec<(Coord, i32)> = self
+            .player_mass
+            .iter()
+            .filter_map(|id| self.actors.get(*id))
+            .filter(|a| a.awareness >= 0)
+            .map(|a| (a.pos, a.awareness))
+            .collect();
+        for (pos, radius) in lights {
+            self.grid.append_fov(pos, radius, true);
+        }
+        for y in 0..self.grid.height() {
+            for x in 0..self.grid.width() {
+                let c = Coord::new(x, y);
+                if self.grid.in_fov(c) {
+                    self.grid.set_explored(c, true);
+                }
+            }
+        }
+    }
+
+    /// Ring-by-ring search outward from `from` for somewhere to put something.
+    ///
+    /// The search spreads only through cells that are not solid rock, and
+    /// returns the whole first ring that holds at least one legal cell — the
+    /// caller picks among them at random. Gates never count as legal.
+    pub(crate) fn nearest_drops(
+        &self,
+        from: Coord,
+        legal: impl Fn(&Self, Coord) -> bool,
+    ) -> Vec<Coord> {
+        let cells = (self.grid.width() * self.grid.height()).unsigned_abs() as usize;
+        let mut seen = vec![false; cells];
+        if let Some(i) = self.cell_index(from) {
+            seen[i] = true;
+        }
+        let mut ring = vec![from];
+        loop {
+            let found: Vec<Coord> = ring
+                .iter()
+                .copied()
+                .filter(|c| {
+                    !self.is_wall(*c)
+                        && !self
+                            .actor_at(*c)
+                            .is_some_and(|a| self.actors[a].kind == Kind::City)
+                        && legal(self, *c)
+                })
+                .collect();
+            if !found.is_empty() {
+                return found;
+            }
+            let mut next = Vec::new();
+            for c in ring {
+                for n in self.grid.adjacent(c) {
+                    if let Some(i) = self.cell_index(n)
+                        && !seen[i]
+                        && !self.is_wall(n)
+                    {
+                        seen[i] = true;
+                        next.push(n);
+                    }
+                }
+            }
+            if next.is_empty() {
+                return Vec::new();
+            }
+            ring = next;
+        }
+    }
+
+    /// Nearest cells with nothing standing on them.
+    pub(crate) fn nearest_no_actor(&self, from: Coord) -> Vec<Coord> {
+        self.nearest_drops(from, |sim, c| sim.actor_at(c).is_none())
+    }
+
+    /// Nearest cells with no item, and no organelle of yours standing there.
+    pub(crate) fn nearest_loot_drops(&self, from: Coord) -> Vec<Coord> {
+        self.nearest_drops(from, |sim, c| {
+            sim.item_at(c).is_none()
+                && sim
+                    .actor_at(c)
+                    .is_none_or(|a| sim.actors.get(a).is_none_or(|actor| actor.slime == 0))
+        })
+    }
+
+    /// Pick one of a list uniformly, the way every `Rand.Next(0, n - 1)` in
+    /// the original did.
+    pub(crate) fn pick<T: Copy>(&mut self, from: &[T]) -> Option<T> {
+        grid::rand_index(&mut self.rng, from.len()).map(|i| from[i])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A sim mid-run, ready to be poked.
+    pub(super) fn playing(seed: u64) -> Sim {
+        let mut sim = Sim::new(seed, Difficulty::Normal);
+        sim.advance(Some(Command::Start(Difficulty::Normal)));
+        sim
+    }
+
+    #[test]
+    fn difficulty_tables_match_the_spec() {
+        let normal = Difficulty::Normal.rules();
+        assert_eq!((normal.map_width, normal.map_height), (48, 48));
+        assert_eq!(normal.cities_required(), 8);
+        let easy = Difficulty::Easy.rules();
+        assert_eq!(easy.spawn_rate, 75);
+        assert_eq!(easy.cities_required(), 6);
+        let gj = Difficulty::Gj.rules();
+        assert_eq!((gj.map_width, gj.map_height), (64, 48));
+        assert_eq!(gj.city_armor, 160);
+        assert_eq!(gj.cities_required(), 16);
+    }
+
+    #[test]
+    fn a_new_sim_waits_on_the_title_screen() {
+        let sim = Sim::new(1, Difficulty::Normal);
+        assert_eq!(sim.phase(), Phase::Title);
+        assert_eq!(sim.mass(), 0);
+    }
+
+    #[test]
+    fn starting_generates_a_map_and_hands_over_control() {
+        let sim = playing(42);
+        assert_eq!(sim.phase(), Phase::Playing);
+        assert!(sim.is_player_turn());
+        assert_eq!(sim.mass(), 6);
+        assert!(sim.active_nucleus().is_some());
+    }
+
+    #[test]
+    fn the_scheduler_hands_the_first_turn_to_a_nucleus() {
+        let sim = playing(9);
+        let active = sim.active_nucleus().expect("a nucleus is in charge");
+        assert!(actors::is_nucleus_family(sim.actors[active].kind));
+        assert_eq!(sim.schedule().time(), 16);
+    }
+
+    #[test]
+    fn occupancy_and_walkability_agree() {
+        let sim = playing(3);
+        for (id, actor) in sim.actors.iter() {
+            assert_eq!(sim.actor_at(actor.pos), Some(id));
+            assert!(!sim.grid().walkable(actor.pos));
+        }
+    }
+
+    #[test]
+    fn examine_mode_starts_on_the_active_nucleus() {
+        let mut sim = playing(11);
+        let active = sim.active_nucleus().unwrap();
+        sim.advance(Some(Command::ToggleExamine));
+        assert_eq!(sim.cursor(), Some(sim.actors[active].pos));
+        assert_eq!(sim.mode(), UiMode::Examine);
+        sim.advance(Some(Command::ToggleExamine));
+        assert_eq!(sim.cursor(), None);
+    }
+
+    #[test]
+    fn the_examine_cursor_is_clamped_to_the_map() {
+        let mut sim = playing(12);
+        sim.advance(Some(Command::ToggleExamine));
+        for _ in 0..100 {
+            sim.advance(Some(Command::MoveCursor(Dir::Up)));
+            sim.advance(Some(Command::MoveCursor(Dir::Left)));
+        }
+        assert_eq!(sim.cursor(), Some(Coord::new(0, 0)));
+    }
+
+    #[test]
+    fn opening_a_panel_does_not_cost_a_turn() {
+        let mut sim = playing(13);
+        let before = sim.schedule().time();
+        sim.advance(Some(Command::ToggleOrganelles));
+        sim.advance(Some(Command::ScrollOrganelles(1)));
+        sim.advance(Some(Command::CycleNucleus { forward: true }));
+        sim.advance(Some(Command::Help));
+        assert_eq!(sim.schedule().time(), before);
+        assert!(sim.is_player_turn());
+    }
+
+    #[test]
+    fn waiting_always_costs_a_turn() {
+        let mut sim = playing(14);
+        let before = sim.schedule().time();
+        sim.advance(Some(Command::Wait));
+        assert_eq!(sim.schedule().time(), before + 16);
+        assert!(sim.is_player_turn());
+    }
+
+    /// A deterministic stream of plausible key presses.
+    fn scripted_command(rng: &mut Rng) -> Command {
+        match rng.u32(0..14) {
+            0 | 11 => Command::Move(Dir::Up),
+            1 | 12 => Command::Move(Dir::Down),
+            2 | 13 => Command::Move(Dir::Left),
+            3 => Command::Move(Dir::Right),
+            4 => Command::Wait,
+            5 => Command::CycleNucleus { forward: true },
+            6 => Command::CycleNucleus { forward: false },
+            7 => Command::ToggleExamine,
+            8 => Command::MoveCursor(Dir::Right),
+            9 => Command::ToggleOrganelles,
+            10 => Command::ScrollOrganelles(1),
+            _ => Command::Back,
+        }
+    }
+
+    /// Everything that must be true of the world between any two commands.
+    fn check_invariants(sim: &Sim, note: &str) {
+        for (id, actor) in sim.actors.iter() {
+            assert_eq!(
+                sim.actor_at(actor.pos),
+                Some(id),
+                "{note}: the index lost {:?} at {:?}",
+                actor.kind,
+                actor.pos
+            );
+            assert!(
+                !sim.grid.walkable(actor.pos),
+                "{note}: {:?} is standing on a walkable cell",
+                actor.kind
+            );
+        }
+        for y in 0..sim.grid.height() {
+            for x in 0..sim.grid.width() {
+                let c = Coord::new(x, y);
+                if sim.grid.walkable(c) {
+                    assert!(
+                        sim.actor_at(c).is_none(),
+                        "{note}: {c:?} is doubly occupied"
+                    );
+                }
+                if let Some(id) = sim.item_at(c) {
+                    assert_eq!(sim.items[id].pos, c, "{note}: the item index disagrees");
+                }
+            }
+        }
+        for id in &sim.player_mass {
+            let actor = sim
+                .actors
+                .get(*id)
+                .unwrap_or_else(|| panic!("{note}: the mass holds a dead handle"));
+            assert!(
+                actor.slime > 0,
+                "{note}: {:?} is in the mass without slime",
+                actor.kind
+            );
+        }
+        for (id, actor) in sim.actors.iter() {
+            if actor.slime > 0 {
+                assert!(
+                    sim.player_mass.contains(&id),
+                    "{note}: {:?} has slime but is not in the mass",
+                    actor.kind
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_same_seed_and_commands_produce_the_same_view() {
+        let mut a = playing(2024);
+        let mut b = playing(2024);
+        let mut script = Rng::with_seed(11);
+        let commands: Vec<Command> = (0..200).map(|_| scripted_command(&mut script)).collect();
+        for command in commands {
+            a.advance(Some(command));
+            b.advance(Some(command));
+        }
+        assert_eq!(a.view(3), b.view(3));
+        assert_eq!(a.schedule().time(), b.schedule().time());
+        assert_eq!(a.mass(), b.mass());
+    }
+
+    #[test]
+    fn different_seeds_diverge() {
+        let mut a = playing(1);
+        let mut b = playing(2);
+        for _ in 0..50 {
+            a.advance(Some(Command::Move(Dir::Right)));
+            b.advance(Some(Command::Move(Dir::Right)));
+        }
+        assert_ne!(a.view(0), b.view(0));
+    }
+
+    #[test]
+    fn a_long_random_playout_keeps_the_world_consistent() {
+        for seed in 0..6 {
+            let mut sim = playing(seed);
+            let mut script = Rng::with_seed(seed ^ 0x9E37);
+            for step in 0..500 {
+                sim.advance(Some(scripted_command(&mut script)));
+                if step % 25 == 0 {
+                    check_invariants(&sim, &format!("seed {seed} step {step}"));
+                }
+            }
+            check_invariants(&sim, &format!("seed {seed} end"));
+            // Nothing in stage one can kill the player, and eating is the only
+            // way the mass changes, so it can only have grown.
+            assert!(sim.mass() >= 6, "seed {seed} lost mass");
+            assert!(sim.is_player_turn() || sim.phase() != Phase::Playing);
+        }
+    }
+
+    #[test]
+    fn views_survive_being_asked_for_at_any_frame() {
+        let mut sim = playing(77);
+        for frame in 0..24 {
+            sim.advance(Some(Command::Wait));
+            let view = sim.view(frame);
+            assert_eq!(view.cells.len(), 48 * 48);
+        }
+    }
+}
