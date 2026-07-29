@@ -1,9 +1,9 @@
 # AmoebaRL — Re-implementation Specification
 
 Target audience: an engineer porting this game to Rust without access to the C# source.
-Every constant in this document was read directly out of the C# at
-`/home/user/amoeba_rl/AmoebaRL/`. Each section cites the files it was derived from so
-values can be spot-checked.
+Every constant in this document was read directly out of the C# in `AmoebaRL/`
+(since removed from this branch; it survives in git history on `main`). Each
+section cites the files it was derived from so values can be spot-checked.
 
 Source version: `AmoebaRL.csproj` `<Version>4.0.0</Version>`, .NET 5.0, README says
 "Post 7DRL patch (v2.1.0)". Engine dependencies: **RogueSharp 4.2.0** (map, FOV,

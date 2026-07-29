@@ -12,9 +12,10 @@ library (`src/sim/`), and the frontend is a thin shell that draws it with the
 original's CP437 tileset. It runs natively and in the browser — the intended
 home is <https://wirenook.net/amoeba-rl/>.
 
-The original C# version (RogueSharp + RLNET) still lives in [`AmoebaRL/`](AmoebaRL/);
-[`docs/PORT_SPEC.md`](docs/PORT_SPEC.md) is the complete spec the port was
-built from, including which of the original's quirks were kept on purpose.
+The original C# version (RogueSharp + RLNET) lives on in this repo's git
+history (`main`, pre-port); [`docs/PORT_SPEC.md`](docs/PORT_SPEC.md) is the
+complete spec the port was built from, including which of the original's
+quirks were kept on purpose.
 
 ## How to play
 
