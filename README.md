@@ -1,50 +1,76 @@
-# Amoeba Roguelike
+# Amoeba RL
 
-Play as a giant, constantly evolving amoeba and fight off intensifying waves of humans trying to protect their cities. Craft new organelles and cores to respond to escalating threats. Can you destroy all 16 city gates and escape to the surface?
+Play as a giant, constantly evolving amoeba and fight off intensifying waves
+of humans trying to protect their cities. Engulf and digest them, craft new
+organelles and cores from their remains, and destroy the city gates to escape
+to the surface.
 
-Post 7DRL patch (v2.1.0); fixes performance and major QoL bugs.
+This is a Rust rewrite of the original 7DRL entry, built on
+[game-template](https://github.com/CassidyPrather/game-template)
+(macroquad + wasm): the whole game is a pure, deterministic, unit-tested
+library (`src/sim/`), and the frontend is a thin shell that draws it with the
+original's CP437 tileset. It runs natively and in the browser — the intended
+home is <https://wirenook.net/amoeba-rl/>.
 
-# Installation
+The original C# version (RogueSharp + RLNET) still lives in [`AmoebaRL/`](AmoebaRL/);
+[`docs/PORT_SPEC.md`](docs/PORT_SPEC.md) is the complete spec the port was
+built from, including which of the original's quirks were kept on purpose.
 
-This game depends on [.NET Desktop Runtime 5.0.*](https://dotnet.microsoft.com/download/dotnet/5.0/runtime). Be sure to install it on your system before running it.
+## How to play
 
-## Important Note for Linux Users
+Destroy the required number of city gates (`C`) by walking into them with
+enough mass. You lose when your last nucleus dies.
 
-Make sure to install [libgdplus](https://www.mono-project.com/docs/gui/libgdiplus/) with your package manager of choice, in addition to the .NET framework, to run the game.
+When you move (not swap), you drag a path of organelles behind you — the
+highlighted slime shows which tiles will be dragged. Enemies sealed in with no
+walkable escape are engulfed and digested. Crafting materials upgrade the
+organelles (or the nucleus you swap with) next to them.
 
-# How to Play
+### Controls
 
-## Controls
+| Key | Action |
+|---|---|
+| Arrows | Move / steer the cursor or sidebar |
+| Space or `.` | Wait |
+| `A` / `D` | Previous / next nucleus |
+| `Z` | Organelle browser |
+| `X` | Examine mode |
+| `Q` / `E` | Page the sidebar |
+| `F1` | Help |
+| `M` | Mute |
+| `R` | Restart (after the run ends) |
 
-Arrow keys: Move
-Space: Wait
-A, D: Go to previous/next nucleus
-Z: Organelle mode toggle
-    Arrow keys (Organelle mode): Select organelle
-X: Examine mode toggle
-    Arrow keys (Examine mode): Move examine cursor
-Destroy all cities to win.
+Difficulty (Normal / Easy / GJ) is chosen on the title screen — the original's
+`--easy` and `--gj` command-line flags, made playable in a browser.
 
-## Tips
+On a phone: an on-screen pad and buttons appear, a tap next to your active
+nucleus moves, and a tap in examine mode sends the cursor there.
 
-Stuck? Try reviewing the following information:
+## Development
 
-* When you move (not swap), you drag a path of organelles behind you. The highlighted slime shows which tiles will be dragged! This can be used to position organelles strategically and quickly.
-* To learn what something is, e[x]amine it.
-* Pressing space to pass a turn or luring enemies can break an otherwise impenetrable formation.
-* In the early game, it is easy to find new base organelles but hard to find crafting materials. This inverts as time goes on.
-* Find the right balance between combat, exploration, and organelle management for your play-style; all of these cost time and come with different risks and rewards.
+Requires [Rust](https://rustup.rs/). Native builds on Linux also need ALSA's
+development files (`libasound2-dev` on Debian/Ubuntu).
 
-Want an easier gamemode? Launch the program with the command line argument `--easy` for a tuned-down difficulty level.
+```bash
+cargo run                                                     # play natively
+cargo test                                                    # sim + frontend tests
+cargo clippy --all-targets --all-features -- -D warnings      # lint
+cargo clippy --target wasm32-unknown-unknown -- -D warnings   # lint, wasm
+./scripts/build-web.sh                                        # wasm -> dist/web/
+python3 -m http.server --directory dist/web 8080              # serve it
+cargo bench --bench sim_bench -- --quick                      # bench the sim
+```
 
-Want an extra challenge instead? Launch the program with the command line argument `--gj` to activate GJ mode.
+The web build needs `rustup target add wasm32-unknown-unknown`, and uses
+`wasm-opt` from [binaryen](https://github.com/WebAssembly/binaryen) when
+installed. Deployment (GitHub Pages and wirenook.net) is described in
+[`docs/DEPLOYING.md`](docs/DEPLOYING.md).
 
-For those unfamiliar, to launch a program with a command line argument, just add the argument to the end of the line where you would launch the program from the terminal. For example, `AmoebaRL.exe --easy` to launch easy mode. On windows, this can be automated with shortcuts: Right click the executable, select "create shortcut", then right click the shortcut and add the argument to the end of the "Target" field, separated by a space.
+## Credits
 
-# Credits
-
-Extensive playtesting, design, and support from JackNine
-Further playtesting from Qu and Decinym
-Engine: https://github.com/FaronBracy/RogueSharp
-Font: https://github.com/libtcod/libtcod/blob/develop/data/fonts/terminal12x12_gs_ro.png
-.NET 5.0 by Microsoft
+Original game, design, and this port's blueprint: Cassidy Prather.
+Extensive playtesting, design, and support on the original from JackNine;
+further playtesting from Qu and Decinym.
+Font: [libtcod](https://github.com/libtcod/libtcod)'s `terminal12x12_gs_ro.png`
+(see [CREDITS.md](CREDITS.md) for all vendored assets).
+Code is AGPL-3.0-or-later; see [LICENSE](LICENSE).
