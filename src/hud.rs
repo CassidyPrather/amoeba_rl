@@ -223,17 +223,13 @@ fn describe(
     term.text(1, 1, name, color);
     // The full-height panel can afford the original's blank separator row; the
     // collapsed one cannot.
-    let mut row = if rows >= 9 { 3 } else { 2 };
+    let first_row = if rows >= 9 { 3 } else { 2 };
     let width = (cols - 2).max(1);
     let lines = wrap(body, width)
         .into_iter()
         .chain(detail.iter().flat_map(|line| wrap(line, width)));
-    for line in lines {
-        if row > rows {
-            return;
-        }
+    for (row, line) in (first_row..=rows).zip(lines) {
         term.text(1, row, &line, palette::TEXT_HEADING);
-        row += 1;
     }
 }
 
