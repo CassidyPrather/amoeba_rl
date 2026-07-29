@@ -31,7 +31,11 @@ const ENTRY_ROW: i32 = 7;
 const WIDE_HINT_COLS: i32 = 60;
 
 /// The message bar: the log, or a description of whatever has your attention.
-pub fn info(term: &Term, view: &RenderView, cols: i32, rows: i32) {
+///
+/// `audio` is the sound half asking for a press or admitting it is muted. It
+/// shares the key-hint row and yields to it, because the hints are what the
+/// player is actually looking for down there.
+pub fn info(term: &Term, view: &RenderView, cols: i32, rows: i32, audio: Option<&str>) {
     let content = (rows - 2).max(1);
     match view.mode {
         UiMode::Messages => {
@@ -64,7 +68,21 @@ pub fn info(term: &Term, view: &RenderView, cols: i32, rows: i32) {
             None => term.text(1, 1, "You see nothing there.", palette::FLOOR_FOV),
         },
     }
-    term.text(1, rows - 1, hint(view, cols), palette::TEXT_BODY);
+    let hints = hint(view, cols);
+    term.text(1, rows - 1, hints, palette::TEXT_BODY);
+    if let Some(note) = audio
+        && let Some(col) = fits_after(hints, note, cols)
+    {
+        term.text(col, rows - 1, note, palette::SUPER_BRIGHT);
+    }
+}
+
+/// The column a right-aligned `note` starts in, if the row still has room for
+/// it after `hints` and a gap. `None` when it would collide.
+fn fits_after(hints: &str, note: &str, cols: i32) -> Option<i32> {
+    let end = i32::try_from(hints.chars().count()).ok()? + 1;
+    let col = cols - 1 - i32::try_from(note.chars().count()).ok()?;
+    (col >= end + 2).then_some(col)
 }
 
 /// The organelle sidebar: the numbers that decide the run, then the mass.
@@ -437,6 +455,20 @@ mod tests {
     fn wrapping_a_degenerate_width_gives_up_quietly() {
         assert!(wrap("anything", 0).is_empty());
         assert!(wrap("anything", -4).is_empty());
+    }
+
+    #[test]
+    fn the_audio_note_gives_way_to_the_key_hints() {
+        // The hints are what a player scans that row for; the note about sound
+        // only gets what is left, and takes nothing when there is nothing left.
+        let hints = "arrows move   space wait   X examine   Z organelles   F1 help";
+        assert_eq!(fits_after(hints, "audio muted - M", 86), Some(70));
+        assert_eq!(fits_after(hints, "audio muted - M", 62), None);
+        let narrow = "move  space wait  X examine  Z list";
+        assert_eq!(fits_after(narrow, "audio muted - M", 40), None);
+        // A note that ends exactly where the hints begin is still a collision.
+        assert_eq!(fits_after("abc", "xy", 8), None);
+        assert_eq!(fits_after("abc", "xy", 9), Some(6));
     }
 
     #[test]

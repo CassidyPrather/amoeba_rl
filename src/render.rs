@@ -365,6 +365,9 @@ impl<'a> Term<'a> {
 }
 
 /// One frame.
+///
+/// `audio` is whatever the sound half wants said about itself, which is
+/// nothing at all while it is working.
 pub fn draw(
     font: &Tileset,
     view: &RenderView,
@@ -372,12 +375,13 @@ pub fn draw(
     camera: Coord,
     controls: &Controls,
     page: usize,
+    audio: Option<&str>,
 ) {
     clear_background(VOID);
     if view.phase == Phase::Title {
-        title(font, layout, controls);
+        title(font, layout, controls, audio);
     } else {
-        play(font, view, layout, camera, page);
+        play(font, view, layout, camera, page, audio);
         if let Phase::GameOver { won } = view.phase {
             post_mortem(font, view, controls, won);
         }
@@ -386,7 +390,14 @@ pub fn draw(
 }
 
 /// Map, panels, and whatever the narrow layout owes the player on top.
-fn play(font: &Tileset, view: &RenderView, layout: &Layout, camera: Coord, page: usize) {
+fn play(
+    font: &Tileset,
+    view: &RenderView,
+    layout: &Layout,
+    camera: Coord,
+    page: usize,
+    audio: Option<&str>,
+) {
     let map = Term::new(font, layout.map, layout.cell);
     map.grid(layout.cols, layout.rows, |col, row| {
         view.cell(camera.x + col, camera.y + row)
@@ -404,6 +415,7 @@ fn play(font: &Tileset, view: &RenderView, layout: &Layout, camera: Coord, page:
         view,
         layout.cols,
         layout.info_rows,
+        audio,
     );
 
     if layout.mode == Mode::Narrow {
@@ -465,7 +477,7 @@ pub fn post_mortem_panel(screen_w: f32, screen_h: f32) -> (Rect, Rect) {
 }
 
 /// The title screen: the name, the three difficulties, and the controls.
-fn title(font: &Tileset, layout: &Layout, controls: &Controls) {
+fn title(font: &Tileset, layout: &Layout, controls: &Controls, audio: Option<&str>) {
     const TAGLINE: &str = "a giant, constantly evolving amoeba";
     const HINTS: [&str; 2] = [
         "arrows move   space waits   X examines   Z organelles",
@@ -517,6 +529,18 @@ fn title(font: &Tileset, layout: &Layout, controls: &Controls) {
             hint.mul_add(1.5 * i as f32, screen_h * 0.86),
             hint,
             rgb(palette::FLOOR_FOV),
+        );
+    }
+
+    // The only screen where the audio nag can still be true: choosing a
+    // difficulty is a press, and a press is what a browser is waiting for.
+    if let Some(note) = audio {
+        font.draw_text_centred(
+            note,
+            centre,
+            hint.mul_add(3.0, screen_h * 0.86),
+            hint,
+            rgb(palette::SUPER_BRIGHT),
         );
     }
 }

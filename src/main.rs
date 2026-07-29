@@ -13,7 +13,12 @@
 //! counter, which ticks four times a second outside the sim and is passed in,
 //! keeping [`Sim::view`] the pure function of world and frame that it claims
 //! to be.
+//!
+//! Sound is the frontend's second half and works the same way: the sim's
+//! [`Cue`](amoeba_rl::sim::Cue)s become noise over in [`audio`], which is the
+//! only other place allowed to read a clock.
 
+mod audio;
 mod hud;
 mod input;
 mod render;
@@ -25,6 +30,7 @@ use macroquad::window::{Conf, next_frame, screen_height, screen_width};
 use amoeba_rl::sim::grid::Coord;
 use amoeba_rl::sim::{Difficulty, Phase, RenderView, Sim};
 
+use audio::Audio;
 use input::{Controls, Input};
 use render::Layout;
 use tileset::Tileset;
@@ -48,6 +54,7 @@ async fn main() {
     let font = Tileset::load();
     let mut sim = Sim::new(input::fresh_seed(), Difficulty::Normal);
     let mut input = Input::new();
+    let mut audio = Audio::load().await;
 
     loop {
         let view = sim.view(anim_frame());
@@ -73,13 +80,20 @@ async fn main() {
         );
 
         let frame = input.gather(&view, &layout, camera, &controls, get_frame_time());
-        render::draw(&font, &view, &layout, camera, &controls, input.page());
+        render::draw(
+            &font,
+            &view,
+            &layout,
+            camera,
+            &controls,
+            input.page(),
+            audio.hint(),
+        );
 
         sim.advance(frame.command);
-        // AUDIO STAGE: cues live for exactly this one `advance`, so the audio
-        // half reads them here, alongside the mute toggle from the same frame.
-        let _cues = sim.cues();
-        let _ = frame.mute;
+        // Cues live for exactly this one `advance`, so the audio half reads
+        // them here, alongside the mute toggle from the same frame.
+        audio.update(sim.cues(), &frame);
 
         next_frame().await;
     }
