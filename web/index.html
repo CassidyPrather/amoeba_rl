@@ -6,6 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="description" content="Amoeba RL: play as a giant, constantly evolving amoeba. A roguelike in Rust + WebAssembly.">
     <title>Amoeba RL</title>
+    <!-- Inline so the shell keeps making zero external requests. -->
+    <link rel="icon"
+        href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNiAxNic+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzE2JyBmaWxsPScjMTQxYzBjJy8+PGNpcmNsZSBjeD0nOCcgY3k9JzgnIHI9JzYuNScgZmlsbD0nIzg0YmUzOCcvPjxjaXJjbGUgY3g9JzknIGN5PSc3JyByPScyLjUnIGZpbGw9JyNkMDQ2NDgnLz48L3N2Zz4=">
     <style>
         /* House shell: zero external requests. The canvas paints over #status
            once GL initializes; until then (or on failure) the status shows. */
@@ -109,6 +112,17 @@
             fail("This browser lacks WebGL support.");
         } else {
             load("amoeba-rl.wasm"); // keep in sync with the [[bin]] name in Cargo.toml
+            // The game draws translucent UI, which writes alpha into the
+            // framebuffer and lets the page show through — including this
+            // status line. Remove it once the wasm is actually running
+            // (gl.js sets wasm_exports at instantiation; on failure it never
+            // does, and the error handlers above repurpose the element).
+            const gone = setInterval(() => {
+                if (window.wasm_exports) {
+                    status.remove();
+                    clearInterval(gone);
+                }
+            }, 100);
         }
     </script>
 </body>

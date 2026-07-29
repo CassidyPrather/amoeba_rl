@@ -227,6 +227,13 @@ struct Pointer {
     down: bool,
 }
 
+/// Touch ids that were alive last frame. A tap quick enough to begin and end
+/// between two frames reaches us as a single `Ended` touch; only this memory
+/// tells it apart from the tail of a touch whose press was already counted.
+/// Browsers reuse ids (Chromium hands out 0 every time), so ended touches
+/// must fall out immediately.
+type TouchMemory = [Option<u64>; 8];
+
 /// What one frame of input asked for.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Frame {
@@ -250,6 +257,8 @@ pub struct Input {
     /// a fixed fifty-five rows, but never puts it in the view — so `Q` and `E`
     /// are mirrored here, counted in the rows this window actually has.
     page: usize,
+    /// See [`TouchMemory`].
+    prev_touches: TouchMemory,
 }
 
 impl Input {
@@ -265,6 +274,7 @@ impl Input {
             pending: None,
             touched: false,
             page: 0,
+            prev_touches: [None; 8],
         }
     }
 
@@ -292,7 +302,8 @@ impl Input {
     ) -> Frame {
         let fingers = touches();
         self.touched |= !fingers.is_empty();
-        let pointers = pointers(fingers);
+        let pointers = pointers(&fingers, &self.prev_touches);
+        self.prev_touches = live_touches(&fingers);
         Frame {
             command: match view.phase {
                 Phase::Playing => self.playing(view, layout, camera, controls, &pointers, dt),
@@ -349,6 +360,18 @@ impl Input {
         {
             self.pending = None;
             return Some(action.command());
+        }
+        // A pad press normally moves via the repeat machine the moment it is
+        // seen held; if that emitted this frame we returned above, so this
+        // only catches presses the hold path missed — chiefly one released
+        // too fast to ever be seen down.
+        if let Some(dir) = pointers
+            .iter()
+            .filter(|pointer| pointer.pressed)
+            .find_map(|pointer| controls.dpad_dir(pointer.at))
+        {
+            self.pending = None;
+            return Some(Command::Move(dir));
         }
 
         // The organelle browser owns the whole screen while it is open — in
@@ -524,17 +547,25 @@ pub const fn step_toward(from: Coord, to: Coord) -> Option<Dir> {
     })
 }
 
-/// Every pointer the window has this frame, fingers and mouse alike, so the
-/// same hit tests serve a phone and a desktop.
-fn pointers(fingers: Vec<Touch>) -> Vec<Pointer> {
-    let mut out: Vec<Pointer> = fingers
-        .into_iter()
+/// The finger half of [`pointers`], macroquad-free so it can be tested. A
+/// touch whose id was not alive last frame counts as pressed whatever its
+/// phase: a fast enough tap shows up already `Ended`, and its press must
+/// still be counted.
+fn touch_pointers(fingers: &[Touch], prev: &TouchMemory) -> Vec<Pointer> {
+    fingers
+        .iter()
         .map(|touch| Pointer {
             at: touch.position,
-            pressed: touch.phase == TouchPhase::Started,
+            pressed: !prev.contains(&Some(touch.id)),
             down: !matches!(touch.phase, TouchPhase::Ended | TouchPhase::Cancelled),
         })
-        .collect();
+        .collect()
+}
+
+/// Every pointer the window has this frame, fingers and mouse alike, so the
+/// same hit tests serve a phone and a desktop.
+fn pointers(fingers: &[Touch], prev: &TouchMemory) -> Vec<Pointer> {
+    let mut out = touch_pointers(fingers, prev);
     let pressed = is_mouse_button_pressed(MouseButton::Left);
     let down = is_mouse_button_down(MouseButton::Left);
     if pressed || down {
@@ -544,6 +575,19 @@ fn pointers(fingers: Vec<Touch>) -> Vec<Pointer> {
             pressed,
             down,
         });
+    }
+    out
+}
+
+/// The ids still alive after this frame — ended touches drop out at once so a
+/// browser reusing their id (Chromium always says 0) reads as a fresh press.
+fn live_touches(fingers: &[Touch]) -> TouchMemory {
+    let mut out = [None; 8];
+    let live = fingers
+        .iter()
+        .filter(|touch| !matches!(touch.phase, TouchPhase::Ended | TouchPhase::Cancelled));
+    for (slot, touch) in out.iter_mut().zip(live) {
+        *slot = Some(touch.id);
     }
     out
 }
@@ -563,6 +607,41 @@ mod tests {
     fn a_fresh_press_fires_at_once() {
         let mut repeat = Repeat::default();
         assert_eq!(repeat.update(Some(Dir::Up), FRAME), Some(Dir::Up));
+    }
+
+    fn touch(id: u64, phase: TouchPhase) -> Touch {
+        Touch {
+            id,
+            phase,
+            position: Vec2::new(1.0, 2.0),
+        }
+    }
+
+    #[test]
+    fn a_tap_faster_than_a_frame_still_counts_as_a_press() {
+        // Began and ended between two frames: all we ever see is `Ended`.
+        let blink = [touch(0, TouchPhase::Ended)];
+        let seen = touch_pointers(&blink, &[None; 8]);
+        assert!(seen[0].pressed && !seen[0].down);
+    }
+
+    #[test]
+    fn a_touch_is_pressed_on_its_first_frame_only() {
+        let start = [touch(3, TouchPhase::Started)];
+        assert!(touch_pointers(&start, &[None; 8])[0].pressed);
+
+        let memory = live_touches(&start);
+        let moved = [touch(3, TouchPhase::Moved)];
+        let seen = touch_pointers(&moved, &memory);
+        assert!(!seen[0].pressed && seen[0].down);
+    }
+
+    #[test]
+    fn an_ended_touch_frees_its_id_for_the_next_tap() {
+        // Chromium reuses identifier 0 for every successive tap.
+        let ended = [touch(0, TouchPhase::Ended)];
+        assert_eq!(live_touches(&ended), [None; 8]);
+        assert!(touch_pointers(&[touch(0, TouchPhase::Started)], &live_touches(&ended))[0].pressed);
     }
 
     #[test]
