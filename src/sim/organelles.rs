@@ -14,6 +14,7 @@
 //! so upgraded cores slip past it.
 
 use super::actors::{self, ActorId, Extra, Kind, Resource};
+use super::effect::EffectKind;
 use super::grid::{Coord, rand_index};
 use super::{Cue, Sim, Terrified};
 
@@ -40,7 +41,10 @@ impl Sim {
         let Some(resource) = self.actors.get(material).and_then(|a| a.kind.provides()) else {
             return false;
         };
-        if !self.upgrade(recipient, resource) {
+        let Some(from) = self.actors.get(material).map(|a| a.pos) else {
+            return false;
+        };
+        if !self.upgrade(recipient, resource, from) {
             return false;
         }
         self.spend_material(material);
@@ -62,7 +66,12 @@ impl Sim {
     /// The first material absorbed locks in which of the two upgrade paths this
     /// organelle is on; the wrong material afterwards is refused. Returns
     /// whether the material was taken.
-    pub(crate) fn upgrade(&mut self, id: ActorId, resource: Resource) -> bool {
+    ///
+    /// `origin` is the cell the material came from — always a neighbour, since
+    /// a material either walks into its recipient or is walked into. It exists
+    /// so the absorption can be *seen* crossing that gap: the message log says
+    /// what was absorbed but never which of your cells paid for it.
+    pub(crate) fn upgrade(&mut self, id: ActorId, resource: Resource, origin: Coord) -> bool {
         let Some(actor) = self.actors.get(id) else {
             return false;
         };
@@ -93,18 +102,20 @@ impl Sim {
         let progress = state.progress;
         let old_name = kind.name();
         let material = resource.name();
+        let pos = self.actors[id].pos;
+        self.effect(EffectKind::Absorb, origin, pos);
         if progress < amount {
             self.messages
                 .add(&format!("The {old_name} absorbs the {material}"));
             return true;
         }
-        let pos = self.actors[id].pos;
         self.remove_actor(id);
         let grown = self.add_actor(result, pos);
         self.messages.add(&format!(
             "The {old_name} absorbs the {material} and transforms into a {}!",
             result.name()
         ));
+        self.effect_at(EffectKind::Transform, pos);
         // Control follows the upgrade, so growing a new core out of the nucleus
         // you were steering does not hand the turn to a different one.
         if actors::is_nucleus_family(result) {
@@ -136,7 +147,7 @@ impl Sim {
             .collect();
         while let Some(pick) = rand_index(&mut self.rng, candidates.len()) {
             let recipient = candidates.remove(pick);
-            if self.upgrade(recipient, resource) {
+            if self.upgrade(recipient, resource, pos) {
                 self.spend_material(id);
                 return;
             }
@@ -185,6 +196,7 @@ impl Sim {
             return false;
         };
         self.add_actor(product, cell);
+        self.effect(EffectKind::Produce, pos, cell);
         true
     }
 
@@ -413,6 +425,8 @@ impl Sim {
             .collect();
         let now = self.schedule.time();
         for victim in victims {
+            let victim_pos = self.actors[victim].pos;
+            self.effect(EffectKind::Terrify, pos, victim_pos);
             let Some(at) = self.schedule.scheduled_for(victim) else {
                 let name = self.actors[victim].name;
                 self.messages.add(&format!("{name} is already terrified."));
@@ -489,6 +503,14 @@ mod tests {
     use super::*;
     use crate::sim::actors::ItemKind;
     use crate::sim::tests::sandbox;
+
+    /// Feed one unit of a resource to an organelle, as a material standing on
+    /// the next cell over would. Every real upgrade arrives from somewhere;
+    /// these cases only care that it arrived.
+    fn feed(sim: &mut Sim, id: ActorId, resource: Resource) -> bool {
+        let pos = sim.actors[id].pos;
+        sim.upgrade(id, resource, pos)
+    }
 
     #[test]
     fn a_chloroplast_produces_every_sixteen_turns_after_twenty() {
@@ -623,10 +645,10 @@ mod tests {
         let maw = sim.add_actor(Kind::Maw, Coord::new(5, 5));
         // Three calcium takes a maw to a reinforced maw; one electronics in the
         // middle must be refused.
-        assert!(sim.upgrade(maw, Resource::Calcium));
-        assert!(!sim.upgrade(maw, Resource::Electronics));
-        assert!(sim.upgrade(maw, Resource::Calcium));
-        assert!(sim.upgrade(maw, Resource::Calcium));
+        assert!(feed(&mut sim, maw, Resource::Calcium));
+        assert!(!feed(&mut sim, maw, Resource::Electronics));
+        assert!(feed(&mut sim, maw, Resource::Calcium));
+        assert!(feed(&mut sim, maw, Resource::Calcium));
         let grown = sim.actor_at(Coord::new(5, 5)).expect("a maw");
         assert_eq!(sim.actors[grown].kind, Kind::ReinforcedMaw);
     }
@@ -682,10 +704,10 @@ mod tests {
             let mut sim = sandbox(9);
             let id = sim.add_actor(from, Coord::new(5, 5));
             for step in 1..amount {
-                assert!(sim.upgrade(id, resource), "{from:?} step {step}");
+                assert!(feed(&mut sim, id, resource), "{from:?} step {step}");
                 assert!(sim.actors.contains(id), "{from:?} finished early");
             }
-            assert!(sim.upgrade(id, resource), "{from:?} last step");
+            assert!(feed(&mut sim, id, resource), "{from:?} last step");
             let grown = sim.actor_at(Coord::new(5, 5)).expect("something grew");
             assert_eq!(sim.actors[grown].kind, into, "{from:?} + {resource:?}");
             assert!(sim.player_mass().contains(&grown));
@@ -698,7 +720,7 @@ mod tests {
         let nucleus = sim.add_actor(Kind::Nucleus, Coord::new(5, 5));
         let other = sim.add_actor(Kind::Nucleus, Coord::new(9, 9));
         sim.set_active_nucleus(nucleus);
-        assert!(sim.upgrade(nucleus, Resource::Calcium));
+        assert!(feed(&mut sim, nucleus, Resource::Calcium));
         let grown = sim.actor_at(Coord::new(5, 5)).expect("an eye core");
         assert_eq!(sim.actors[grown].kind, Kind::EyeCore);
         assert_eq!(sim.active_nucleus(), Some(grown), "control followed it");
@@ -726,7 +748,7 @@ mod tests {
         // more dust than went into it.
         let mut sim = sandbox(12);
         let membrane = sim.add_actor(Kind::ReinforcedMembrane, Coord::new(5, 5));
-        assert!(sim.upgrade(membrane, Resource::Calcium));
+        assert!(feed(&mut sim, membrane, Resource::Calcium));
         sim.unslime_organelle(membrane);
         let dust = (0..20)
             .flat_map(|y| (0..20).map(move |x| Coord::new(x, y)))

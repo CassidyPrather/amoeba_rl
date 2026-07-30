@@ -20,6 +20,7 @@
 pub mod actors;
 pub mod ai;
 pub mod combat;
+pub mod effect;
 pub mod grid;
 pub mod log;
 pub mod mapgen;
@@ -31,11 +32,22 @@ pub mod view;
 use fastrand::Rng;
 
 use actors::{Actor, ActorId, ActorStore, Item, ItemId, ItemKind, ItemStore, Kind, Reticle};
+use effect::{Effect, EffectKind};
 use grid::{Coord, Dir, Grid};
 use log::{MessageLog, OrganelleLog};
 use schedule::Schedule;
 
 pub use view::RenderView;
+
+/// Effects one [`Sim::advance`] will report before it stops recording.
+///
+/// This is a runaway backstop and not a display budget, which is why it is set
+/// so far above what any frontend will draw. A real turn is bounded by the map:
+/// every organelle in the mass can shuffle a cell and every human can take a
+/// step, so a full cavern tops out around twice its cell count. Setting the cap
+/// below that would silently drop the *last* interactions of a busy turn —
+/// which are as likely to be the nucleus dying as another footstep.
+const MAX_EFFECTS: usize = 4096;
 
 /// How hard the humans push back, and how big the cavern is.
 ///
@@ -199,6 +211,11 @@ pub enum Command {
 /// several times in one advance — twenty chloroplasts all producing on the same
 /// turn — is reported once, because a frontend wants one sound for it and not
 /// twenty.
+///
+/// [`Effect`] is the same news in the shape the eyes need it: ordered, one
+/// entry per occurrence, and with the cells attached. The two channels stay
+/// separate because those two shapes genuinely disagree — see
+/// [`effect`](self::effect).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Cue {
     /// The mass flowed one cell.
@@ -278,6 +295,8 @@ pub struct Sim {
     messages: MessageLog,
     organelles: OrganelleLog,
     cues: Vec<Cue>,
+    /// What happened this advance and where, in the order it happened.
+    effects: Vec<Effect>,
     cursor: Option<Coord>,
     /// Every cell a hunter or scout is currently aiming at. Not actors and not
     /// items: the original kept these in a separate effects layer that nothing
@@ -321,6 +340,7 @@ impl Sim {
             messages: MessageLog::new(),
             organelles: OrganelleLog::new(),
             cues: Vec::new(),
+            effects: Vec::new(),
             cursor: None,
             reticles: Vec::new(),
             terrified: Vec::new(),
@@ -365,6 +385,12 @@ impl Sim {
         &self.cues
     }
 
+    /// The same news with cells attached, in the order it happened.
+    #[must_use]
+    pub fn effects(&self) -> &[Effect] {
+        &self.effects
+    }
+
     /// Whether the world is waiting on the player.
     #[must_use]
     pub const fn is_player_turn(&self) -> bool {
@@ -392,6 +418,7 @@ impl Sim {
     /// as "one call, one turn".
     pub fn advance(&mut self, command: Option<Command>) {
         self.cues.clear();
+        self.effects.clear();
         match (self.phase, command) {
             (Phase::Title, Some(Command::Start(difficulty))) => self.start(difficulty),
             (Phase::GameOver { .. }, Some(Command::Restart { seed })) => {
@@ -413,6 +440,10 @@ impl Sim {
         self.mode = UiMode::Messages;
         self.generate();
         self.write_help();
+        // Building a cavern places a few hundred actors, every one of which
+        // reports itself. None of that is news: the map did not *happen*, it
+        // was always there.
+        self.effects.clear();
     }
 
     /// Run the scheduler until a nucleus comes up or the run ends.
@@ -697,6 +728,26 @@ impl Sim {
         }
     }
 
+    /// Report where something happened, every time it does.
+    ///
+    /// Whether the player could see it is settled here, while the field of view
+    /// is still the one that was in force when it happened — a turn resolves in
+    /// one go and the view is only recomputed when a nucleus comes up, so
+    /// asking later would be asking about a different moment.
+    pub(crate) fn effect(&mut self, kind: EffectKind, from: Coord, to: Coord) {
+        if self.effects.len() < MAX_EFFECTS {
+            let effect = Effect::new(kind, from, to);
+            let seen = self.grid.in_fov(from) || self.grid.in_fov(to);
+            self.effects
+                .push(if seen { effect } else { effect.unseen() });
+        }
+    }
+
+    /// Report something that happened in one cell.
+    pub(crate) fn effect_at(&mut self, kind: EffectKind, at: Coord) {
+        self.effect(kind, at, at);
+    }
+
     /// The turn queue.
     #[must_use]
     pub const fn schedule(&self) -> &Schedule {
@@ -802,11 +853,17 @@ impl Sim {
     }
 
     /// Move an actor, but only onto a cell nothing is standing on.
+    ///
+    /// Every walk in the game comes through here — yours, the humans', and the
+    /// shuffle of every organelle dragged along behind you — so this is the one
+    /// place a [`EffectKind::Flow`] has to be reported from for the mass to be
+    /// seen flowing.
     pub(crate) fn set_actor_position(&mut self, id: ActorId, dest: Coord) -> bool {
         if !self.grid.walkable(dest) || !self.actors.contains(id) {
             return false;
         }
         let from = self.actors[id].pos;
+        self.effect(EffectKind::Flow, from, dest);
         if let Some(i) = self.cell_index(from) {
             self.actor_at[i] = None;
         }
@@ -1475,6 +1532,103 @@ mod tests {
             }
         }
         assert!(won >= 4, "an unopposed easy run is winnable: {won}/6");
+    }
+
+    #[test]
+    fn nothing_reaches_the_log_without_something_to_look_at() {
+        // The reason the effect stream exists: a player who turns the message
+        // log off must not have turned the game's explanations off with it. So
+        // every advance with something to *say* needs somewhere to point.
+        for seed in 0..8 {
+            let mut sim = playing(seed);
+            let mut script = Rng::with_seed(seed ^ 0x5EED);
+            for step in 0..400 {
+                let command = scripted_command(&mut script);
+                let before = sim.messages().lines().len();
+                sim.advance(Some(command));
+                let said = sim.messages().lines().len() - before;
+                // Waiting narrates the interface rather than the world, and its
+                // one line is the only one with nothing on the map behind it.
+                let narration = usize::from(command == Command::Wait);
+                assert!(
+                    said <= narration || !sim.effects().is_empty(),
+                    "seed {seed} step {step}: {said} lines and nothing to see"
+                );
+                if sim.phase() != Phase::Playing {
+                    break;
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_fresh_map_is_not_reported_as_news() {
+        // Generating a cavern places a few hundred actors. None of it happened;
+        // it was always there, and animating it would be a light show.
+        let sim = playing(5);
+        assert!(sim.effects().is_empty());
+        assert!(sim.mass() > 0, "something really was placed");
+    }
+
+    #[test]
+    fn effects_live_for_exactly_one_advance() {
+        let mut sim = playing(6);
+        // Moving always reports something: the mass flowed, or it was refused.
+        sim.advance(Some(Command::Move(Dir::Right)));
+        assert!(!sim.effects().is_empty(), "a step reported nothing");
+        sim.advance(Some(Command::ToggleOrganelles));
+        assert!(
+            sim.effects().is_empty(),
+            "opening a panel changes nothing and should report nothing"
+        );
+    }
+
+    #[test]
+    fn what_happens_in_the_dark_is_marked_as_such() {
+        // Twelve gates queue a wave every fifty turns, almost always out in the
+        // dark. They are still reported — a frontend may want to say something
+        // about them — but nothing may draw them onto cells you have not seen.
+        let mut sim = sandbox(8);
+        let nucleus = sim.add_actor(Kind::Nucleus, Coord::new(2, 2));
+        sim.update_player_fov();
+        sim.effects.clear();
+        sim.effect_at(EffectKind::Wave, sim.actors[nucleus].pos);
+        sim.effect_at(EffectKind::Wave, Coord::new(17, 17));
+        assert!(sim.effects()[0].in_sight, "its own cell is always lit");
+        assert!(!sim.effects()[1].in_sight, "the far corner is not");
+    }
+
+    #[test]
+    fn the_effect_list_is_bounded() {
+        // A hundred-cell amoeba flowing one cell reports every organelle that
+        // shuffled, and a late-game turn has waves in it besides. The cap is
+        // the only thing standing between that and an unbounded list.
+        let mut sim = sandbox(7);
+        for i in 0..(MAX_EFFECTS + 50) {
+            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+            let at = Coord::new(i as i32 % 20, i as i32 / 20);
+            sim.effect_at(EffectKind::Flow, at);
+        }
+        assert_eq!(sim.effects().len(), MAX_EFFECTS);
+    }
+
+    #[test]
+    fn a_real_turn_never_reaches_the_cap() {
+        // If it did, the backstop would be silently deciding what the player
+        // gets to see. The biggest turn this can produce is the whole mass
+        // flowing at once with every human on the map moving too.
+        let mut sim = playing(15);
+        let mut script = Rng::with_seed(4);
+        let mut worst = 0;
+        for _ in 0..300 {
+            sim.advance(Some(scripted_command(&mut script)));
+            worst = worst.max(sim.effects().len());
+            if sim.phase() != Phase::Playing {
+                break;
+            }
+        }
+        assert!(worst > 0, "nothing was reported at all");
+        assert!(worst < MAX_EFFECTS / 2, "a real turn reported {worst}");
     }
 
     #[test]

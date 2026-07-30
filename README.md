@@ -27,6 +27,13 @@ highlighted slime shows which tiles will be dragged. Enemies sealed in with no
 walkable escape are engulfed and digested. Crafting materials upgrade the
 organelles (or the nucleus you swap with) next to them.
 
+Every interaction is drawn where it happens, so you can watch a turn instead of
+reconstructing it from the log: a militia's blow swings at the organelle it
+hits, a nucleus dodging into a neighbour leaves an arrow behind it, a catalyst
+sparks across to whichever cytoplasm was spent growing it. A turn spends at
+most about two thirds of a second showing itself however much happened in it,
+and pressing anything cuts it short — so nothing ever waits on an animation.
+
 ### Controls
 
 | Key | Action |
@@ -37,9 +44,17 @@ organelles (or the nucleus you swap with) next to them.
 | `Z` | Organelle browser |
 | `X` | Examine mode |
 | `Q` / `E` | Page the sidebar |
+| `S` or `F2` | Settings |
 | `F1` | Help |
 | `M` | Mute |
 | `R` | Restart (after the run ends) |
+
+### Settings
+
+`S` opens a panel over whatever is on screen. It holds the message log
+(hidden gives its rows to the map), the animations, how fast they run — *slow*
+for a first run, *fast* once you know what a maw does — and the sound. Arrows
+choose a row, enter or left/right changes it, `S` or `Esc` closes.
 
 Difficulty (Normal / Easy / GJ) is chosen on the title screen — the original's
 `--easy` and `--gj` command-line flags, made playable in a browser.

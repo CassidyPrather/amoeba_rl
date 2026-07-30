@@ -16,6 +16,7 @@
 use std::collections::VecDeque;
 
 use super::actors::{self, Actor, ActorId, Extra, Kind, Reticle};
+use super::effect::EffectKind;
 use super::grid::{Coord, rand_inclusive, rand_index};
 use super::{Cue, Sim};
 
@@ -250,6 +251,7 @@ impl Sim {
             self.messages.add(&format!(
                 "The {name} contemplates the irrationality of its existence."
             ));
+            self.effect_at(EffectKind::Refused, from);
             return;
         }
         let step = paths[pick][1];
@@ -445,18 +447,21 @@ impl Sim {
         let direction = sights - from;
         let mut bullet = sights;
         let mut travelled = 0;
+        let mut last = from;
         while self.grid.in_bounds(bullet) && !self.is_wall(bullet) && travelled < ranged.range {
             travelled += 1;
             self.reticles.push(Reticle {
                 pos: bullet,
                 owner: id,
             });
+            last = bullet;
             bullet = bullet + direction;
         }
         if let Extra::Ranged(state) = &mut self.actors[id].extra {
             state.direction = direction;
             state.firing -= 1;
         }
+        self.effect(EffectKind::Aim, from, last);
         self.cue(Cue::Aim);
     }
 
@@ -467,6 +472,7 @@ impl Sim {
     /// first, and whatever it retreated into takes the shot instead.
     fn fire(&mut self, id: ActorId) {
         let name = self.actors[id].name;
+        let from = self.actors[id].pos;
         if let Extra::Ranged(state) = &mut self.actors[id].extra {
             state.firing = state.firing_time;
         }
@@ -476,6 +482,9 @@ impl Sim {
             .filter(|r| r.owner == id)
             .map(|r| r.pos)
             .collect();
+        // The bullet is drawn before anything it hits comes apart, so the shot
+        // reads as the cause of the losses reported after it.
+        self.effect(EffectKind::Shot, from, line.last().copied().unwrap_or(from));
         let mut hits = 0;
         for cell in line {
             let Some(hit) = self.actor_at(cell) else {
@@ -545,6 +554,7 @@ impl Sim {
             return;
         };
         self.add_actor(baby, door);
+        self.effect(EffectKind::Produce, pos, door);
     }
 
     /// Fill the queue with one wave's worth of humans.
@@ -574,11 +584,13 @@ impl Sim {
             queued.push(Kind::Caravan);
         }
         let rate = self.rules.spawn_rate;
+        let pos = self.actors[id].pos;
         if let Extra::City(state) = &mut self.actors[id].extra {
             state.queue.extend(queued);
             state.wave_number += 1;
             state.turns_to_next_wave += rate;
         }
+        self.effect_at(EffectKind::Wave, pos);
         self.cue(Cue::WaveSpawned);
     }
 

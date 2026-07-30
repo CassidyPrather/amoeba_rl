@@ -35,10 +35,15 @@ const WIDE_HINT_COLS: i32 = 60;
 /// `audio` is the sound half asking for a press or admitting it is muted. It
 /// shares the key-hint row and yields to it, because the hints are what the
 /// player is actually looking for down there.
-pub fn info(term: &Term, view: &RenderView, cols: i32, rows: i32, audio: Option<&str>) {
+///
+/// `log` is the player's choice about the running account of what happened.
+/// Only the account goes: examine mode and the organelle browser still describe
+/// what they are pointing at, because those answer a question the player just
+/// asked rather than narrating one they did not.
+pub fn info(term: &Term, view: &RenderView, cols: i32, rows: i32, audio: Option<&str>, log: bool) {
     let content = (rows - 2).max(1);
     match view.mode {
-        UiMode::Messages => {
+        UiMode::Messages if log => {
             // Filled upwards from the last row, so the newest line is always
             // in the same place however few lines there are to show.
             let shown = usize::try_from(content).unwrap_or(0);
@@ -51,6 +56,7 @@ pub fn info(term: &Term, view: &RenderView, cols: i32, rows: i32, audio: Option<
                 term.text(1, content - offset, &line, palette::TEXT_HEADING);
             }
         }
+        UiMode::Messages => {}
         UiMode::Organelles => {
             if let Some(entry) = selected(view) {
                 describe(
@@ -68,8 +74,10 @@ pub fn info(term: &Term, view: &RenderView, cols: i32, rows: i32, audio: Option<
             None => term.text(1, 1, "You see nothing there.", palette::FLOOR_FOV),
         },
     }
-    let hints = hint(view, cols);
-    term.text(1, rows - 1, hints, palette::TEXT_BODY);
+    let hints = hint(view.mode, view.phase, cols);
+    // A phone's viewport can be narrower than any useful line of hints, so the
+    // row is cut to the panel rather than allowed to run off the end of it.
+    term.text(1, rows - 1, &truncate(hints, cols - 2), palette::TEXT_BODY);
     if let Some(note) = audio
         && let Some(col) = fits_after(hints, note, cols)
     {
@@ -282,18 +290,25 @@ fn fill_cols(fraction: f32) -> i32 {
 }
 
 /// The key hints for whatever mode is open, abbreviated on a narrow panel.
-const fn hint(view: &RenderView, cols: i32) -> &'static str {
+///
+/// Every one of these has to fit the map it is drawn under, and the default
+/// difficulty's map is 48 columns wide — so the narrow tier, not the wide one,
+/// is what most players read. `S settings` earns its place in all of them: it is
+/// the only way to find the panel that turns any of this off.
+const fn hint(mode: UiMode, phase: Phase, cols: i32) -> &'static str {
     let wide = cols >= WIDE_HINT_COLS;
-    if matches!(view.phase, Phase::GameOver { .. }) {
-        return "R plays again";
+    if matches!(phase, Phase::GameOver { .. }) {
+        return "R plays again   S settings";
     }
-    match (view.mode, wide) {
-        (UiMode::Messages, true) => "arrows move   space wait   X examine   Z organelles   F1 help",
-        (UiMode::Messages, false) => "move  space wait  X examine  Z list",
-        (UiMode::Organelles, true) => "arrows select   Q and E page   X examine   Z or Esc back",
-        (UiMode::Organelles, false) => "select  Q/E page  X examine  Esc back",
-        (UiMode::Examine, true) => "arrows move the cursor   X or Esc back   Z organelles",
-        (UiMode::Examine, false) => "move cursor  X or Esc back",
+    match (mode, wide) {
+        (UiMode::Messages, true) => "arrows move  space wait  X examine  Z list  S settings",
+        (UiMode::Messages, false) => "move  wait  X examine  Z list  S settings",
+        (UiMode::Organelles, true) => {
+            "arrows select  Q and E page  X examine  Esc back  S settings"
+        }
+        (UiMode::Organelles, false) => "select  Q/E page  Esc back  S settings",
+        (UiMode::Examine, true) => "arrows move the cursor  X or Esc back  Z list  S settings",
+        (UiMode::Examine, false) => "move cursor  X or Esc back  S settings",
     }
 }
 
@@ -465,6 +480,45 @@ mod tests {
         // A note that ends exactly where the hints begin is still a collision.
         assert_eq!(fits_after("abc", "xy", 8), None);
         assert_eq!(fits_after("abc", "xy", 9), Some(6));
+    }
+
+    /// Every mode a hint is written for.
+    const MODES: [UiMode; 3] = [UiMode::Messages, UiMode::Organelles, UiMode::Examine];
+
+    #[test]
+    fn every_hint_fits_the_panel_it_is_drawn_under() {
+        // Nothing here can be checked by eye in CI, so check the arithmetic:
+        // the panel is as wide as the map, and the default difficulty's map is
+        // 48 columns — the wide tier only gets more room on GJ's 64.
+        for (cols, budget) in [(48, 46_usize), (64, 62)] {
+            for mode in MODES {
+                for phase in [Phase::Playing, Phase::GameOver { won: true }] {
+                    let line = hint(mode, phase, cols);
+                    assert!(
+                        line.chars().count() <= budget,
+                        "{cols} cols, {mode:?}: {line:?} is {} characters",
+                        line.chars().count()
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_hint_points_at_the_settings_panel() {
+        // It is the only way to find the panel, and the panel is the only way
+        // to turn the log or the animations off.
+        for cols in [30, 48, 64] {
+            for mode in MODES {
+                for phase in [Phase::Playing, Phase::GameOver { won: false }] {
+                    let line = hint(mode, phase, cols);
+                    assert!(
+                        line.contains("S settings"),
+                        "{cols} cols, {mode:?}: {line:?}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

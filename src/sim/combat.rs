@@ -13,6 +13,8 @@
 //! standing beside a phase membrane is never rescued by it.
 
 use super::actors::{self, ActorId, Kind};
+use super::effect::EffectKind;
+use super::grid::Coord;
 use super::{Cue, Sim};
 
 /// How far a force field reaches when the attacker is not armoured.
@@ -33,7 +35,12 @@ impl Sim {
             };
             let (monster_name, monster_armor) = (attacker.name, attacker.armor);
             let monster_is_npc = actors::is_npc(attacker.kind);
+            let (monster_pos, victim_pos) = (attacker.pos, target.pos);
             let (victim_name, victim_kind) = (target.name, target.kind);
+            // The blow itself, before any of the four rules below decides what
+            // it did. A retreat or a save reports itself after this, so the two
+            // are drawn in the order they happened.
+            self.effect(EffectKind::Strike, monster_pos, victim_pos);
 
             if actors::is_nucleus_family(victim_kind) {
                 if self.check_and_save(monster, victim) {
@@ -79,6 +86,7 @@ impl Sim {
                 self.messages
                     .add(&format!("A {victim_name} is destroyed by a {monster_name}"));
                 self.remove_actor(victim);
+                self.effect_at(EffectKind::Destroyed, victim_pos);
                 return;
             }
         }
@@ -103,24 +111,29 @@ impl Sim {
         let (monster_name, monster_kind) = (attacker.name, attacker.kind);
         let (victim_name, victim_pos) = (target.name, target.pos);
 
-        let is_force_field = |sim: &Self, c| {
-            sim.actor_at(c)
+        let is_force_field = |sim: &Self, c: &Coord| {
+            sim.actor_at(*c)
                 .and_then(|a| sim.actors.get(a))
                 .is_some_and(|a| a.kind == Kind::ForceField)
         };
-        let long_reach = !actors::is_tank_family(monster_kind)
-            && self
-                .grid
+        // Which field saved them, rather than merely whether one did: the cell
+        // is what lets a frontend point at the thing that just earned its keep.
+        let long_reach = if actors::is_tank_family(monster_kind) {
+            None
+        } else {
+            self.grid
                 .cells_in_diamond(victim_pos, LONG_RANGE_FF_DIST)
-                .any(|c| is_force_field(self, c));
+                .find(|c| is_force_field(self, c))
+        };
         let beside = self
             .grid
             .adjacent(victim_pos)
-            .any(|c| is_force_field(self, c));
-        if long_reach || beside {
+            .find(|c| is_force_field(self, c));
+        if let Some(field) = beside.or(long_reach) {
             self.messages.add(&format!(
                 "An energy mantle force protects the {victim_name} from the {monster_name}"
             ));
+            self.effect(EffectKind::Shielded, field, victim_pos);
             return true;
         }
 
@@ -138,10 +151,12 @@ impl Sim {
             return false;
         };
         let savior_name = self.actors[savior].name;
+        let savior_pos = self.actors[savior].pos;
         self.swap_actors(savior, victim);
         self.messages.add(&format!(
             "The {savior_name} rematerializes and protects the {victim_name} from the {monster_name}!"
         ));
+        self.effect(EffectKind::Shielded, savior_pos, victim_pos);
         if actors::is_npc(monster_kind) {
             self.messages.add(&format!(
                 "{monster_name} is killed by the rematerializing phase membrane!!"
@@ -163,6 +178,7 @@ impl Sim {
         let (kind, pos) = (actor.kind, actor.pos);
         let dropped = self.pick(kind.drops_on_die());
         self.remove_actor(id);
+        self.effect_at(EffectKind::Slain, pos);
         if let Some(item) = dropped {
             self.become_item(item, pos);
         }
@@ -172,7 +188,6 @@ impl Sim {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::sim::grid::Coord;
     use crate::sim::tests::sandbox;
 
     /// A monster of `attacker` beside a victim of `victim`, three cells clear
@@ -362,6 +377,79 @@ mod tests {
             assert_eq!(chosen, clear, "seed {seed}: it hid behind the clear cell");
             assert_ne!(chosen, painted);
         }
+    }
+
+    #[test]
+    fn a_blow_that_forces_a_retreat_is_reported_in_the_order_it_happened() {
+        // The scenario a new player cannot read from the log alone: a militia
+        // hits a nucleus, the nucleus dives into the cytoplasm behind it, and
+        // the cytoplasm takes the blow instead. Four things happened, and they
+        // have to come out in the order they happened or the animation would
+        // show the nucleus arriving before it was ever hit.
+        let mut sim = sandbox(30);
+        let monster = sim.add_actor(Kind::Militia, Coord::new(4, 9));
+        let nucleus = sim.add_actor(Kind::Nucleus, Coord::new(5, 9));
+        sim.add_actor(Kind::Cytoplasm, Coord::new(5, 10));
+        sim.add_actor(Kind::Nucleus, Coord::new(3, 3));
+        sim.effects.clear();
+
+        sim.attack(monster, nucleus);
+
+        let script: Vec<(EffectKind, Coord, Coord)> = sim
+            .effects()
+            .iter()
+            .map(|e| (e.kind, e.from, e.to))
+            .collect();
+        assert_eq!(
+            script,
+            vec![
+                // The militia swings at the nucleus...
+                (EffectKind::Strike, Coord::new(4, 9), Coord::new(5, 9)),
+                // ...which trades places with the cytoplasm below it...
+                (EffectKind::Retreat, Coord::new(5, 9), Coord::new(5, 10)),
+                // ...and the blow lands on whatever is standing there now.
+                (EffectKind::Strike, Coord::new(4, 9), Coord::new(5, 9)),
+                (EffectKind::Destroyed, Coord::new(5, 9), Coord::new(5, 9)),
+            ]
+        );
+        assert_eq!(sim.actors[nucleus].pos, Coord::new(5, 10));
+    }
+
+    #[test]
+    fn a_save_points_at_whatever_did_the_saving() {
+        // "An energy mantle force protects..." names no cell, so the effect has
+        // to: the field two cells away is the one that earned the credit.
+        let mut sim = sandbox(31);
+        let monster = sim.add_actor(Kind::Militia, Coord::new(4, 9));
+        let victim = sim.add_actor(Kind::Cytoplasm, Coord::new(5, 9));
+        sim.add_actor(Kind::ForceField, Coord::new(7, 9));
+        sim.add_actor(Kind::Nucleus, Coord::new(3, 3));
+        sim.effects.clear();
+
+        sim.attack(monster, victim);
+
+        assert!(sim.actors.contains(victim));
+        let saved = sim
+            .effects()
+            .iter()
+            .find(|e| e.kind == EffectKind::Shielded)
+            .expect("the save was reported");
+        assert_eq!(saved.from, Coord::new(7, 9), "the field that reached in");
+        assert_eq!(saved.to, Coord::new(5, 9), "and who it covered");
+    }
+
+    #[test]
+    fn a_human_dying_on_your_proteins_is_reported_where_it_stood() {
+        let (mut sim, monster, target) = duel(32, Kind::Militia, Kind::Membrane);
+        sim.effects.clear();
+        sim.attack(monster, target);
+        assert!(
+            sim.effects()
+                .iter()
+                .any(|e| e.kind == EffectKind::Slain && e.to == Coord::new(9, 9)),
+            "the militia's death was not shown: {:?}",
+            sim.effects()
+        );
     }
 
     #[test]

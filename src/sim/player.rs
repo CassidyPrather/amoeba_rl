@@ -17,6 +17,7 @@
 //! the highlight readable.
 
 use super::actors::{self, Extra, ItemKind, Kind};
+use super::effect::EffectKind;
 use super::grid::{Coord, Dir, rand_index};
 use super::{ActorId, Cue, ItemId, Phase, Sim};
 
@@ -265,12 +266,14 @@ impl Sim {
             self.actors[mover].delay = 8;
         }
         let mover_name = self.actors[mover].name;
+        let mover_pos = self.actors[mover].pos;
         let mut success = false;
         if let Some(target) = self.actor_at(dest) {
             let target_kind = self.actors[target].kind;
             let target_name = self.actors[target].name;
             if self.actors[target].slime > 0 {
                 self.swap_actors(mover, target);
+                self.effect(EffectKind::Swap, mover_pos, dest);
                 // Spending a material can replace the mover with the thing it
                 // upgraded into, so nothing below may assume it still exists.
                 if actors::is_crafting_material(target_kind) {
@@ -292,6 +295,7 @@ impl Sim {
                     self.messages.add(&format!(
                         "The {target_name} is crushed by the jaws of the {mover_name}!"
                     ));
+                    self.effect(EffectKind::Consume, mover_pos, dest);
                     self.eat_actor(mover, target);
                     self.cue(Cue::Eat);
                     success = true;
@@ -299,6 +303,7 @@ impl Sim {
                     self.messages.add(&format!(
                         "The {target_name} is obliterated by the {mover_name}'s laser beam!"
                     ));
+                    self.effect(EffectKind::Consume, mover_pos, dest);
                     self.eat_actor(mover, target);
                     self.cue(Cue::Eat);
                     success = true;
@@ -306,6 +311,7 @@ impl Sim {
                     self.messages.add(&format!(
                         "The {target_name}'s armor is too strong for the {mover_name}!"
                     ));
+                    self.effect(EffectKind::Refused, mover_pos, dest);
                     self.cue(Cue::Bump);
                 }
             } else if actors::is_city(target_kind) {
@@ -319,11 +325,13 @@ impl Sim {
                     self.messages.add(&format!(
                         "There is not enough mass to destroy the {target_name}! (Have {mass}, need {armor})"
                     ));
+                    self.effect(EffectKind::Refused, mover_pos, dest);
                     self.cue(Cue::Bump);
                 }
             } else if actors::is_eatable(target_kind) {
                 self.messages
                     .add(&format!("The {mover_name} consumes the {target_name}."));
+                self.effect(EffectKind::Consume, mover_pos, dest);
                 self.eat_actor(mover, target);
                 self.cue(Cue::Eat);
                 success = true;
@@ -343,6 +351,7 @@ impl Sim {
             if success {
                 self.cue(Cue::Step);
             } else {
+                self.effect(EffectKind::Refused, mover_pos, dest);
                 self.cue(Cue::Bump);
             }
         }
@@ -455,9 +464,12 @@ impl Sim {
             return false;
         }
         let product = kind.new_organelle();
+        let eater_pos = self.actors[eating].pos;
         if kind == ItemKind::Nutrient {
             self.remove_item(item);
             self.add_actor(product, pos);
+            self.effect(EffectKind::Absorb, pos, pos);
+            self.effect_at(EffectKind::Transform, pos);
             self.cue(Cue::Ingest);
             self.attack_move(eating, pos);
             return true;
@@ -473,6 +485,7 @@ impl Sim {
         let Some(host) = host else {
             self.messages
                 .add(&format!("There is no room to eat the {}.", kind.name()));
+            self.effect(EffectKind::Refused, eater_pos, pos);
             return false;
         };
         let transforms_self = host == eating;
@@ -489,6 +502,10 @@ impl Sim {
             kind.name(),
             product.name()
         ));
+        // The spark travels from the catalyst to the cytoplasm that was spent
+        // growing it, which is the only way to see which cell that was.
+        self.effect(EffectKind::Absorb, pos, where_to);
+        self.effect_at(EffectKind::Transform, where_to);
         self.cue(Cue::Ingest);
         if !transforms_self {
             self.attack_move(eating, pos);
@@ -543,8 +560,9 @@ impl Sim {
             if !self.actors.contains(id) {
                 continue;
             }
-            let name = self.actors[id].name;
+            let (name, pos) = (self.actors[id].name, self.actors[id].pos);
             self.messages.add(&format!("The {name} is engulfed!"));
+            self.effect_at(EffectKind::Engulf, pos);
             self.on_eaten_actor(id);
         }
         self.cue(Cue::Engulf);
@@ -622,6 +640,7 @@ impl Sim {
                 kind.name(),
                 product.name()
             ));
+            self.effect_at(EffectKind::Transform, pos);
         }
         self.cue(Cue::Digest);
     }
@@ -643,6 +662,7 @@ impl Sim {
             && let Some(product) = self.digest_product(kind)
         {
             self.add_actor(product, cell);
+            self.effect(EffectKind::Produce, pos, cell);
             self.set_overfill(id, 0);
         }
         true
@@ -680,10 +700,19 @@ impl Sim {
             self.add_actor(live, pos);
             self.messages
                 .add(&format!("The {} struggles back to its feet!", kind.name()));
+            self.effect_at(EffectKind::Transform, pos);
             return;
         }
         let was_nucleus = actors::is_nucleus_family(kind);
         self.remove_actor(id);
+        self.effect_at(
+            if was_nucleus {
+                EffectKind::NucleusLost
+            } else {
+                EffectKind::Destroyed
+            },
+            pos,
+        );
         // Cytoplasm drops nothing when destroyed; everything else leaves the
         // first thing it was built out of.
         if kind != Kind::Cytoplasm
@@ -707,10 +736,19 @@ impl Sim {
         if let Some(live) = kind.rescues_to() {
             self.remove_actor(id);
             self.add_actor(live, pos);
+            self.effect_at(EffectKind::Transform, pos);
             return;
         }
         let was_nucleus = actors::is_nucleus_family(kind);
         self.remove_actor(id);
+        self.effect_at(
+            if was_nucleus {
+                EffectKind::NucleusLost
+            } else {
+                EffectKind::Destroyed
+            },
+            pos,
+        );
         for component in components {
             self.become_item(component, pos);
         }
@@ -725,11 +763,13 @@ impl Sim {
         let drops = self.nearest_loot_drops(from);
         if let Some(cell) = self.pick(&drops) {
             self.add_item(kind, cell);
+            self.effect(EffectKind::Drop, from, cell);
         } else {
             self.messages.add(&format!(
                 "The {} had nowhere to drop and was crushed!",
                 kind.name()
             ));
+            self.effect_at(EffectKind::Refused, from);
         }
     }
 
@@ -767,7 +807,9 @@ impl Sim {
             &unpainted
         };
         let chosen = self.pick(pool)?;
+        let into = self.actors.get(chosen)?.pos;
         self.swap_actors(nucleus, chosen);
+        self.effect(EffectKind::Retreat, pos, into);
         Some(chosen)
     }
 
@@ -805,6 +847,7 @@ impl Sim {
         self.remove_actor(id);
         // The gate's tile becomes open cavern, and you have already seen it.
         self.grid.set_props(pos, true, true, true);
+        self.effect_at(EffectKind::GateFell, pos);
         self.cue(Cue::CityDestroyed);
         #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
         let remaining = self.cities.len() as i32;
@@ -1065,6 +1108,66 @@ mod tests {
             assert!(sim.item_at(Coord::new(6, 5)).is_none(), "{item:?} lingered");
             assert_eq!(sim.actors[root].pos, Coord::new(6, 5), "{item:?}");
         }
+    }
+
+    #[test]
+    fn absorbing_a_catalyst_points_at_the_cytoplasm_it_spent() {
+        // "The Barbed Wire is absorbed and becomes a Membrane" never says
+        // where, and the cell it grew in can be rings away through the mass.
+        // Without the effect there is nothing to tell a player which of their
+        // cytoplasm they just spent.
+        let mut sim = sandbox(50);
+        let root = sim.add_actor(Kind::Nucleus, Coord::new(5, 5));
+        sim.add_actor(Kind::Cytoplasm, Coord::new(5, 6));
+        sim.add_item(ItemKind::BarbedWire, Coord::new(6, 5));
+        sim.effects.clear();
+
+        assert!(sim.attack_move(root, Coord::new(6, 5)));
+
+        let absorb = sim
+            .effects()
+            .iter()
+            .find(|e| e.kind == EffectKind::Absorb)
+            .expect("the absorption was reported");
+        assert_eq!(absorb.from, Coord::new(6, 5), "the catalyst on the floor");
+        assert_eq!(absorb.to, Coord::new(5, 6), "the cytoplasm it grew inside");
+        assert!(
+            sim.effects()
+                .iter()
+                .any(|e| e.kind == EffectKind::Transform && e.to == Coord::new(5, 6)),
+            "and the cell it left behind"
+        );
+    }
+
+    #[test]
+    fn the_whole_drag_is_reported_cell_by_cell() {
+        // The signature mechanic: one keypress, three organelles move. Every
+        // one of them reports its own step so the flow can be drawn as a flow.
+        let mut sim = sandbox(51);
+        let ids = line(
+            &mut sim,
+            &[Kind::Nucleus, Kind::Cytoplasm, Kind::Cytoplasm],
+            Coord::new(5, 5),
+            Coord::new(1, 0),
+        );
+        sim.effects.clear();
+
+        assert!(sim.attack_move(ids[0], Coord::new(4, 5)));
+
+        let flows: Vec<(Coord, Coord)> = sim
+            .effects()
+            .iter()
+            .filter(|e| e.kind == EffectKind::Flow)
+            .map(|e| (e.from, e.to))
+            .collect();
+        assert_eq!(
+            flows,
+            vec![
+                (Coord::new(5, 5), Coord::new(4, 5)),
+                (Coord::new(6, 5), Coord::new(5, 5)),
+                (Coord::new(7, 5), Coord::new(6, 5)),
+            ]
+        );
     }
 
     #[test]

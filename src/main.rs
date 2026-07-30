@@ -4,35 +4,50 @@
 //! resolves the world all the way down to a glyph and two colours per cell
 //! before this file sees it. What is left is genuinely only presentation:
 //! where the panels go ([`render`]), what goes in them ([`hud`]), which pixels
-//! a character is ([`tileset`]), and which key or thumb meant which
-//! [`Command`] ([`input`]).
+//! a character is ([`tileset`]), which key or thumb meant which [`Command`]
+//! ([`input`]), and what the player has asked for ([`settings`]).
 //!
 //! The loop is deliberately plain. The game is turn-based, so there is no
 //! timestep and nothing to interpolate: read the world, draw it, hand the sim
-//! at most one command, repeat. The only clock anywhere is the animation
-//! counter, which ticks four times a second outside the sim and is passed in,
-//! keeping [`Sim::view`] the pure function of world and frame that it claims
-//! to be.
+//! at most one command, repeat. No clock reaches the sim — the blink counter
+//! below is passed in as an argument, keeping [`Sim::view`] the pure function
+//! of world and frame that it claims to be.
 //!
-//! Sound is the frontend's second half and works the same way: the sim's
-//! [`Cue`](amoeba_rl::sim::Cue)s become noise over in [`audio`], which is the
-//! only other place allowed to read a clock.
+//! The sim reports what happened twice, and the frontend's two other halves
+//! each take one of those reports. [`audio`] turns
+//! [`Cue`](amoeba_rl::sim::Cue)s — a deduplicated set — into noise, and
+//! [`anim`] turns [`Effect`](amoeba_rl::sim::effect::Effect)s — the same news
+//! in order and with cells attached — into overlays on the map. Those two and
+//! the frame clock are the only places allowed to read a wall clock.
+//!
+//! ## Holding a command back
+//!
+//! An animation is the one thing in here that takes time, so it is the one
+//! thing that can get between a keypress and a turn. The rule is that it never
+//! does: while a turn is showing itself the sim is fed nothing, but any command
+//! asked for in the meantime *cuts the animation short* and is kept in
+//! `queued` for the very next frame. An idle player watches the whole thing; a
+//! player in a hurry loses a frame and no keypress.
 
+mod anim;
 mod audio;
 mod hud;
 mod input;
 mod render;
+mod settings;
 mod tileset;
 
 use macroquad::time::{get_frame_time, get_time};
 use macroquad::window::{Conf, next_frame, screen_height, screen_width};
 
 use amoeba_rl::sim::grid::Coord;
-use amoeba_rl::sim::{Difficulty, Phase, RenderView, Sim};
+use amoeba_rl::sim::{Command, Difficulty, Phase, RenderView, Sim};
 
+use anim::Anim;
 use audio::Audio;
 use input::{Controls, Input};
-use render::Layout;
+use render::{Frontend, Layout};
+use settings::Settings;
 use tileset::Tileset;
 
 /// Seconds per animation step, as the original's `ANIMATION_RATE` was.
@@ -55,10 +70,21 @@ async fn main() {
     let mut sim = Sim::new(input::fresh_seed(), Difficulty::Normal);
     let mut input = Input::new();
     let mut audio = Audio::load().await;
+    let mut settings = Settings::new();
+    let mut anim = Anim::new();
+    // The one command held back while a turn is showing itself.
+    let mut queued: Option<Command> = None;
 
     loop {
+        let dt = get_frame_time();
         let view = sim.view(anim_frame());
-        let layout = Layout::fit(screen_width(), screen_height(), view.width, view.height);
+        let layout = Layout::fit(
+            screen_width(),
+            screen_height(),
+            view.width,
+            view.height,
+            settings.log,
+        );
         let camera = if layout.scrolls {
             render::camera_origin(
                 focus(&view),
@@ -72,28 +98,54 @@ async fn main() {
         };
         // The pad steers the amoeba, so it only belongs on screen while there
         // is an amoeba: the title and post-mortem screens have buttons of
-        // their own.
+        // their own. The settings button rides along with it, because a screen
+        // that needs a thumb pad needs a way into the settings too.
         let controls = Controls::fit(
             screen_width(),
             screen_height(),
             input.wants_controls(layout.mode) && view.phase == Phase::Playing,
         );
 
-        let frame = input.gather(&view, &layout, camera, &controls, get_frame_time());
+        let frame = input.gather(&view, &layout, camera, &controls, &mut settings, dt);
         render::draw(
             &font,
             &view,
             &layout,
             camera,
-            &controls,
-            input.page(),
-            audio.hint(),
+            &Frontend {
+                controls: &controls,
+                page: input.page(),
+                audio: audio.hint(),
+                sound_on: !audio.muted(),
+                settings: &settings,
+                anim: &anim,
+            },
         );
 
-        sim.advance(frame.command);
-        // Cues live for exactly this one `advance`, so the audio half reads
-        // them here, alongside the mute toggle from the same frame.
+        let command = if anim.playing() {
+            // Somebody in a hurry is somebody who has stopped watching, so a
+            // command arriving now ends the show and waits one frame. A quiet
+            // frame leaves whatever was already waiting alone.
+            if frame.command.is_some() {
+                anim.skip();
+                queued = frame.command;
+            }
+            None
+        } else {
+            // The newest ask wins, and the older one is dropped rather than
+            // kept: it would arrive after the thing that superseded it.
+            let waiting = queued.take();
+            frame.command.or(waiting)
+        };
+        anim.tick(dt);
+
+        sim.advance(command);
+        // Both reports live for exactly this one `advance`, so both halves read
+        // them here — the cues alongside the mute toggle from the same frame,
+        // and the effects for however long they take to draw. A frame that
+        // resolved nothing hands over two empty lists and disturbs neither.
         audio.update(sim.cues(), &frame);
+        anim.load(sim.effects(), &settings);
 
         next_frame().await;
     }

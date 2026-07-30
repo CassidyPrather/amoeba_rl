@@ -24,7 +24,8 @@ use amoeba_rl::sim::grid::{Coord, Dir};
 use amoeba_rl::sim::{Command, Difficulty, Phase, RenderView, UiMode};
 
 use crate::hud;
-use crate::render::{Layout, Mode, post_mortem_panel, title_buttons};
+use crate::render::{Layout, Mode, post_mortem_panel, settings_panel, title_buttons};
+use crate::settings::{ROWS, Settings, Toggled};
 
 /// How long a held direction waits before it starts repeating.
 const REPEAT_DELAY: f32 = 0.35;
@@ -38,7 +39,10 @@ const REPEAT_INTERVAL: f32 = 0.09;
 const MAX_DT: f32 = 0.1;
 
 /// The smallest an on-screen control is allowed to get, in pixels. Thumbs.
-const MIN_TARGET: f32 = 48.0;
+///
+/// Shared with [`render`](crate::render), whose settings panel is a column of
+/// hit targets and answers to the same rule.
+pub const MIN_TARGET: f32 = 48.0;
 
 /// A wall-clock seed, for the runs the sim is not allowed to seed itself.
 #[must_use]
@@ -61,19 +65,25 @@ pub enum Action {
     CycleNext,
     /// Print the controls into the log.
     Help,
+    /// Open or close the settings panel.
+    Settings,
 }
 
 impl Action {
-    /// The command this button stands for.
+    /// The command this button stands for, if the sim is the one being asked.
+    ///
+    /// The settings panel is a frontend overlay, so its button is the one that
+    /// answers `None`: nothing about it reaches the sim.
     #[must_use]
-    pub const fn command(self) -> Command {
+    pub const fn command(self) -> Option<Command> {
         match self {
-            Self::Wait => Command::Wait,
-            Self::Examine => Command::ToggleExamine,
-            Self::Organelles => Command::ToggleOrganelles,
-            Self::CyclePrev => Command::CycleNucleus { forward: false },
-            Self::CycleNext => Command::CycleNucleus { forward: true },
-            Self::Help => Command::Help,
+            Self::Wait => Some(Command::Wait),
+            Self::Examine => Some(Command::ToggleExamine),
+            Self::Organelles => Some(Command::ToggleOrganelles),
+            Self::CyclePrev => Some(Command::CycleNucleus { forward: false }),
+            Self::CycleNext => Some(Command::CycleNucleus { forward: true }),
+            Self::Help => Some(Command::Help),
+            Self::Settings => None,
         }
     }
 }
@@ -101,6 +111,10 @@ pub struct Controls {
     pub dpad: Rect,
     /// The action buttons.
     pub buttons: [(Action, Rect); 6],
+    /// The way into the settings panel on a screen with no keyboard. It sits on
+    /// its own in the far corner rather than in the button cluster, because a
+    /// fourth column of buttons does not fit a 320 px phone beside the pad.
+    pub settings: Rect,
 }
 
 impl Controls {
@@ -136,6 +150,7 @@ impl Controls {
                     ),
                 )
             }),
+            settings: Rect::new(screen.x - margin - unit, margin, unit, unit),
         }
     }
 
@@ -159,6 +174,9 @@ impl Controls {
     pub fn action_at(&self, point: Vec2) -> Option<Action> {
         if !self.visible {
             return None;
+        }
+        if self.settings.contains(point) {
+            return Some(Action::Settings);
         }
         self.buttons
             .iter()
@@ -292,18 +310,45 @@ impl Input {
     }
 
     /// Collapse this frame's input into at most one command.
+    ///
+    /// `settings` is the player's own state rather than the world's, so it is
+    /// changed in place here and never becomes a [`Command`]: the sim resolves
+    /// the same turn whatever the panel says.
     pub fn gather(
         &mut self,
         view: &RenderView,
         layout: &Layout,
         camera: Coord,
         controls: &Controls,
+        settings: &mut Settings,
         dt: f32,
     ) -> Frame {
         let fingers = touches();
         self.touched |= !fingers.is_empty();
         let pointers = pointers(&fingers, &self.prev_touches);
         self.prev_touches = live_touches(&fingers);
+        let mut mute = is_key_pressed(KeyCode::M);
+
+        // The panel is an overlay over every screen, so it is answered before
+        // the phase is: while it is open it eats every key and every tap, and
+        // the sim hears nothing at all.
+        if settings.is_open() {
+            self.repeat = Repeat::default();
+            self.pending = None;
+            mute |= menu(settings, controls, &pointers) == Some(Toggled::Sound);
+            return Frame {
+                command: None,
+                mute,
+            };
+        }
+        if opens_settings(controls, &pointers) {
+            settings.toggle_panel();
+            return Frame {
+                command: None,
+                mute,
+            };
+        }
+
         Frame {
             command: match view.phase {
                 Phase::Playing => self.playing(view, layout, camera, controls, &pointers, dt),
@@ -320,10 +365,7 @@ impl Input {
                     }
                 }
             },
-            // AUDIO STAGE: `M` is reserved for the mute toggle. Nothing reads
-            // this yet; when `audio.rs` lands it takes this flag and the cues
-            // from the same frame.
-            mute: is_key_pressed(KeyCode::M),
+            mute,
         }
     }
 
@@ -359,7 +401,9 @@ impl Input {
             .find_map(|pointer| controls.action_at(pointer.at))
         {
             self.pending = None;
-            return Some(action.command());
+            // `Settings` was answered before the phase was, so every action
+            // that reaches here has a command behind it.
+            return action.command();
         }
         // A pad press normally moves via the repeat machine the moment it is
         // seen held; if that emitted this frame we returned above, so this
@@ -473,6 +517,69 @@ fn key_command(mode: UiMode) -> Option<Command> {
     }
     if is_key_pressed(KeyCode::E) {
         return Some(Command::PageOrganelles(1));
+    }
+    None
+}
+
+/// Whether the player asked for the settings panel. Works on every screen, and
+/// on a phone comes from the one button that sits outside the pad.
+fn opens_settings(controls: &Controls, pointers: &[Pointer]) -> bool {
+    is_key_pressed(KeyCode::S)
+        || is_key_pressed(KeyCode::F2)
+        || pointers
+            .iter()
+            .filter(|pointer| pointer.pressed)
+            .any(|pointer| controls.action_at(pointer.at) == Some(Action::Settings))
+}
+
+/// A frame of the settings panel: move the selection, change a row, or leave.
+///
+/// Returns what the row that changed wants doing about it, so the one setting
+/// that lives elsewhere — mute — can be handed back to the audio half.
+///
+/// There is no auto-repeat in here on purpose: four rows do not need one, and
+/// the arrow keys are the only thing a held key could run away with. Left and
+/// right both cycle forwards, which only shows on the three-way speed row.
+fn menu(settings: &mut Settings, controls: &Controls, pointers: &[Pointer]) -> Option<Toggled> {
+    if is_key_pressed(KeyCode::Escape) || is_key_pressed(KeyCode::S) || is_key_pressed(KeyCode::F2)
+    {
+        settings.close();
+        return None;
+    }
+    if is_key_pressed(KeyCode::Up) {
+        settings.scroll(-1);
+    }
+    if is_key_pressed(KeyCode::Down) {
+        settings.scroll(1);
+    }
+    let geometry = settings_panel(controls.screen.x, controls.screen.y);
+    let tapped = |rect: Rect| {
+        pointers
+            .iter()
+            .any(|pointer| pointer.pressed && rect.contains(pointer.at))
+    };
+    if tapped(geometry.close) {
+        settings.close();
+        return None;
+    }
+    if let Some(row) = ROWS
+        .iter()
+        .zip(geometry.rows)
+        .find_map(|(row, rect)| tapped(rect).then_some(*row))
+    {
+        return Some(settings.toggle(row));
+    }
+    if [
+        KeyCode::Enter,
+        KeyCode::KpEnter,
+        KeyCode::Space,
+        KeyCode::Left,
+        KeyCode::Right,
+    ]
+    .into_iter()
+    .any(is_key_pressed)
+    {
+        return Some(settings.toggle_selected());
     }
     None
 }
@@ -772,16 +879,47 @@ mod tests {
 
     #[test]
     fn every_action_maps_to_a_command() {
-        use Action::{CycleNext, CyclePrev, Examine, Help, Organelles, Wait};
-        assert_eq!(Wait.command(), Command::Wait);
-        assert_eq!(Examine.command(), Command::ToggleExamine);
-        assert_eq!(Organelles.command(), Command::ToggleOrganelles);
+        use Action::{CycleNext, CyclePrev, Examine, Help, Organelles, Settings, Wait};
+        assert_eq!(Wait.command(), Some(Command::Wait));
+        assert_eq!(Examine.command(), Some(Command::ToggleExamine));
+        assert_eq!(Organelles.command(), Some(Command::ToggleOrganelles));
         assert_eq!(
             CyclePrev.command(),
-            Command::CycleNucleus { forward: false }
+            Some(Command::CycleNucleus { forward: false })
         );
-        assert_eq!(CycleNext.command(), Command::CycleNucleus { forward: true });
-        assert_eq!(Help.command(), Command::Help);
+        assert_eq!(
+            CycleNext.command(),
+            Some(Command::CycleNucleus { forward: true })
+        );
+        assert_eq!(Help.command(), Some(Command::Help));
+        // Except the settings panel, which the sim is not told about at all.
+        assert_eq!(Settings.command(), None);
+    }
+
+    #[test]
+    fn the_settings_button_is_reachable_and_out_of_everything_else_way() {
+        for (width, height) in [
+            (320.0, 568.0),
+            (390.0, 844.0),
+            (844.0, 390.0),
+            (1440.0, 900.0),
+        ] {
+            let controls = Controls::fit(width, height, true);
+            let gear = controls.settings;
+            assert!(gear.w >= MIN_TARGET && gear.h >= MIN_TARGET);
+            assert_eq!(
+                controls.action_at(gear.center()),
+                Some(Action::Settings),
+                "{width}x{height}"
+            );
+            assert!(controls.covers(gear.center()), "it swallowed a map tap");
+            assert!(gear.right() <= width && gear.bottom() <= height);
+            // It lives in the far corner, clear of the pad and the buttons.
+            assert!(!controls.dpad.overlaps(&gear));
+            for (_, rect) in controls.buttons {
+                assert!(!rect.overlaps(&gear), "{width}x{height}: it hit a button");
+            }
+        }
     }
 
     #[test]

@@ -281,6 +281,14 @@ impl Audio {
         !self.awake
     }
 
+    /// Whether sound is off. This is the only copy of that fact — the settings
+    /// panel shows it and asks for it to be flipped rather than keeping a
+    /// second one that could disagree.
+    #[must_use]
+    pub const fn muted(&self) -> bool {
+        self.muted
+    }
+
     /// HUD text for the current state.
     #[must_use]
     pub const fn status(&self) -> &'static str {

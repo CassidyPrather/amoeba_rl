@@ -22,8 +22,10 @@ use amoeba_rl::sim::grid::Coord;
 use amoeba_rl::sim::view::CellView;
 use amoeba_rl::sim::{Phase, RenderView, UiMode};
 
+use crate::anim::Anim;
 use crate::hud;
-use crate::input::{Action, Controls};
+use crate::input::{Action, Controls, MIN_TARGET};
+use crate::settings::{ROWS, Settings};
 use crate::tileset::Tileset;
 
 /// Cells the organelle sidebar is wide, as the original's player console was.
@@ -35,6 +37,11 @@ pub const INFO_ROWS: i32 = 11;
 
 /// Cells the message bar keeps once it has collapsed: four log lines and the
 /// hints.
+///
+/// Also the height it keeps when the player has turned the log off: the panel
+/// still owes examine mode somewhere to describe what the cursor is over, and
+/// that is worth more rows than the key hints alone need. What the wide layout
+/// gets out of hiding the log is the other five rows, which go to the map.
 pub const NARROW_INFO_ROWS: i32 = 6;
 
 /// Cell size below which the three-panel layout stops being worth its sidebar.
@@ -105,27 +112,32 @@ impl Layout {
     /// 48×48 normally and 64×48 on GJ. Laying out from those rather than from
     /// the original's fixed 64 means the smaller maps do not pay for columns
     /// they never draw.
+    ///
+    /// `log` is the player's choice about the message bar. Hiding it is a
+    /// layout decision rather than a drawing one — the rows it gives up go to
+    /// the map — so it belongs here and not in [`hud`].
     #[must_use]
-    pub fn fit(screen_w: f32, screen_h: f32, map_w: i32, map_h: i32) -> Self {
+    pub fn fit(screen_w: f32, screen_h: f32, map_w: i32, map_h: i32, log: bool) -> Self {
         // A minimised window or a hidden tab reports zero; the floor keeps
         // every division below finite.
         let width = screen_w.max(1.0);
         let height = screen_h.max(1.0);
         let map_w = map_w.max(1);
         let map_h = map_h.max(1);
+        let info_rows = if log { INFO_ROWS } else { NARROW_INFO_ROWS };
         let wide_cell =
-            snap((width / (map_w + SIDEBAR_COLS) as f32).min(height / (map_h + INFO_ROWS) as f32));
+            snap((width / (map_w + SIDEBAR_COLS) as f32).min(height / (map_h + info_rows) as f32));
         if width / height >= WIDE_MIN_ASPECT && wide_cell >= WIDE_MIN_CELL {
-            Self::wide(width, height, map_w, map_h, wide_cell)
+            Self::wide(width, height, map_w, map_h, wide_cell, info_rows)
         } else {
             Self::narrow(width, height, map_w, map_h)
         }
     }
 
     /// The original's three panels, centred in whatever is left over.
-    fn wide(width: f32, height: f32, map_w: i32, map_h: i32, cell: f32) -> Self {
+    fn wide(width: f32, height: f32, map_w: i32, map_h: i32, cell: f32, info_rows: i32) -> Self {
         let map_px = Vec2::new(map_w as f32 * cell, map_h as f32 * cell);
-        let info_h = INFO_ROWS as f32 * cell;
+        let info_h = info_rows as f32 * cell;
         let total = Vec2::new(
             (SIDEBAR_COLS as f32).mul_add(cell, map_px.x),
             map_px.y + info_h,
@@ -139,14 +151,14 @@ impl Layout {
             rows: map_h,
             scrolls: false,
             info: Rect::new(origin.x, origin.y + map_px.y, map_px.x, info_h),
-            info_rows: INFO_ROWS,
+            info_rows,
             sidebar: Rect::new(
                 origin.x + map_px.x,
                 origin.y,
                 SIDEBAR_COLS as f32 * cell,
                 total.y,
             ),
-            sidebar_rows: map_h + INFO_ROWS,
+            sidebar_rows: map_h + info_rows,
             sidebar_overlay: false,
         }
     }
@@ -364,44 +376,58 @@ impl<'a> Term<'a> {
     }
 }
 
+/// Everything one frame needs that is not the world: the player's choices, the
+/// overlays mid-flight, and whatever the two other halves of the frontend want
+/// said about themselves.
+pub struct Frontend<'a> {
+    /// The on-screen pad and the window it is measured against.
+    pub controls: &'a Controls,
+    /// Which page of the sidebar to draw.
+    pub page: usize,
+    /// What the sound half wants said, which is nothing while it is working.
+    pub audio: Option<&'a str>,
+    /// Whether sound is on, for the settings panel to report.
+    pub sound_on: bool,
+    /// The player's choices.
+    pub settings: &'a Settings,
+    /// The turn currently showing itself.
+    pub anim: &'a Anim,
+}
+
 /// One frame.
-///
-/// `audio` is whatever the sound half wants said about itself, which is
-/// nothing at all while it is working.
-pub fn draw(
-    font: &Tileset,
-    view: &RenderView,
-    layout: &Layout,
-    camera: Coord,
-    controls: &Controls,
-    page: usize,
-    audio: Option<&str>,
-) {
+pub fn draw(font: &Tileset, view: &RenderView, layout: &Layout, camera: Coord, ui: &Frontend) {
     clear_background(VOID);
     if view.phase == Phase::Title {
-        title(font, layout, controls, audio);
+        title(font, layout, ui.controls, ui.audio);
     } else {
-        play(font, view, layout, camera, page, audio);
+        play(font, view, layout, camera, ui);
         if let Phase::GameOver { won } = view.phase {
-            post_mortem(font, view, controls, won);
+            post_mortem(font, view, ui.controls, won);
         }
     }
-    draw_controls(font, controls);
+    draw_controls(font, ui.controls);
+    if ui.settings.is_open() {
+        settings_menu(font, ui);
+    }
 }
 
 /// Map, panels, and whatever the narrow layout owes the player on top.
-fn play(
-    font: &Tileset,
-    view: &RenderView,
-    layout: &Layout,
-    camera: Coord,
-    page: usize,
-    audio: Option<&str>,
-) {
+fn play(font: &Tileset, view: &RenderView, layout: &Layout, camera: Coord, ui: &Frontend) {
+    let (page, audio) = (ui.page, ui.audio);
     let map = Term::new(font, layout.map, layout.cell);
     map.grid(layout.cols, layout.rows, |col, row| {
         view.cell(camera.x + col, camera.y + row)
     });
+    // Over the world and under the panels: an overlay is a note about the map,
+    // so it may cover a cell but never a number.
+    ui.anim.draw(
+        font,
+        layout.map,
+        layout.cell,
+        camera,
+        layout.cols,
+        layout.rows,
+    );
 
     draw_rectangle(
         layout.info.x,
@@ -416,6 +442,7 @@ fn play(
         layout.cols,
         layout.info_rows,
         audio,
+        ui.settings.log,
     );
 
     if layout.mode == Mode::Narrow {
@@ -476,13 +503,178 @@ pub fn post_mortem_panel(screen_w: f32, screen_h: f32) -> (Rect, Rect) {
     (panel, button)
 }
 
+/// Every rectangle the settings panel is made of.
+///
+/// Pure geometry, so hit testing in [`input`](crate::input) and drawing in here
+/// agree by construction rather than by two people keeping two sets of numbers
+/// the same.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct SettingsPanel {
+    /// The frame around the whole thing.
+    pub panel: Rect,
+    /// One hit target per row of [`ROWS`], top to bottom.
+    pub rows: [Rect; ROWS.len()],
+    /// The way out.
+    pub close: Rect,
+}
+
+/// Lay the settings panel out in a window.
+///
+/// Sized from its contents rather than as a fraction of the screen: four rows
+/// no smaller than a thumb, a heading over them, and a line of help and a way
+/// out under them. A phone on its side is barely taller than that, so a panel
+/// laid out the other way round — a share of the screen, rows dividing what is
+/// left — runs its last row into its own close button.
+#[must_use]
+pub fn settings_panel(screen_w: f32, screen_h: f32) -> SettingsPanel {
+    let width = (screen_w * 0.86).min(520.0);
+    let pad = (width * 0.06).min(24.0);
+    let row_h = (screen_h * 0.09).clamp(MIN_TARGET, 60.0);
+    let close_h = (screen_h * 0.11).clamp(MIN_TARGET, 60.0);
+    let heading = (screen_h * 0.12).clamp(36.0, 72.0);
+    let help = (screen_h * 0.06).clamp(18.0, 34.0);
+    let rows = row_h * ROWS.len() as f32;
+    let height = (heading + rows + help + close_h + pad * 2.0).min(screen_h);
+    let panel = Rect::new(
+        ((screen_w - width) * 0.5).max(0.0),
+        ((screen_h - height) * 0.5).max(0.0),
+        width,
+        height,
+    );
+    let first = panel.y + heading;
+    SettingsPanel {
+        panel,
+        rows: std::array::from_fn(|i| {
+            Rect::new(
+                panel.x + pad,
+                row_h.mul_add(i as f32, first),
+                width - pad * 2.0,
+                row_h,
+            )
+        }),
+        close: Rect::new(
+            (width - close_h * 3.0).mul_add(0.5, panel.x),
+            // Along the bottom, unless the window is too short for that to
+            // still be under the rows.
+            (panel.bottom() - close_h - pad).max(first + rows + help),
+            close_h * 3.0,
+            close_h,
+        ),
+    }
+}
+
+/// The settings panel: one row per choice, the selection marked, and a line
+/// about whatever the selection is on.
+fn settings_menu(font: &Tileset, ui: &Frontend) {
+    let (screen_w, screen_h) = (ui.controls.screen.x, ui.controls.screen.y);
+    let geometry = settings_panel(screen_w, screen_h);
+    let panel = geometry.panel;
+    draw_rectangle(
+        panel.x,
+        panel.y,
+        panel.w,
+        panel.h,
+        rgba(palette::ORGANELLE_CONSOLE_BG, OVERLAY_ALPHA),
+    );
+    panel_frame(panel, palette::SLIME);
+
+    let heading = (panel.h * 0.06).clamp(12.0, 22.0);
+    font.draw_text_centred(
+        "SETTINGS",
+        panel.center().x,
+        panel.y + heading,
+        heading * 1.6,
+        rgb(palette::SLIME),
+    );
+
+    let selected = ui.settings.selected_index();
+    // One size for the whole column, and it is the size at which the *widest*
+    // row still has a gap between its label and its value. Sizing each row to
+    // its own text would make the longest label the smallest writing on the
+    // panel, and would let "Message log" run into "shown".
+    let widest = ROWS
+        .iter()
+        .map(|row| {
+            row.label().chars().count() + ui.settings.value(*row, ui.sound_on).chars().count() + 4
+        })
+        .max()
+        .unwrap_or(1);
+    let size = geometry.rows.first().map_or(1.0, |rect| {
+        (rect.w / widest as f32).min(rect.h * 0.42).max(1.0)
+    });
+    for (i, (row, rect)) in ROWS.iter().zip(geometry.rows).enumerate() {
+        let on = i == selected;
+        if on {
+            draw_rectangle(
+                rect.x,
+                rect.y,
+                rect.w,
+                rect.h,
+                rgba(palette::BODY_SLIME, 0.35),
+            );
+        }
+        let value = ui.settings.value(*row, ui.sound_on);
+        let baseline = (rect.center().y - size * 0.5).floor();
+        font.draw_text(
+            row.label(),
+            rect.x + size,
+            baseline,
+            size,
+            rgb(if on {
+                palette::TEXT_HEADING
+            } else {
+                palette::TEXT_BODY
+            }),
+        );
+        // The value is right-aligned, so the column of them reads as a column.
+        let right = size * value.chars().count() as f32;
+        font.draw_text(
+            value,
+            rect.right() - right - size,
+            baseline,
+            size,
+            rgb(palette::SUPER_BRIGHT),
+        );
+    }
+
+    // A line about the selection, centred in whatever gap the rows left above
+    // the way out — measured rather than guessed, because the rows grow to
+    // stay thumb-sized on a small screen and can leave very little of it.
+    let help = ui.settings.selected().help();
+    let note = fit_text(help, panel.w - 24.0, (panel.h * 0.04).clamp(9.0, 15.0));
+    let rows_end = geometry.rows.last().map_or(panel.y, Rect::bottom);
+    font.draw_text_centred(
+        help,
+        panel.center().x,
+        note.mul_add(-0.5, (rows_end + geometry.close.y) * 0.5)
+            .floor(),
+        note,
+        rgb(palette::FLOOR_FOV),
+    );
+
+    panel_frame(geometry.close, palette::SLIME);
+    let label = "S  close";
+    let size = fit_text(label, geometry.close.w * 0.8, geometry.close.h * 0.4);
+    font.draw_text_centred(
+        label,
+        geometry.close.center().x,
+        (geometry.close.center().y - size * 0.5).floor(),
+        size,
+        rgb(palette::TEXT_HEADING),
+    );
+}
+
+/// What the title screen says about the controls. Hoisted so the test that
+/// checks it fits the narrowest phone is checking the real thing.
+const TITLE_HINTS: [&str; 2] = [
+    "arrows move   space waits   X examines   Z organelles",
+    "A and D cycle nuclei   S settings   F1 for help",
+];
+
 /// The title screen: the name, the three difficulties, and the controls.
 fn title(font: &Tileset, layout: &Layout, controls: &Controls, audio: Option<&str>) {
     const TAGLINE: &str = "a giant, constantly evolving amoeba";
-    const HINTS: [&str; 2] = [
-        "arrows move   space waits   X examines   Z organelles",
-        "A and D cycle nuclei   Q and E page   F1 for help",
-    ];
+    const HINTS: [&str; 2] = TITLE_HINTS;
 
     let (screen_w, screen_h) = (controls.screen.x, controls.screen.y);
     // Everything is sized to fit the window rather than to the cell grid: a
@@ -625,6 +817,7 @@ fn draw_controls(font: &Tileset, controls: &Controls) {
     for (action, rect) in controls.buttons {
         button(font, rect, action.label());
     }
+    button(font, controls.settings, Action::Settings.label());
 }
 
 /// One translucent, labelled hit target.
@@ -678,6 +871,7 @@ impl Action {
             Self::CyclePrev => 'A',
             Self::CycleNext => 'D',
             Self::Help => '?',
+            Self::Settings => 'S',
         }
     }
 }
@@ -691,8 +885,9 @@ mod tests {
     /// A phone, upright.
     const PHONE: (f32, f32) = (390.0, 844.0);
 
+    /// The layout with the log where it has always been.
     fn fit(screen: (f32, f32), map: (i32, i32)) -> Layout {
-        Layout::fit(screen.0, screen.1, map.0, map.1)
+        Layout::fit(screen.0, screen.1, map.0, map.1, true)
     }
 
     #[test]
@@ -722,7 +917,7 @@ mod tests {
     fn cells_are_always_a_whole_number_of_pixels() {
         for width in [320.0_f32, 390.0, 800.0, 1032.0, 1440.0, 1920.0] {
             for height in [480.0_f32, 708.0, 844.0, 1080.0] {
-                let layout = Layout::fit(width, height, 48, 48);
+                let layout = Layout::fit(width, height, 48, 48, true);
                 assert!((layout.cell - layout.cell.floor()).abs() < f32::EPSILON);
                 assert!(layout.cell >= 1.0);
             }
@@ -747,20 +942,20 @@ mod tests {
 
     #[test]
     fn a_phone_on_its_side_still_refuses_the_sidebar() {
-        let layout = Layout::fit(PHONE.1, PHONE.0, 48, 48);
+        let layout = Layout::fit(PHONE.1, PHONE.0, 48, 48, true);
         assert_eq!(layout.mode, Mode::Narrow);
     }
 
     #[test]
     fn a_tablet_in_landscape_keeps_the_three_panels() {
-        let layout = Layout::fit(1024.0, 768.0, 48, 48);
+        let layout = Layout::fit(1024.0, 768.0, 48, 48, true);
         assert_eq!(layout.mode, Mode::Wide);
         assert!(!layout.sidebar_overlay);
     }
 
     #[test]
     fn a_tablet_upright_does_not() {
-        let layout = Layout::fit(768.0, 1024.0, 48, 48);
+        let layout = Layout::fit(768.0, 1024.0, 48, 48, true);
         assert_eq!(layout.mode, Mode::Narrow);
         // Everything fits at this width, so there is nothing to scroll.
         assert!(!layout.scrolls);
@@ -778,7 +973,7 @@ mod tests {
 
     #[test]
     fn a_degenerate_window_still_produces_something_finite() {
-        let layout = Layout::fit(0.0, 0.0, 48, 48);
+        let layout = Layout::fit(0.0, 0.0, 48, 48, true);
         assert!(layout.cell.is_finite() && layout.cell > 0.0);
         assert!(layout.cols >= 1 && layout.rows >= 1);
     }
@@ -868,9 +1063,48 @@ mod tests {
         // the widest line the title draws has to fit the smallest screen.
         let screen_w = 320.0_f32;
         let inner = screen_w * 0.88;
-        let hint = "A and D cycle nuclei   Q and E page   F1 for help";
-        let size = fit_text(hint, inner, 20.0);
-        assert!(size * hint.chars().count() as f32 <= inner);
+        for hint in TITLE_HINTS {
+            let size = fit_text(hint, inner, 20.0);
+            assert!(size * hint.chars().count() as f32 <= inner, "{hint:?}");
+        }
+    }
+
+    #[test]
+    fn the_title_screen_says_where_the_settings_are() {
+        assert!(TITLE_HINTS.iter().any(|line| line.contains("S settings")));
+    }
+
+    #[test]
+    fn the_settings_rows_stack_inside_their_panel() {
+        for (width, height) in [
+            (320.0_f32, 568.0_f32),
+            (390.0, 844.0),
+            (844.0, 390.0),
+            DESKTOP,
+            (1920.0, 1080.0),
+        ] {
+            let geometry = settings_panel(width, height);
+            let panel = geometry.panel;
+            for (i, row) in geometry.rows.iter().enumerate() {
+                assert!(row.h >= MIN_TARGET, "{width}x{height}: row {i} is small");
+                assert!(
+                    panel.contains(row.point())
+                        && row.right() <= panel.right()
+                        && row.bottom() <= panel.bottom(),
+                    "{width}x{height}: row {i} escaped the panel"
+                );
+                if let Some(next) = geometry.rows.get(i + 1) {
+                    assert!(row.bottom() <= next.y, "{width}x{height}: rows overlap");
+                }
+            }
+            let last = geometry.rows.last().expect("the panel has rows");
+            assert!(
+                last.bottom() <= geometry.close.y,
+                "{width}x{height}: the last row ran into the way out"
+            );
+            assert!(geometry.close.bottom() <= panel.bottom());
+            assert!(geometry.close.h >= MIN_TARGET);
+        }
     }
 
     #[test]
