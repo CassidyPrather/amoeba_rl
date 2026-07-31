@@ -10,10 +10,7 @@ Hunters should cause hit organelles to retreat rather than be destroyed where po
 An exclamation mark should appear over enemies that just destroyed slime tiles if they are out of line of sight.
 A scheduling system wide "player speed + player's next turn" event should be available.
 Use flood-fill library instead of own path-finding algirthms wherever possible
-Make smart core only work in own cytoplasm
-Remove stacking of quantum core from having both in and out speed bonus
 Refactor organelle inheretence and upgrade tree. Maybe make the upgrade tree a separate data structure which can be bidirectionally navigated.
-Need a player buff to offset haste nerf
 Fix page up + page down
 Better win condition + Cities rework
 Encourage player mass sticking between 40-120?

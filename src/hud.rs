@@ -23,9 +23,9 @@ const NAME_COL: i32 = 3;
 /// Columns a sidebar name, and so a progress bar, is wide.
 const NAME_COLS: i32 = SIDEBAR_COLS - 4;
 
-/// First sidebar row an organelle can appear on. Two more than the original,
-/// which had no room for the win condition.
-const ENTRY_ROW: i32 = 7;
+/// First sidebar row an organelle can appear on. Three more than the original,
+/// which had no room for the win condition or the price of the next gate.
+const ENTRY_ROW: i32 = 8;
 
 /// Below this many columns the key hints have to be abbreviated.
 const WIDE_HINT_COLS: i32 = 60;
@@ -106,6 +106,9 @@ pub fn sidebar(term: &Term, view: &RenderView, rows: i32, page: usize) {
         format!("Turn:  {:.0}", status.turn),
         format!("Gates left: {}", status.cities_remaining),
         format!("Must break: {}", status.cities_required),
+        // The gate price goes up with every gate that falls, so unlike the
+        // rest of these it is not a number you can learn once.
+        format!("Next gate: {}", status.city_armor),
     ]
     .iter()
     .enumerate()
@@ -418,8 +421,8 @@ mod tests {
 
     #[test]
     fn the_sidebar_reports_the_rows_it_can_actually_draw() {
-        // The reference sidebar: 59 rows, seven of header, one of paging keys.
-        assert_eq!(sidebar_capacity(59), 51);
+        // The reference sidebar: 59 rows, eight of header, one of paging keys.
+        assert_eq!(sidebar_capacity(59), 50);
         assert_eq!(sidebar_capacity(ENTRY_ROW + 1), 0);
         assert_eq!(sidebar_capacity(0), 0);
         assert_eq!(sidebar_capacity(-20), 0);
@@ -438,7 +441,8 @@ mod tests {
 
     #[test]
     fn wrapping_never_exceeds_the_width() {
-        let text = "A nucleus grown around a lens of bone. It sees twice as far into the dark.";
+        let text =
+            "A nucleus grown around a lens of bone. It sees more than twice as far into the dark.";
         for width in [10, 18, 30, 62] {
             for line in wrap(text, width) {
                 assert!(
