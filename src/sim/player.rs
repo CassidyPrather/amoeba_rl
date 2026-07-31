@@ -260,11 +260,6 @@ impl Sim {
         if !self.actors.contains(mover) {
             return false;
         }
-        // The quantum core banks its full speed before every action; the swap
-        // branch below is the only thing that discounts it.
-        if self.actors[mover].kind == Kind::QuantumCore {
-            self.actors[mover].delay = 8;
-        }
         let mover_name = self.actors[mover].name;
         let mover_pos = self.actors[mover].pos;
         let mut success = false;
@@ -279,13 +274,21 @@ impl Sim {
                 if actors::is_crafting_material(target_kind) {
                     self.try_upgrade(target, mover);
                 }
+                // Slipping through your own body is where the smart core's
+                // haste goes. Rescheduling is what charges the discount: the
+                // nucleus went on the clock at its full speed when it came up,
+                // and this puts it back on at half of that. The halved delay
+                // lives no longer than the reschedule that reads it, so nothing
+                // downstream sees a core that is permanently fast.
                 if self
                     .actors
                     .get(mover)
-                    .is_some_and(|a| a.kind == Kind::QuantumCore)
+                    .is_some_and(|a| actors::swaps_for_half_cost(a.kind))
                 {
-                    self.actors[mover].delay /= 2;
+                    let full = self.actors[mover].delay;
+                    self.actors[mover].delay = full / 2;
                     self.set_active_nucleus(mover);
+                    self.actors[mover].delay = full;
                 }
                 self.cue(Cue::Swap);
                 success = true;
@@ -370,12 +373,10 @@ impl Sim {
                     }
                 }
             }
-            // Whatever the mover does *after* arriving: the quantum core banks
-            // its full speed again, the gravity core hauls its neighbours up,
-            // and the terror core takes the turn off whoever it has just come
-            // to stand beside.
+            // Whatever the mover does *after* arriving: the gravity core hauls
+            // its neighbours up, and the terror core takes the turn off whoever
+            // it has just come to stand beside.
             match self.actors.get(mover).map(|a| a.kind) {
-                Some(Kind::QuantumCore) => self.actors[mover].delay = 8,
                 Some(Kind::GravityCore) => self.gravity_pull(mover),
                 Some(Kind::TerrorCore) => self.terrify(mover),
                 _ => {}
@@ -849,6 +850,15 @@ impl Sim {
         self.grid.set_props(pos, true, true, true);
         self.effect_at(EffectKind::GateFell, pos);
         self.cue(Cue::CityDestroyed);
+        // Every gate after this one costs a step more. The survivors are all
+        // priced the same, so they are all restamped together.
+        self.cities_destroyed += 1;
+        let price = self.city_armor();
+        for gate in self.cities.clone() {
+            if let Some(actor) = self.actors.get_mut(gate) {
+                actor.armor = price;
+            }
+        }
         #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
         let remaining = self.cities.len() as i32;
         if remaining <= self.rules.grace_cities {
@@ -1381,7 +1391,7 @@ mod tests {
     fn every_nucleus_is_rescheduled_together() {
         let mut sim = sandbox(26);
         let slow = sim.add_actor(Kind::Nucleus, Coord::new(5, 5));
-        let fast = sim.add_actor(Kind::SmartCore, Coord::new(6, 5));
+        let fast = sim.add_actor(Kind::QuantumCore, Coord::new(6, 5));
         sim.set_active_nucleus(fast);
         assert_eq!(sim.schedule.scheduled_for(fast), Some(8));
         assert_eq!(

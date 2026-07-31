@@ -107,6 +107,7 @@ impl Sim {
         self.item_at = vec![None; cells];
         self.player_mass.clear();
         self.cities.clear();
+        self.cities_destroyed = 0;
         self.reticles.clear();
         self.terrified.clear();
         self.schedule.clear();
@@ -564,7 +565,7 @@ mod tests {
         assert_eq!(sim.cities().len(), 16);
         assert_eq!(sim.grid().width(), 64);
         for id in sim.cities() {
-            assert_eq!(sim.actors()[*id].armor, 160);
+            assert_eq!(sim.actors()[*id].armor, 32);
         }
     }
 

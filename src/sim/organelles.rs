@@ -736,7 +736,7 @@ mod tests {
         assert!(sim.attack_move(nucleus, Coord::new(6, 5)));
         let grown = sim.actor_at(Coord::new(6, 5)).expect("an eye core");
         assert_eq!(sim.actors[grown].kind, Kind::EyeCore);
-        assert_eq!(sim.actors[grown].awareness, 6);
+        assert_eq!(sim.actors[grown].awareness, 7);
         let byproduct = sim.actor_at(Coord::new(5, 5)).expect("a cytoplasm");
         assert_eq!(sim.actors[byproduct].kind, Kind::Cytoplasm);
     }
@@ -891,7 +891,7 @@ mod tests {
     }
 
     #[test]
-    fn a_quantum_core_slips_through_its_own_body_for_half_price() {
+    fn a_quantum_core_is_twice_as_fast_at_everything() {
         let mut sim = sandbox(22);
         let core = sim.add_actor(Kind::QuantumCore, Coord::new(5, 5));
         sim.add_actor(Kind::Cytoplasm, Coord::new(6, 5));
@@ -900,24 +900,65 @@ mod tests {
         assert!(sim.attack_move(core, Coord::new(6, 5)));
         assert_eq!(
             sim.schedule.scheduled_for(core),
-            Some(now + 4),
-            "a swap costs four"
+            Some(now + 8),
+            "a swap costs eight, like everything else it does"
         );
-        assert_eq!(sim.actors[core].delay, 8, "and the next move costs eight");
         sim.set_active_nucleus(core);
         let now = sim.schedule.time();
         assert!(sim.attack_move(core, Coord::new(5, 4)));
+        assert_eq!(
+            sim.schedule.scheduled_for(core),
+            Some(now + 8),
+            "and so does open ground"
+        );
+    }
+
+    #[test]
+    fn a_smart_core_slips_through_its_own_body_for_half_price() {
+        let mut sim = sandbox(23);
+        let smart = sim.add_actor(Kind::SmartCore, Coord::new(5, 5));
+        sim.add_actor(Kind::Cytoplasm, Coord::new(6, 5));
+        sim.set_active_nucleus(smart);
+        let now = sim.schedule.time();
+        assert!(sim.attack_move(smart, Coord::new(6, 5)));
+        assert_eq!(
+            sim.schedule.scheduled_for(smart),
+            Some(now + 8),
+            "a swap costs eight"
+        );
+        assert_eq!(
+            sim.actors[smart].delay, 16,
+            "and the discount does not outlive the swap"
+        );
+        sim.set_active_nucleus(smart);
+        let now = sim.schedule.time();
+        assert!(sim.attack_move(smart, Coord::new(5, 4)));
+        assert_eq!(
+            sim.schedule.scheduled_for(smart),
+            Some(now + 16),
+            "open ground costs the full sixteen"
+        );
+    }
+
+    #[test]
+    fn a_gravity_core_keeps_the_smart_core_swap_discount() {
+        let mut sim = sandbox(24);
+        let core = sim.add_actor(Kind::GravityCore, Coord::new(5, 5));
+        sim.add_actor(Kind::Cytoplasm, Coord::new(6, 5));
+        sim.set_active_nucleus(core);
+        let now = sim.schedule.time();
+        assert!(sim.attack_move(core, Coord::new(6, 5)));
         assert_eq!(sim.schedule.scheduled_for(core), Some(now + 8));
     }
 
     #[test]
-    fn a_smart_core_acts_twice_as_often_as_a_plain_one() {
-        let mut sim = sandbox(23);
-        let smart = sim.add_actor(Kind::SmartCore, Coord::new(5, 5));
+    fn every_nucleus_adopts_the_active_ones_speed() {
+        let mut sim = sandbox(25);
+        let fast = sim.add_actor(Kind::QuantumCore, Coord::new(5, 5));
         let plain = sim.add_actor(Kind::Nucleus, Coord::new(9, 9));
-        sim.set_active_nucleus(smart);
+        sim.set_active_nucleus(fast);
         let now = sim.schedule.time();
-        assert_eq!(sim.schedule.scheduled_for(smart), Some(now + 8));
+        assert_eq!(sim.schedule.scheduled_for(fast), Some(now + 8));
         assert_eq!(
             sim.schedule.scheduled_for(plain),
             Some(now + 8),

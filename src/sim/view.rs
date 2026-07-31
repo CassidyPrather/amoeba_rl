@@ -113,7 +113,7 @@ pub struct Status {
     pub cities_remaining: usize,
     /// Gates that must come down for this difficulty.
     pub cities_required: i32,
-    /// Mass needed to break one gate.
+    /// Mass needed to break the next gate. Goes up with every gate that falls.
     pub city_armor: i32,
     /// The nucleus under your control.
     pub active_nucleus: Option<(String, Coord)>,
@@ -472,7 +472,7 @@ impl Sim {
             mass: self.player_mass.len(),
             cities_remaining: self.cities.len(),
             cities_required: self.rules.cities_required(),
-            city_armor: self.rules.city_armor,
+            city_armor: self.city_armor(),
             active_nucleus: self
                 .active
                 .and_then(|id| self.actors.get(id).map(|a| (a.name.to_owned(), a.pos))),
@@ -753,7 +753,7 @@ mod tests {
         assert_eq!(view.status.mass, 6);
         assert_eq!(view.status.cities_remaining, 12);
         assert_eq!(view.status.cities_required, 8);
-        assert_eq!(view.status.city_armor, 100);
+        assert_eq!(view.status.city_armor, 20, "the first gate is the cheapest");
         assert!((view.status.turn - 1.0).abs() < f32::EPSILON);
     }
 

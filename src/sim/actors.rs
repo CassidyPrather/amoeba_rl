@@ -232,9 +232,9 @@ impl ItemKind {
 pub enum Kind {
     /// The organelle you steer. Only one may act per turn.
     Nucleus,
-    /// A nucleus that sees twice as far.
+    /// A nucleus that sees much further.
     EyeCore,
-    /// A nucleus that acts twice per turn.
+    /// A nucleus that slips through its own body cheaply.
     SmartCore,
     /// A nucleus that cuts through armour.
     LaserCore,
@@ -242,7 +242,7 @@ pub enum Kind {
     TerrorCore,
     /// A nucleus that drags nearby organelles along.
     GravityCore,
-    /// A nucleus that slips through its own body cheaply.
+    /// A nucleus that acts twice per turn.
     QuantumCore,
     /// Undifferentiated mass, and the host cell every catalyst needs.
     Cytoplasm,
@@ -262,7 +262,7 @@ pub enum Kind {
     PhaseMembrane,
     /// A maw that bites through armour.
     ReinforcedMaw,
-    /// A maw that acts four times per turn.
+    /// A maw that acts eight times per turn.
     Tentacle,
     /// Produces cytoplasm on a timer.
     Chloroplast,
@@ -385,26 +385,35 @@ impl Kind {
                 ),
                 palette::PLAYER_INACTIVE,
             ),
+            // DELIBERATE CHANGE from C# (§5.2): Awareness was 6, exactly twice a
+            // plain nucleus. The eye line was the weaker half of the tree, so it
+            // gets one more cell of sight, and the two cores grown from it keep
+            // it.
             Self::EyeCore => resting(
                 s(
                     "Eye Core",
-                    "A nucleus grown around a lens of bone. It sees twice as far into the dark.",
+                    "A nucleus grown around a lens of bone. It sees more than twice as far into the dark.",
                     '@',
                     palette::CALCIUM,
-                    6,
+                    7,
                     16,
                     1,
                 ),
                 palette::RESTING_TANK,
             ),
+            // DELIBERATE CHANGE from C# (§5.2): Delay was 8, which made the
+            // smart core faster at everything and left the quantum core with
+            // nothing to upgrade but a swap discount stacked on top. The haste
+            // now only applies to slipping through your own mass; the quantum
+            // core is what turns it into speed everywhere. See `attack_move`.
             Self::SmartCore => resting(
                 s(
                     "Smart Core",
-                    "A nucleus threaded with stolen circuitry. It thinks, and moves, twice as often.",
+                    "A nucleus threaded with stolen circuitry. Slipping through your own body costs it half the usual effort.",
                     '@',
                     palette::ELECTRONICS,
                     3,
-                    8,
+                    16,
                     1,
                 ),
                 palette::RESTING_TANK,
@@ -415,7 +424,7 @@ impl Kind {
                     "A nucleus that focuses light into a cutting beam. Armour means nothing to it.",
                     '@',
                     palette::SUPER_BRIGHT,
-                    6,
+                    7,
                     16,
                     1,
                 ),
@@ -427,12 +436,14 @@ impl Kind {
                     "A nucleus that radiates dread. Humans beside it forget how to take their turn.",
                     '@',
                     palette::ORGANELLE_INACTIVE,
-                    6,
+                    7,
                     16,
                     1,
                 ),
                 palette::PLAYER_INACTIVE,
             ),
+            // DELIBERATE CHANGE from C# (§5.2): Delay was 8, inherited from the
+            // smart core. It inherits the smart core's swap discount instead.
             Self::GravityCore => resting(
                 s(
                     "Gravity Core",
@@ -440,15 +451,19 @@ impl Kind {
                     '@',
                     palette::DARK_SLIME,
                     3,
-                    8,
+                    16,
                     1,
                 ),
                 palette::PLAYER_INACTIVE,
             ),
+            // DELIBERATE CHANGE from C# (§5.2): the original stacked a half-cost
+            // swap on top of Delay 8. The swap discount is the smart core's now,
+            // and this is the upgrade that drops the restriction: two actions a
+            // turn, whatever they are.
             Self::QuantumCore => resting(
                 s(
                     "Quantum Core",
-                    "A nucleus that is never quite where it was. Slipping through your own body is half the usual effort.",
+                    "A nucleus that is never quite where it was. It takes two steps in the time anything else takes one.",
                     '@',
                     palette::CURSOR,
                     3,
@@ -506,13 +521,16 @@ impl Kind {
                 16,
                 1,
             ),
+            // DELIBERATE CHANGE from C# (§5.4): Delay was 16. The whole maw line
+            // gains one step of speed — the maws crawl twice a turn and the
+            // tentacle keeps its fourfold lead over them.
             Self::Maw => s(
                 "Maw",
-                "A mouth on the outside of your body. It crawls toward food without being told.",
+                "A mouth on the outside of your body. It crawls toward food twice a turn without being told.",
                 'W',
                 palette::ELECTRONICS,
                 1,
-                16,
+                8,
                 1,
             ),
             Self::ForceField => s(
@@ -533,22 +551,24 @@ impl Kind {
                 16,
                 1,
             ),
+            // DELIBERATE CHANGE from C# (§5.4): Delay was 16. See `Maw`.
             Self::ReinforcedMaw => s(
                 "Reinforced Maw",
                 "A mouth lined with bone teeth. It bites through armour that would turn anything else away.",
                 'W',
                 palette::CALCIUM,
                 1,
-                16,
+                8,
                 1,
             ),
+            // DELIBERATE CHANGE from C# (§5.4): Delay was 4. See `Maw`.
             Self::Tentacle => s(
                 "Tentacle",
-                "A whip of muscle that lashes out four times in the span others take to move once. It gives tanks a wide berth.",
+                "A whip of muscle that lashes out eight times in the span others take to move once. It gives tanks a wide berth.",
                 'T',
                 palette::ELECTRONICS,
                 3,
-                4,
+                2,
                 1,
             ),
             Self::Chloroplast => s(
@@ -1118,6 +1138,17 @@ pub const fn is_nucleus_family(kind: Kind) -> bool {
             | Kind::GravityCore
             | Kind::QuantumCore
     )
+}
+
+/// The cores that slip through their own mass for half the usual cost: the
+/// smart core and the gravity core grown from it.
+///
+/// DELIBERATE CHANGE from C# (§5.2), where this was the quantum core's discount
+/// on top of its own doubled speed. The quantum core spends the same haste on
+/// everything it does instead, so it is deliberately not in this list.
+#[must_use]
+pub const fn swaps_for_half_cost(kind: Kind) -> bool {
+    matches!(kind, Kind::SmartCore | Kind::GravityCore)
 }
 
 /// `x.Name == "Nucleus"` — the literal name comparison the primordial soup's

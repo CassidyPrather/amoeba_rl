@@ -75,7 +75,7 @@ impl Difficulty {
                 spawn_rate: 50,
                 evolution_rate: 6,
                 max_budget: 5,
-                city_armor: 100,
+                city_armor_step: 20,
                 num_cities: 12,
                 grace_cities: 4,
             },
@@ -85,7 +85,7 @@ impl Difficulty {
                 spawn_rate: 75,
                 evolution_rate: 7,
                 max_budget: 5,
-                city_armor: 100,
+                city_armor_step: 20,
                 num_cities: 10,
                 grace_cities: 4,
             },
@@ -95,7 +95,7 @@ impl Difficulty {
                 spawn_rate: 50,
                 evolution_rate: 5,
                 max_budget: 6,
-                city_armor: 160,
+                city_armor_step: 32,
                 num_cities: 16,
                 grace_cities: 0,
             },
@@ -126,8 +126,14 @@ pub struct Rules {
     pub evolution_rate: i32,
     /// Ceiling on a wave's budget.
     pub max_budget: i32,
-    /// Mass needed to break a gate.
-    pub city_armor: i32,
+    /// Mass the first gate costs to break, and what every gate after it adds.
+    ///
+    /// DELIBERATE CHANGE from C# (§1), where every gate cost a flat
+    /// `CityArmor` — 100 on Normal and Easy, 160 on GJ. That was the whole
+    /// early game spent growing to a threshold nothing else needed. The first
+    /// gate now costs a fifth of the old price and each one after it costs a
+    /// fifth more, so the last gate a Normal run has to break still costs 160.
+    pub city_armor_step: i32,
     /// Gates the map is generated with.
     pub num_cities: i32,
     /// Gates you may leave standing and still escape.
@@ -139,6 +145,12 @@ impl Rules {
     #[must_use]
     pub const fn cities_required(&self) -> i32 {
         self.num_cities - self.grace_cities
+    }
+
+    /// Mass needed to break the next gate once `destroyed` of them have fallen.
+    #[must_use]
+    pub const fn city_armor(&self, destroyed: i32) -> i32 {
+        (destroyed + 1) * self.city_armor_step
     }
 }
 
@@ -289,6 +301,9 @@ pub struct Sim {
     /// depend on that order.
     player_mass: Vec<ActorId>,
     cities: Vec<ActorId>,
+    /// Gates broken so far. Every gate costs one step more than the last, so
+    /// this is what the next one is priced from.
+    cities_destroyed: i32,
     schedule: Schedule,
     active: Option<ActorId>,
     player_turn: bool,
@@ -334,6 +349,7 @@ impl Sim {
             item_at: vec![None; cells],
             player_mass: Vec::new(),
             cities: Vec::new(),
+            cities_destroyed: 0,
             schedule: Schedule::new(),
             active: None,
             player_turn: false,
@@ -697,6 +713,13 @@ impl Sim {
         &self.cities
     }
 
+    /// Mass needed to break the next gate. Every gate standing is worth this
+    /// much, and the price goes up by one step each time one falls.
+    #[must_use]
+    pub const fn city_armor(&self) -> i32 {
+        self.rules.city_armor(self.cities_destroyed)
+    }
+
     /// The nucleus under your control.
     #[must_use]
     pub const fn active_nucleus(&self) -> Option<ActorId> {
@@ -794,7 +817,7 @@ impl Sim {
     pub(crate) fn add_actor(&mut self, kind: Kind, pos: Coord) -> ActorId {
         let mut actor = Actor::new(kind, pos);
         if actors::is_city(kind) {
-            actor.armor = self.rules.city_armor;
+            actor.armor = self.city_armor();
         }
         let slime = actor.slime;
         let delay = actor.delay;
@@ -1066,8 +1089,33 @@ mod tests {
         assert_eq!(easy.cities_required(), 6);
         let gj = Difficulty::Gj.rules();
         assert_eq!((gj.map_width, gj.map_height), (64, 48));
-        assert_eq!(gj.city_armor, 160);
+        assert_eq!(gj.city_armor(0), 32);
         assert_eq!(gj.cities_required(), 16);
+    }
+
+    #[test]
+    fn every_gate_costs_one_step_more_than_the_last() {
+        let normal = Difficulty::Normal.rules();
+        assert_eq!(normal.city_armor(0), 20, "the first gate is cheap");
+        assert_eq!(normal.city_armor(1), 40);
+        // The last gate a Normal run has to break costs what every gate used to.
+        assert_eq!(normal.city_armor(normal.cities_required() - 1), 160);
+    }
+
+    #[test]
+    fn breaking_a_gate_reprices_the_ones_left_standing() {
+        let mut sim = playing(28);
+        let step = sim.rules.city_armor_step;
+        assert!(sim.cities().iter().all(|id| sim.actors[*id].armor == step));
+        let doomed = sim.cities()[0];
+        sim.destroy_city(doomed);
+        assert_eq!(sim.city_armor(), 2 * step);
+        assert!(
+            sim.cities()
+                .iter()
+                .all(|id| sim.actors[*id].armor == 2 * step),
+            "every gate still standing went up together"
+        );
     }
 
     #[test]
@@ -1521,8 +1569,11 @@ mod tests {
             check_invariants(&sim, &format!("unopposed seed {seed} end"));
             if sim.phase() == (Phase::GameOver { won: true }) {
                 won += 1;
+                // The last gate it broke was the dearest one, and it had to be
+                // standing in front of it with that much mass.
+                let last = sim.rules.city_armor(sim.cities_destroyed - 1);
                 assert!(
-                    sim.mass() >= sim.rules.city_armor.unsigned_abs() as usize,
+                    sim.mass() >= last.unsigned_abs() as usize,
                     "seed {seed}: it won without the mass to do it"
                 );
                 assert!(
