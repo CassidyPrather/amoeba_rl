@@ -19,7 +19,7 @@
 use super::actors::{self, Extra, ItemKind, Kind};
 use super::effect::EffectKind;
 use super::grid::{Coord, Dir, rand_index};
-use super::{ActorId, Cue, ItemId, Phase, Sim};
+use super::{ActorId, Cue, InputStyle, ItemId, Phase, Sim};
 
 /// One node of the drag's spanning tree.
 #[derive(Clone, Copy, Debug)]
@@ -828,8 +828,12 @@ impl Sim {
             "You lose. Final Score: {}.",
             self.player_mass.len()
         ));
-        self.messages
-            .add("Press ESC to quit. Press R to play again.");
+        // The original offered a way out of the process; a browser tab has
+        // nothing to quit to, and a phone has no key to quit with.
+        self.messages.add(match self.input_style {
+            InputStyle::Keys => "Press R to play again.",
+            InputStyle::Touch => "Tap play again to have another go.",
+        });
         self.schedule.clear();
         self.phase = Phase::GameOver { won: false };
         self.player_turn = true;

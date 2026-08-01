@@ -168,6 +168,23 @@ pub enum Phase {
     },
 }
 
+/// How the player is asking for things, which is all the sim's own prose needs
+/// to know about the frontend.
+///
+/// The sim writes a handful of lines that name controls — the help the run
+/// opens with, and the offer of another run once this one is over — and a phone
+/// has no keys to name. This picks the wording; nothing else in the world
+/// changes, so a given seed still resolves identically either way.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum InputStyle {
+    /// A keyboard, which the lines can name keys for.
+    #[default]
+    Keys,
+    /// A touchscreen, where the on-screen buttons are the only controls there
+    /// are and naming a key would send the player looking for one.
+    Touch,
+}
+
 /// Which panel the interface is showing, and therefore what the arrow keys do.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
 pub enum UiMode {
@@ -323,6 +340,8 @@ pub struct Sim {
     /// it is still describing the world it was computed from.
     version: u64,
     drag_cache: Option<player::SlimeTree>,
+    /// Which way the frontend takes orders, for the lines that mention it.
+    input_style: InputStyle,
 }
 
 impl Sim {
@@ -362,7 +381,16 @@ impl Sim {
             terrified: Vec::new(),
             version: 0,
             drag_cache: None,
+            input_style: InputStyle::Keys,
         }
+    }
+
+    /// Tell the sim what the player is holding, so the lines that name controls
+    /// name the right ones. Cheap and idempotent — the frontend sets it every
+    /// frame, because a browser window can gain a touchscreen halfway through a
+    /// run and a phone can gain a keyboard.
+    pub const fn set_input_style(&mut self, style: InputStyle) {
+        self.input_style = style;
     }
 
     /// The seed this run was generated from.
@@ -439,7 +467,10 @@ impl Sim {
             (Phase::Title, Some(Command::Start(difficulty))) => self.start(difficulty),
             (Phase::GameOver { .. }, Some(Command::Restart { seed })) => {
                 let difficulty = self.difficulty;
+                // The world starts over; what the player is holding does not.
+                let style = self.input_style;
                 *self = Self::new(seed, difficulty);
+                self.input_style = style;
                 self.start(difficulty);
             }
             (Phase::Playing, Some(command)) => self.handle(command),
@@ -651,12 +682,33 @@ impl Sim {
     }
 
     fn write_help(&mut self) {
-        self.messages.add("Arrow keys: Move / Select");
-        self.messages.add("Space: Wait");
-        self.messages.add("X: Toggle examine mode");
-        self.messages.add("Z: Toggle organelle browsing mode");
-        self.messages.add("ESC: Back to player mode");
-        self.messages.add("A, D: Cycle active nucleus");
+        // A phone is told what to press, not which key to find: the buttons on
+        // screen are labelled with these words, so the two halves of the
+        // interface say the same thing.
+        let lines: &[&str] = match self.input_style {
+            InputStyle::Keys => &[
+                "Arrow keys: Move / Select",
+                "Space: Wait",
+                "X: Toggle examine mode",
+                "Z: Toggle organelle browsing mode",
+                "ESC: Back to player mode",
+                "A, D: Cycle active nucleus",
+            ],
+            // Short enough to survive a phone's panel, which is half as wide
+            // as the sixty-two columns this log wraps at, and ordered with the
+            // essentials last: the panel fills upwards from the newest line,
+            // so the last of these are the ones a player sees without asking.
+            InputStyle::Touch => &[
+                "List is what you are made of.",
+                "Prev and next change nucleus.",
+                "Look examines whatever you tap.",
+                "Wait passes the turn.",
+                "The pad moves you, and so does tapping a tile beside you.",
+            ],
+        };
+        for line in lines {
+            self.messages.add(line);
+        }
         let required = self.rules.cities_required();
         self.messages
             .add(&format!("Destroy {required} cities to win"));
@@ -1183,6 +1235,44 @@ mod tests {
         sim.advance(Some(Command::Help));
         assert_eq!(sim.schedule().time(), before);
         assert!(sim.is_player_turn());
+    }
+
+    #[test]
+    fn the_help_a_touchscreen_gets_never_names_a_key() {
+        // A phone has no arrow keys, no space bar and no escape, so a line
+        // that names one sends the player looking for something that is not
+        // there. The words it uses instead are the ones on the buttons.
+        let mut sim = Sim::new(21, Difficulty::Normal);
+        sim.set_input_style(InputStyle::Touch);
+        sim.advance(Some(Command::Start(Difficulty::Normal)));
+        let log = sim.messages().lines().join(" ").to_lowercase();
+        for key in ["arrow key", "space", "esc", "press "] {
+            assert!(!log.contains(key), "the touch help still says {key:?}");
+        }
+        for word in ["wait", "look", "list", "prev", "next"] {
+            assert!(log.contains(word), "the touch help never says {word:?}");
+        }
+    }
+
+    #[test]
+    fn a_keyboard_still_gets_told_which_keys() {
+        let sim = playing(21);
+        let log = sim.messages().lines().join(" ");
+        assert!(log.contains("Arrow keys"));
+        assert!(log.contains("Space"));
+    }
+
+    #[test]
+    fn the_style_survives_a_restart() {
+        // Restarting builds a whole new world, but the player is still holding
+        // the same thing — so the fresh run's help has to come out the same.
+        let mut sim = Sim::new(22, Difficulty::Normal);
+        sim.set_input_style(InputStyle::Touch);
+        sim.advance(Some(Command::Start(Difficulty::Normal)));
+        sim.phase = Phase::GameOver { won: false };
+        sim.advance(Some(Command::Restart { seed: 23 }));
+        let log = sim.messages().lines().join(" ");
+        assert!(!log.contains("Arrow keys"), "the restart forgot the thumbs");
     }
 
     #[test]

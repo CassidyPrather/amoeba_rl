@@ -49,18 +49,32 @@ and pressing anything cuts it short — so nothing ever waits on an animation.
 | `M` | Mute |
 | `R` | Restart (after the run ends) |
 
+### On a phone
+
+A screen with no keyboard gets a thumb pad and a row of buttons instead, in a
+band of their own that the map and the panels are laid out around — nothing is
+ever drawn underneath them. The buttons are labelled with what they do rather
+than with the key that would have done it: **wait**, **look**, **list**,
+**prev**, **next**, **help** and **menu**. Tapping a tile next to your active
+nucleus moves you there; tapping one in examine mode sends the cursor there;
+and the organelle list pages with a pair of arrows at its foot.
+
+Everything the interface says follows the same rule. The help the run opens
+with, the hints under the map, the title screen and the offer of another run
+all name buttons on a touchscreen and keys on a keyboard — and a keyboard
+turning up mid-run switches back, so a laptop that happens to have a
+touchscreen is not stuck with a phone's layout.
+
 ### Settings
 
-`S` opens a panel over whatever is on screen. It holds the message log
-(hidden gives its rows to the map), the animations, how fast they run — *slow*
-for a first run, *fast* once you know what a maw does — and the sound. Arrows
-choose a row, enter or left/right changes it, `S` or `Esc` closes.
+`S` — or the **menu** button — opens a panel over whatever is on screen. It
+holds the message log (hidden gives its rows to the map), the animations, how
+fast they run — *slow* for a first run, *fast* once you know what a maw does —
+and the sound. Arrows choose a row, enter or left/right changes it, `S` or
+`Esc` closes; a tap does all three.
 
 Difficulty (Normal / Easy / GJ) is chosen on the title screen — the original's
 `--easy` and `--gj` command-line flags, made playable in a browser.
-
-On a phone: an on-screen pad and buttons appear, a tap next to your active
-nucleus moves, and a tap in examine mode sends the cursor there.
 
 ## Development
 
