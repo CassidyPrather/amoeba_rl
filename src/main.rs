@@ -37,11 +37,12 @@ mod render;
 mod settings;
 mod tileset;
 
+use macroquad::math::Rect;
 use macroquad::time::{get_frame_time, get_time};
 use macroquad::window::{Conf, next_frame, screen_height, screen_width};
 
 use amoeba_rl::sim::grid::Coord;
-use amoeba_rl::sim::{Command, Difficulty, Phase, RenderView, Sim};
+use amoeba_rl::sim::{Command, Difficulty, InputStyle, Phase, RenderView, Sim};
 
 use anim::Anim;
 use audio::Audio;
@@ -78,13 +79,27 @@ async fn main() {
     loop {
         let dt = get_frame_time();
         let view = sim.view(anim_frame());
-        let layout = Layout::fit(
-            screen_width(),
-            screen_height(),
+        // Three passes over the same window, because the pad and the panels
+        // each need to know something about the other: which layout is on
+        // screen decides whether there is a pad, the pad decides how much of
+        // the window is left, and what is left decides where the panels go.
+        // The middle step only ever takes room away, and taking room away can
+        // only turn a wide layout narrow — never the other way about — so the
+        // first pass's answer to "is there a pad?" survives the third.
+        let probe = Layout::fit(
+            Rect::new(0.0, 0.0, screen_width(), screen_height()),
             view.width,
             view.height,
             settings.log,
+            false,
         );
+        let touch = input.wants_controls(probe.mode);
+        let area = if touch {
+            Controls::free(screen_width(), screen_height())
+        } else {
+            Rect::new(0.0, 0.0, screen_width(), screen_height())
+        };
+        let layout = Layout::fit(area, view.width, view.height, settings.log, touch);
         let camera = if layout.scrolls {
             render::camera_origin(
                 focus(&view),
@@ -98,14 +113,14 @@ async fn main() {
         };
         // The pad steers the amoeba, so it only belongs on screen while there
         // is an amoeba: the title and post-mortem screens have buttons of
-        // their own. The settings button rides along with it, because a screen
-        // that needs a thumb pad needs a way into the settings too.
+        // their own, and the settings panel is a modal with its own way out.
+        // The room it claimed stays claimed through all of them, so the map
+        // does not jump about underneath a panel that is about to close.
         let controls = Controls::fit(
             screen_width(),
             screen_height(),
-            input.wants_controls(layout.mode) && view.phase == Phase::Playing,
+            touch && view.phase == Phase::Playing && !settings.is_open(),
         );
-
         let frame = input.gather(&view, &layout, camera, &controls, &mut settings, dt);
         render::draw(
             &font,
@@ -115,7 +130,7 @@ async fn main() {
             &Frontend {
                 controls: &controls,
                 page: input.page(),
-                audio: audio.hint(),
+                audio: audio.hint(layout.touch),
                 sound_on: !audio.muted(),
                 settings: &settings,
                 anim: &anim,
@@ -139,6 +154,16 @@ async fn main() {
         };
         anim.tick(dt);
 
+        // The sim writes a few lines that name controls; this is the only
+        // thing it needs from out here to name them the way the buttons do.
+        // After `gather` rather than before, because the very first tap a
+        // touchscreen ever gets is the one that picks a difficulty — and that
+        // is the command that makes the sim write the help.
+        sim.set_input_style(if input.wants_controls(layout.mode) {
+            InputStyle::Touch
+        } else {
+            InputStyle::Keys
+        });
         sim.advance(command);
         // Both reports live for exactly this one `advance`, so both halves read
         // them here — the cues alongside the mute toggle from the same frame,

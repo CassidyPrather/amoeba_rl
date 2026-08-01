@@ -290,23 +290,28 @@ impl Audio {
     }
 
     /// HUD text for the current state.
+    ///
+    /// `touch` swaps the key this names for something a phone can do about it:
+    /// there is no `M` to press, and the way to unmute is the settings panel
+    /// the pad has a button for.
     #[must_use]
-    pub const fn status(&self) -> &'static str {
-        if self.muted {
-            "audio muted - M"
-        } else if self.awake {
-            "audio on - M"
-        } else {
-            "audio: press any key"
+    pub const fn status(&self, touch: bool) -> &'static str {
+        match (self.muted, self.awake, touch) {
+            (true, _, false) => "audio muted - M",
+            (true, _, true) => "audio muted - see menu",
+            (false, true, false) => "audio on - M",
+            (false, true, true) => "audio on - see menu",
+            (false, false, false) => "audio: press any key",
+            (false, false, true) => "audio: tap anything",
         }
     }
 
     /// The same text, but only when it is worth the room. Audio that is on and
     /// working has nothing to say, and the info bar has a game to describe.
     #[must_use]
-    pub const fn hint(&self) -> Option<&'static str> {
+    pub const fn hint(&self, touch: bool) -> Option<&'static str> {
         if self.muted || self.needs_gesture() {
-            Some(self.status())
+            Some(self.status(touch))
         } else {
             None
         }
@@ -353,6 +358,27 @@ mod tests {
         // the table `load` walks agrees with the indices `play` looks up.
         for (index, cue) in CUES.into_iter().enumerate() {
             assert_eq!(slot(cue), index, "{cue:?} is in the wrong place");
+        }
+    }
+
+    #[test]
+    fn what_the_sound_says_about_itself_names_no_key_on_a_phone() {
+        // There is no `M` on a touchscreen, and "press any key" is an
+        // instruction a thumb cannot follow.
+        for muted in [false, true] {
+            for awake in [false, true] {
+                let audio = Audio {
+                    voices: Vec::new(),
+                    airborne: Vec::new(),
+                    muted,
+                    awake,
+                };
+                let line = audio.status(true);
+                assert!(!line.contains(" M"), "{line:?} still names the mute key");
+                assert!(!line.contains("key"), "{line:?} still names a key");
+                // And the keyboard wording is left exactly as it was.
+                assert!(audio.status(false).contains('M') || !awake);
+            }
         }
     }
 

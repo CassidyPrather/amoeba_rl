@@ -44,6 +44,12 @@ pub const INFO_ROWS: i32 = 11;
 /// gets out of hiding the log is the other five rows, which go to the map.
 pub const NARROW_INFO_ROWS: i32 = 6;
 
+/// Cells the map-first layout gives the numbers the sidebar is not there to
+/// show. Its own row rather than a translucent strip over the map: a cell of
+/// the map is a thing you can be standing on, and a line of text over the top
+/// of one is a line of text over the top of a militia.
+const STATUS_ROWS: i32 = 1;
+
 /// Cell size below which the three-panel layout stops being worth its sidebar.
 const WIDE_MIN_CELL: f32 = 9.0;
 
@@ -92,6 +98,10 @@ pub struct Layout {
     pub rows: i32,
     /// Whether the viewport is smaller than the map, and so needs a camera.
     pub scrolls: bool,
+    /// The one-line strip of numbers the map-first layout owes the player,
+    /// there being no sidebar on screen to read them off. `None` wherever
+    /// there is one.
+    pub status: Option<Rect>,
     /// The message bar.
     pub info: Rect,
     /// Rows the message bar has.
@@ -103,6 +113,13 @@ pub struct Layout {
     /// Whether the sidebar is drawn over the map rather than beside it, and so
     /// only when the organelle browser is open.
     pub sidebar_overlay: bool,
+    /// Whether this is a screen with thumbs on it and no keyboard behind it.
+    /// Everything that would otherwise name a key reads this and names a
+    /// button instead.
+    pub touch: bool,
+    /// Rows at the foot of the sidebar that belong to the paging control
+    /// rather than to organelles.
+    footer_rows: i32,
 }
 
 impl Layout {
@@ -116,33 +133,37 @@ impl Layout {
     /// `log` is the player's choice about the message bar. Hiding it is a
     /// layout decision rather than a drawing one — the rows it gives up go to
     /// the map — so it belongs here and not in [`hud`].
+    ///
+    /// `area` is the window minus whatever the on-screen pad has claimed (see
+    /// [`Controls::free`]), so the panels and the pad cannot land on top of
+    /// each other. `touch` says whether that pad is there at all, which is the
+    /// one thing everything that would otherwise name a key needs to know.
     #[must_use]
-    pub fn fit(screen_w: f32, screen_h: f32, map_w: i32, map_h: i32, log: bool) -> Self {
+    pub fn fit(area: Rect, map_w: i32, map_h: i32, log: bool, touch: bool) -> Self {
         // A minimised window or a hidden tab reports zero; the floor keeps
         // every division below finite.
-        let width = screen_w.max(1.0);
-        let height = screen_h.max(1.0);
+        let area = Rect::new(area.x, area.y, area.w.max(1.0), area.h.max(1.0));
         let map_w = map_w.max(1);
         let map_h = map_h.max(1);
         let info_rows = if log { INFO_ROWS } else { NARROW_INFO_ROWS };
         let wide_cell =
-            snap((width / (map_w + SIDEBAR_COLS) as f32).min(height / (map_h + info_rows) as f32));
-        if width / height >= WIDE_MIN_ASPECT && wide_cell >= WIDE_MIN_CELL {
-            Self::wide(width, height, map_w, map_h, wide_cell, info_rows)
+            snap((area.w / (map_w + SIDEBAR_COLS) as f32).min(area.h / (map_h + info_rows) as f32));
+        if area.w / area.h >= WIDE_MIN_ASPECT && wide_cell >= WIDE_MIN_CELL {
+            Self::wide(area, map_w, map_h, wide_cell, info_rows, touch)
         } else {
-            Self::narrow(width, height, map_w, map_h)
+            Self::narrow(area, map_w, map_h, touch)
         }
     }
 
     /// The original's three panels, centred in whatever is left over.
-    fn wide(width: f32, height: f32, map_w: i32, map_h: i32, cell: f32, info_rows: i32) -> Self {
+    fn wide(area: Rect, map_w: i32, map_h: i32, cell: f32, info_rows: i32, touch: bool) -> Self {
         let map_px = Vec2::new(map_w as f32 * cell, map_h as f32 * cell);
         let info_h = info_rows as f32 * cell;
         let total = Vec2::new(
             (SIDEBAR_COLS as f32).mul_add(cell, map_px.x),
             map_px.y + info_h,
         );
-        let origin = letterbox(width, height, total);
+        let origin = area.point() + letterbox(area.w, area.h, total);
         Self {
             mode: Mode::Wide,
             cell,
@@ -150,6 +171,7 @@ impl Layout {
             cols: map_w,
             rows: map_h,
             scrolls: false,
+            status: None,
             info: Rect::new(origin.x, origin.y + map_px.y, map_px.x, info_h),
             info_rows,
             sidebar: Rect::new(
@@ -160,38 +182,74 @@ impl Layout {
             ),
             sidebar_rows: map_h + info_rows,
             sidebar_overlay: false,
+            touch,
+            footer_rows: footer_rows(cell, touch),
         }
     }
 
     /// Map first. The sidebar keeps its 22 columns but moves on top of the
     /// map, where the organelle browser can call it up and dismiss it again.
-    fn narrow(width: f32, height: f32, map_w: i32, map_h: i32) -> Self {
-        let full = (width / map_w as f32).min(height / (map_h + NARROW_INFO_ROWS) as f32);
+    fn narrow(area: Rect, map_w: i32, map_h: i32, touch: bool) -> Self {
+        let chrome = NARROW_INFO_ROWS + STATUS_ROWS;
+        let full = (area.w / map_w as f32).min(area.h / (map_h + chrome) as f32);
         let cell = snap(full.max(NARROW_MIN_CELL));
-        let cols = map_w.min(floor_div(width, cell).max(1));
-        let rows = map_h.min((floor_div(height, cell) - NARROW_INFO_ROWS).max(1));
+        let cols = map_w.min(floor_div(area.w, cell).max(1));
+        let rows = map_h.min((floor_div(area.h, cell) - chrome).max(1));
         let map_px = Vec2::new(cols as f32 * cell, rows as f32 * cell);
-        let info_h = NARROW_INFO_ROWS as f32 * cell;
-        let origin = letterbox(width, height, Vec2::new(map_px.x, map_px.y + info_h));
+        let (status_h, info_h) = (STATUS_ROWS as f32 * cell, NARROW_INFO_ROWS as f32 * cell);
+        let total = Vec2::new(map_px.x, status_h + map_px.y + info_h);
+        let origin = area.point() + letterbox(area.w, area.h, total);
+        let map_y = origin.y + status_h;
         let sidebar_cols = SIDEBAR_COLS.min(cols);
         Self {
             mode: Mode::Narrow,
             cell,
-            map: Rect::new(origin.x, origin.y, map_px.x, map_px.y),
+            map: Rect::new(origin.x, map_y, map_px.x, map_px.y),
             cols,
             rows,
             scrolls: cols < map_w || rows < map_h,
-            info: Rect::new(origin.x, origin.y + map_px.y, map_px.x, info_h),
+            status: Some(Rect::new(origin.x, origin.y, map_px.x, status_h)),
+            info: Rect::new(origin.x, map_y + map_px.y, map_px.x, info_h),
             info_rows: NARROW_INFO_ROWS,
+            // Down as far as the map and no further. The overlay covers the
+            // strip, whose numbers it repeats in its own header, but it stops
+            // at the message bar — which while the browser is open is where
+            // the description of the selected organelle is being written, and
+            // that is the half of the browser with the words in it.
             sidebar: Rect::new(
                 (sidebar_cols as f32).mul_add(-cell, origin.x + map_px.x),
                 origin.y,
                 sidebar_cols as f32 * cell,
-                map_px.y + info_h,
+                status_h + map_px.y,
             ),
-            sidebar_rows: rows + NARROW_INFO_ROWS,
+            sidebar_rows: rows + STATUS_ROWS,
             sidebar_overlay: true,
+            touch,
+            footer_rows: footer_rows(cell, touch),
         }
+    }
+
+    /// The organelle list's paging control, on a screen with no `Q` and `E` to
+    /// press: previous page on the left, next page on the right, along the
+    /// foot of the sidebar.
+    ///
+    /// One rectangle serves the drawing and the hit testing, so a button
+    /// cannot end up somewhere other than where it is listening.
+    #[must_use]
+    pub fn sidebar_pager(&self) -> Option<hud::Pager> {
+        if !self.touch {
+            return None;
+        }
+        let height = self.footer_rows as f32 * self.cell;
+        let top = self.sidebar.bottom() - height;
+        let half = self.sidebar.w * 0.5;
+        Some(hud::Pager {
+            rows: self.footer_rows,
+            buttons: [
+                Rect::new(self.sidebar.x, top, half, height),
+                Rect::new(self.sidebar.x + half, top, half, height),
+            ],
+        })
     }
 
     /// The map cell under a window point, if the point is over the map at all.
@@ -203,6 +261,19 @@ impl Layout {
         let col = ((point.x - self.map.x) / self.cell) as i32;
         let row = ((point.y - self.map.y) / self.cell) as i32;
         (col < self.cols && row < self.rows).then(|| Coord::new(camera.x + col, camera.y + row))
+    }
+}
+
+/// Rows the sidebar owes its paging control.
+///
+/// One, which is what the key hints have always taken, unless a thumb is going
+/// to have to hit it — in which case as many rows as it takes to be worth
+/// aiming at.
+fn footer_rows(cell: f32, touch: bool) -> i32 {
+    if touch {
+        (MIN_TARGET / cell.max(f32::EPSILON)).ceil() as i32
+    } else {
+        1
     }
 }
 
@@ -301,6 +372,14 @@ impl<'a> Term<'a> {
     #[must_use]
     pub const fn origin(&self) -> Vec2 {
         self.origin
+    }
+
+    /// The atlas behind this painter, for the few things inside a panel that
+    /// are sized in pixels rather than in cells — a button a thumb has to hit
+    /// cannot be one cell tall.
+    #[must_use]
+    pub const fn font(&self) -> &Tileset {
+        self.font
     }
 
     /// Background rectangle, then glyph on top: the whole of the draw order.
@@ -402,12 +481,12 @@ pub fn draw(font: &Tileset, view: &RenderView, layout: &Layout, camera: Coord, u
     } else {
         play(font, view, layout, camera, ui);
         if let Phase::GameOver { won } = view.phase {
-            post_mortem(font, view, ui.controls, won);
+            post_mortem(font, view, ui.controls, won, layout.touch);
         }
     }
     draw_controls(font, ui.controls);
     if ui.settings.is_open() {
-        settings_menu(font, ui);
+        settings_menu(font, ui, layout.touch);
     }
 }
 
@@ -443,10 +522,11 @@ fn play(font: &Tileset, view: &RenderView, layout: &Layout, camera: Coord, ui: &
         layout.info_rows,
         audio,
         ui.settings.log,
+        layout.touch,
     );
 
-    if layout.mode == Mode::Narrow {
-        hud::status_strip(&map, view, layout.cols);
+    if let Some(strip) = layout.status {
+        hud::status_strip(&Term::new(font, strip, layout.cell), view, layout.cols);
     }
     if !layout.sidebar_overlay || view.mode == UiMode::Organelles {
         let alpha = if layout.sidebar_overlay {
@@ -466,6 +546,7 @@ fn play(font: &Tileset, view: &RenderView, layout: &Layout, camera: Coord, ui: &
             view,
             layout.sidebar_rows,
             page,
+            layout.sidebar_pager(),
         );
     }
 }
@@ -565,7 +646,7 @@ pub fn settings_panel(screen_w: f32, screen_h: f32) -> SettingsPanel {
 
 /// The settings panel: one row per choice, the selection marked, and a line
 /// about whatever the selection is on.
-fn settings_menu(font: &Tileset, ui: &Frontend) {
+fn settings_menu(font: &Tileset, ui: &Frontend, touch: bool) {
     let (screen_w, screen_h) = (ui.controls.screen.x, ui.controls.screen.y);
     let geometry = settings_panel(screen_w, screen_h);
     let panel = geometry.panel;
@@ -653,7 +734,7 @@ fn settings_menu(font: &Tileset, ui: &Frontend) {
     );
 
     panel_frame(geometry.close, palette::SLIME);
-    let label = "S  close";
+    let label = if touch { "close" } else { "S  close" };
     let size = fit_text(label, geometry.close.w * 0.8, geometry.close.h * 0.4);
     font.draw_text_centred(
         label,
@@ -671,10 +752,22 @@ const TITLE_HINTS: [&str; 2] = [
     "A and D cycle nuclei   S settings   F1 for help",
 ];
 
+/// The same, for a screen with no keys to name: the pad and the buttons are
+/// waiting on the other side of this screen, so all it has to promise is that
+/// they are there.
+const TOUCH_TITLE_HINTS: [&str; 2] = [
+    "the pad moves you   the map takes taps",
+    "the buttons wait, look, list and cycle",
+];
+
 /// The title screen: the name, the three difficulties, and the controls.
 fn title(font: &Tileset, layout: &Layout, controls: &Controls, audio: Option<&str>) {
     const TAGLINE: &str = "a giant, constantly evolving amoeba";
-    const HINTS: [&str; 2] = TITLE_HINTS;
+    let hints = if layout.touch {
+        TOUCH_TITLE_HINTS
+    } else {
+        TITLE_HINTS
+    };
 
     let (screen_w, screen_h) = (controls.screen.x, controls.screen.y);
     // Everything is sized to fit the window rather than to the cell grid: a
@@ -700,7 +793,13 @@ fn title(font: &Tileset, layout: &Layout, controls: &Controls, audio: Option<&st
         rgb(palette::TEXT_BODY),
     );
 
-    let labels = ["1  Normal", "2  Easy", "3  GJ"];
+    // The digits are how a keyboard picks; a thumb picks by hitting the thing
+    // it wants, and a "1" in front of it is only in the way.
+    let labels = if layout.touch {
+        ["Normal", "Easy", "GJ"]
+    } else {
+        ["1  Normal", "2  Easy", "3  GJ"]
+    };
     for (button, label) in title_buttons(screen_w, screen_h).iter().zip(labels) {
         panel_frame(*button, palette::SLIME);
         let size = fit_text(label, button.w * 0.8, button.h * 0.5);
@@ -713,8 +812,8 @@ fn title(font: &Tileset, layout: &Layout, controls: &Controls, audio: Option<&st
         );
     }
 
-    let hint = fit_text(HINTS[1], inner, small * 0.8);
-    for (i, line) in HINTS.iter().enumerate() {
+    let hint = fit_text(hints[1], inner, small * 0.8);
+    for (i, line) in hints.iter().enumerate() {
         font.draw_text_centred(
             line,
             centre,
@@ -739,7 +838,7 @@ fn title(font: &Tileset, layout: &Layout, controls: &Controls, audio: Option<&st
 
 /// The win or loss screen. The sim already wrote the verdict into the message
 /// log, so this is a frame around it plus a way back in.
-fn post_mortem(font: &Tileset, view: &RenderView, controls: &Controls, won: bool) {
+fn post_mortem(font: &Tileset, view: &RenderView, controls: &Controls, won: bool, touch: bool) {
     let (panel, button) = post_mortem_panel(controls.screen.x, controls.screen.y);
     draw_rectangle(
         panel.x,
@@ -787,12 +886,13 @@ fn post_mortem(font: &Tileset, view: &RenderView, controls: &Controls, won: bool
     }
 
     panel_frame(button, accent);
-    let label = fit_text("R  play again", button.w * 0.8, button.h * 0.4);
+    let label = if touch { "play again" } else { "R  play again" };
+    let size = fit_text(label, button.w * 0.8, button.h * 0.4);
     font.draw_text_centred(
-        "R  play again",
-        button.center().x,
-        (button.center().y - label * 0.5).floor(),
         label,
+        button.center().x,
+        (button.center().y - size * 0.5).floor(),
+        size,
         rgb(palette::TEXT_HEADING),
     );
 }
@@ -812,16 +912,19 @@ fn draw_controls(font: &Tileset, controls: &Controls) {
             step,
             step,
         );
-        button(font, cell, label);
+        // An arrow means the same thing to everyone, so the pad is drawn a
+        // glyph high; the rest wear words, which have to be smaller.
+        button(font, cell, label, 0.5);
     }
     for (action, rect) in controls.buttons {
-        button(font, rect, action.label());
+        button(font, rect, action.name(), 0.28);
     }
-    button(font, controls.settings, Action::Settings.label());
+    button(font, controls.settings, Action::Settings.name(), 0.28);
 }
 
-/// One translucent, labelled hit target.
-fn button(font: &Tileset, rect: Rect, label: char) {
+/// One translucent, labelled hit target. `scale` is the label's height as a
+/// share of the button's.
+fn button(font: &Tileset, rect: Rect, label: &str, scale: f32) {
     draw_rectangle(
         rect.x,
         rect.y,
@@ -837,10 +940,10 @@ fn button(font: &Tileset, rect: Rect, label: char) {
         2.0,
         rgba(palette::SLIME, 0.65),
     );
-    let size = (rect.h * 0.5).max(8.0);
-    font.draw(
+    let size = fit_text(label, rect.w * 0.8, (rect.h * scale).max(8.0));
+    font.draw_text_centred(
         label,
-        (rect.center().x - size * 0.5).floor(),
+        rect.center().x,
         (rect.center().y - size * 0.5).floor(),
         size,
         rgba(palette::TEXT_HEADING, 0.9),
@@ -859,23 +962,6 @@ fn panel_frame(rect: Rect, color: Rgb) {
     draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 2.0, rgb(color));
 }
 
-/// Everything [`Action`] needs from this module: the glyph its button wears.
-impl Action {
-    /// The code page 437 glyph this button is labelled with.
-    #[must_use]
-    pub const fn label(self) -> char {
-        match self {
-            Self::Wait => '\u{2022}',
-            Self::Examine => 'X',
-            Self::Organelles => 'Z',
-            Self::CyclePrev => 'A',
-            Self::CycleNext => 'D',
-            Self::Help => '?',
-            Self::Settings => 'S',
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -885,9 +971,20 @@ mod tests {
     /// A phone, upright.
     const PHONE: (f32, f32) = (390.0, 844.0);
 
-    /// The layout with the log where it has always been.
+    /// A whole window as an area, for the layouts with no pad in the way.
+    fn window(screen: (f32, f32)) -> Rect {
+        Rect::new(0.0, 0.0, screen.0, screen.1)
+    }
+
+    /// The layout with the log where it has always been and a keyboard behind
+    /// it, which is the arrangement every test predating the pad assumes.
     fn fit(screen: (f32, f32), map: (i32, i32)) -> Layout {
-        Layout::fit(screen.0, screen.1, map.0, map.1, true)
+        Layout::fit(window(screen), map.0, map.1, true, false)
+    }
+
+    /// The same window once the on-screen pad has taken its share.
+    fn fit_touch(screen: (f32, f32), map: (i32, i32)) -> Layout {
+        Layout::fit(Controls::free(screen.0, screen.1), map.0, map.1, true, true)
     }
 
     #[test]
@@ -917,7 +1014,7 @@ mod tests {
     fn cells_are_always_a_whole_number_of_pixels() {
         for width in [320.0_f32, 390.0, 800.0, 1032.0, 1440.0, 1920.0] {
             for height in [480.0_f32, 708.0, 844.0, 1080.0] {
-                let layout = Layout::fit(width, height, 48, 48, true);
+                let layout = Layout::fit(window((width, height)), 48, 48, true, false);
                 assert!((layout.cell - layout.cell.floor()).abs() < f32::EPSILON);
                 assert!(layout.cell >= 1.0);
             }
@@ -942,20 +1039,20 @@ mod tests {
 
     #[test]
     fn a_phone_on_its_side_still_refuses_the_sidebar() {
-        let layout = Layout::fit(PHONE.1, PHONE.0, 48, 48, true);
+        let layout = fit((PHONE.1, PHONE.0), (48, 48));
         assert_eq!(layout.mode, Mode::Narrow);
     }
 
     #[test]
     fn a_tablet_in_landscape_keeps_the_three_panels() {
-        let layout = Layout::fit(1024.0, 768.0, 48, 48, true);
+        let layout = fit((1024.0, 768.0), (48, 48));
         assert_eq!(layout.mode, Mode::Wide);
         assert!(!layout.sidebar_overlay);
     }
 
     #[test]
     fn a_tablet_upright_does_not() {
-        let layout = Layout::fit(768.0, 1024.0, 48, 48, true);
+        let layout = fit((768.0, 1024.0), (48, 48));
         assert_eq!(layout.mode, Mode::Narrow);
         // Everything fits at this width, so there is nothing to scroll.
         assert!(!layout.scrolls);
@@ -965,6 +1062,7 @@ mod tests {
     #[test]
     fn panels_tile_without_gaps_or_overlaps() {
         let layout = fit(DESKTOP, (64, 48));
+        assert!(layout.status.is_none(), "the sidebar is showing them");
         assert!((layout.map.bottom() - layout.info.top()).abs() < f32::EPSILON);
         assert!((layout.map.right() - layout.sidebar.left()).abs() < f32::EPSILON);
         assert!((layout.sidebar.h - (layout.map.h + layout.info.h)).abs() < f32::EPSILON);
@@ -972,8 +1070,31 @@ mod tests {
     }
 
     #[test]
+    fn the_map_first_layout_stacks_the_strip_the_map_and_the_log() {
+        // The strip used to be painted over the map's top row, which meant a
+        // row of the world you could stand in and not see.
+        for screen in [PHONE, (PHONE.1, PHONE.0), (320.0, 568.0)] {
+            for layout in [fit(screen, (48, 48)), fit_touch(screen, (48, 48))] {
+                let strip = layout.status.expect("the map-first layout has one");
+                assert!((strip.h - layout.cell).abs() < f32::EPSILON);
+                assert!((strip.bottom() - layout.map.top()).abs() < f32::EPSILON);
+                assert!((layout.map.bottom() - layout.info.top()).abs() < f32::EPSILON);
+                assert!((strip.w - layout.map.w).abs() < f32::EPSILON);
+                // The overlay covers the strip and the map, and stops at the
+                // message bar so the description it is writing there is not
+                // written underneath itself.
+                assert!(layout.sidebar.top() <= strip.top() + f32::EPSILON);
+                assert!(
+                    layout.sidebar.bottom() <= layout.info.top() + f32::EPSILON,
+                    "the sidebar covered its own description"
+                );
+            }
+        }
+    }
+
+    #[test]
     fn a_degenerate_window_still_produces_something_finite() {
-        let layout = Layout::fit(0.0, 0.0, 48, 48, true);
+        let layout = fit((0.0, 0.0), (48, 48));
         assert!(layout.cell.is_finite() && layout.cell > 0.0);
         assert!(layout.cols >= 1 && layout.rows >= 1);
     }
@@ -1105,6 +1226,117 @@ mod tests {
             assert!(geometry.close.bottom() <= panel.bottom());
             assert!(geometry.close.h >= MIN_TARGET);
         }
+    }
+
+    /// The screens the pad has to share with the panels: two phones upright,
+    /// one on its side, two tablets, and the desktop window somebody touched.
+    const TOUCHED: [(f32, f32); 7] = [
+        (320.0, 568.0),
+        (390.0, 844.0),
+        (414.0, 896.0),
+        (844.0, 390.0),
+        (768.0, 1024.0),
+        (1024.0, 768.0),
+        (1032.0, 708.0),
+    ];
+
+    #[test]
+    fn the_pad_never_lands_on_a_panel() {
+        // The pad is drawn last and over everything, so the only thing keeping
+        // it off the log, the map and the organelle list is the room the
+        // layout was told not to use. Check every rectangle against every
+        // other one rather than trusting that arithmetic by eye.
+        for (width, height) in TOUCHED {
+            for map in [(48, 48), (64, 48)] {
+                for log in [true, false] {
+                    let layout =
+                        Layout::fit(Controls::free(width, height), map.0, map.1, log, true);
+                    let controls = Controls::fit(width, height, true);
+                    let pad = std::iter::once(controls.dpad)
+                        .chain(std::iter::once(controls.settings))
+                        .chain(controls.buttons.iter().map(|&(_, rect)| rect));
+                    for control in pad {
+                        for (name, panel) in [
+                            ("map", layout.map),
+                            ("log", layout.info),
+                            ("sidebar", layout.sidebar),
+                        ] {
+                            assert!(
+                                !control.overlaps(&panel),
+                                "{width}x{height} {map:?} log={log}: the pad sat on the {name}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn a_phone_with_the_pad_out_still_has_a_map_worth_looking_at() {
+        let layout = fit_touch(PHONE, (48, 48));
+        assert_eq!(layout.mode, Mode::Narrow);
+        assert!(layout.touch);
+        assert!(layout.cell >= NARROW_MIN_CELL, "cells were {}", layout.cell);
+        // Two thirds of the map's rows, which is what makes it a game rather
+        // than a keyhole.
+        assert!(layout.rows >= 32, "only {} rows survived", layout.rows);
+    }
+
+    #[test]
+    fn a_phone_on_its_side_puts_the_pad_beside_the_map_rather_than_under_it() {
+        // Height is the scarce thing in landscape and width is not, so a band
+        // along the bottom would cost the map half its rows for nothing.
+        let side = fit_touch((PHONE.1, PHONE.0), (48, 48));
+        let upright = fit_touch(PHONE, (48, 48));
+        assert!(
+            side.rows > upright.rows / 2,
+            "landscape kept only {} rows",
+            side.rows
+        );
+        let free = Controls::free(PHONE.1, PHONE.0);
+        assert!(free.x > 0.0, "the pad took a band instead of a column");
+        assert!(
+            (free.h - PHONE.0).abs() < f32::EPSILON,
+            "and kept the height"
+        );
+    }
+
+    #[test]
+    fn the_pager_is_a_thumb_sized_pair_at_the_foot_of_the_sidebar() {
+        for (width, height) in TOUCHED {
+            let layout = Layout::fit(Controls::free(width, height), 48, 48, true, true);
+            let pager = layout.sidebar_pager().expect("a touch layout has one");
+            for button in pager.buttons {
+                assert!(
+                    button.h >= MIN_TARGET,
+                    "{width}x{height}: {} px is not a thumb",
+                    button.h
+                );
+                assert!(
+                    button.x >= layout.sidebar.x - f32::EPSILON
+                        && button.right() <= layout.sidebar.right() + f32::EPSILON
+                        && button.bottom() <= layout.sidebar.bottom() + f32::EPSILON,
+                    "{width}x{height}: it escaped the sidebar"
+                );
+            }
+            // Two buttons, side by side, with no seam a tap can fall through.
+            let [prev, next] = pager.buttons;
+            assert!((prev.right() - next.x).abs() < f32::EPSILON);
+            // And the list stops above them.
+            let capacity = hud::sidebar_capacity(layout.sidebar_rows, pager.rows);
+            let last_entry = layout.cell.mul_add(capacity as f32 + 8.0, layout.sidebar.y);
+            assert!(
+                last_entry <= prev.y + f32::EPSILON,
+                "{width}x{height}: the list ran under the paging buttons"
+            );
+        }
+    }
+
+    #[test]
+    fn a_keyboard_layout_has_no_paging_buttons_to_hit() {
+        assert!(fit(DESKTOP, (64, 48)).sidebar_pager().is_none());
+        assert!(fit(PHONE, (48, 48)).sidebar_pager().is_none());
     }
 
     #[test]

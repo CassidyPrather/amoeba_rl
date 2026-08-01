@@ -15,8 +15,8 @@
 //! walked out one cell a frame.
 
 use macroquad::input::{
-    KeyCode, MouseButton, Touch, TouchPhase, is_key_down, is_key_pressed, is_mouse_button_down,
-    is_mouse_button_pressed, mouse_position, touches,
+    KeyCode, MouseButton, Touch, TouchPhase, get_last_key_pressed, is_key_down, is_key_pressed,
+    is_mouse_button_down, is_mouse_button_pressed, mouse_position, touches,
 };
 use macroquad::math::{Rect, Vec2};
 
@@ -44,6 +44,11 @@ const MAX_DT: f32 = 0.1;
 /// hit targets and answers to the same rule.
 pub const MIN_TARGET: f32 = 48.0;
 
+/// The largest one is allowed to get. A thumb is a thumb on a tablet too, and
+/// the pad is charged for the space it takes: every pixel of it comes out of
+/// the map.
+const MAX_TARGET: f32 = 64.0;
+
 /// A wall-clock seed, for the runs the sim is not allowed to seed itself.
 #[must_use]
 pub fn fresh_seed() -> u64 {
@@ -70,6 +75,25 @@ pub enum Action {
 }
 
 impl Action {
+    /// What this button is called.
+    ///
+    /// A word rather than the key that does the same job, because the screens
+    /// these buttons appear on have no keyboard to press an `X` or a `Z` on.
+    /// The sim's own help uses the same words, so the two halves of the
+    /// interface agree about what a thing is called.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Wait => "wait",
+            Self::Examine => "look",
+            Self::Organelles => "list",
+            Self::CyclePrev => "prev",
+            Self::CycleNext => "next",
+            Self::Help => "help",
+            Self::Settings => "menu",
+        }
+    }
+
     /// The command this button stands for, if the sim is the one being asked.
     ///
     /// The settings panel is a frontend overlay, so its button is the one that
@@ -111,34 +135,38 @@ pub struct Controls {
     pub dpad: Rect,
     /// The action buttons.
     pub buttons: [(Action, Rect); 6],
-    /// The way into the settings panel on a screen with no keyboard. It sits on
-    /// its own in the far corner rather than in the button cluster, because a
-    /// fourth column of buttons does not fit a 320 px phone beside the pad.
+    /// The way into the settings panel on a screen with no keyboard. It sits
+    /// one row above the button cluster rather than in it, because a fourth
+    /// column of buttons does not fit a 320 px phone beside the pad — and
+    /// inside the pad's band rather than off in a screen corner, because
+    /// anywhere else is somewhere the map wanted to be.
     pub settings: Rect,
 }
 
 impl Controls {
     /// The live cells of the direction pad: what they mean, what they are
     /// labelled with, and where they sit in the three-by-three grid.
-    pub const DPAD_CELLS: [(Dir, char, i32, i32); 4] = [
-        (Dir::Up, '\u{25B2}', 1, 0),
-        (Dir::Left, '\u{25C4}', 0, 1),
-        (Dir::Right, '\u{25BA}', 2, 1),
-        (Dir::Down, '\u{25BC}', 1, 2),
+    pub const DPAD_CELLS: [(Dir, &'static str, i32, i32); 4] = [
+        (Dir::Up, "\u{25B2}", 1, 0),
+        (Dir::Left, "\u{25C4}", 0, 1),
+        (Dir::Right, "\u{25BA}", 2, 1),
+        (Dir::Down, "\u{25BC}", 1, 2),
     ];
 
     /// Place the pad in a window.
     #[must_use]
     pub fn fit(screen_w: f32, screen_h: f32, visible: bool) -> Self {
         let screen = Vec2::new(screen_w.max(1.0), screen_h.max(1.0));
-        let unit = (screen.x.min(screen.y) * 0.13).clamp(MIN_TARGET, 88.0);
-        let margin = (unit * 0.25).floor();
-        let grid = Vec2::new(unit * 3.0, unit * 2.0);
-        let corner = Vec2::new(screen.x - margin - grid.x, screen.y - margin - grid.y);
+        let (unit, margin) = metrics(screen);
+        // Three rows of the pad's band: the dpad fills all three, the action
+        // buttons the lower two, and the settings button the corner the
+        // buttons leave over.
+        let top = unit.mul_add(-3.0, screen.y - margin);
+        let corner = Vec2::new(unit.mul_add(-3.0, screen.x - margin), top + unit);
         Self {
             screen,
             visible,
-            dpad: Rect::new(margin, screen.y - margin - grid.x, grid.x, grid.x),
+            dpad: Rect::new(margin, top, unit * 3.0, unit * 3.0),
             buttons: BUTTON_GRID.map(|(action, col, row)| {
                 (
                     action,
@@ -150,7 +178,28 @@ impl Controls {
                     ),
                 )
             }),
-            settings: Rect::new(screen.x - margin - unit, margin, unit, unit),
+            settings: Rect::new(screen.x - margin - unit, top, unit, unit),
+        }
+    }
+
+    /// The part of the window left over for the game.
+    ///
+    /// The pad is drawn over everything, so this is what keeps it from being
+    /// drawn over *something*: the panels are laid out inside this rectangle
+    /// and the pad has the rest to itself. On a tall screen it takes a band
+    /// along the bottom; on a wide one it takes a column either side, because
+    /// a phone on its side has height to spare nowhere and width to spare
+    /// everywhere.
+    #[must_use]
+    pub fn free(screen_w: f32, screen_h: f32) -> Rect {
+        let screen = Vec2::new(screen_w.max(1.0), screen_h.max(1.0));
+        let (unit, margin) = metrics(screen);
+        let band = unit.mul_add(3.0, margin * 2.0);
+        let beside = screen.x > screen.y && (screen.x - band * 2.0) > screen.x * 0.5;
+        if beside {
+            Rect::new(band, 0.0, (screen.x - band * 2.0).max(1.0), screen.y)
+        } else {
+            Rect::new(0.0, 0.0, screen.x, (screen.y - band).max(1.0))
         }
     }
 
@@ -188,6 +237,21 @@ impl Controls {
     pub fn covers(&self, point: Vec2) -> bool {
         self.visible && (self.dpad.contains(point) || self.action_at(point).is_some())
     }
+}
+
+/// One thumb-sized square, and the gap around the pad made of them.
+///
+/// The square grows with the screen up to a point and then stops: past
+/// [`MAX_TARGET`] a bigger screen is buying a bigger thumb, which nobody has.
+/// The last term is the one that matters on a small phone — six squares and
+/// their margins have to fit across the window, or the pad and the buttons
+/// meet in the middle.
+fn metrics(screen: Vec2) -> (f32, f32) {
+    let unit = (screen.x.min(screen.y) * 0.13)
+        .clamp(MIN_TARGET, MAX_TARGET)
+        .min(screen.x / 6.5)
+        .max(1.0);
+    (unit, (unit * 0.25).floor())
 }
 
 /// Auto-repeat for a held direction.
@@ -325,6 +389,13 @@ impl Input {
     ) -> Frame {
         let fingers = touches();
         self.touched |= !fingers.is_empty();
+        // A keyboard turning up says as much as a finger did. The pad costs the
+        // map the room it stands in, so a screen that has another way in should
+        // not keep paying for one — a touchscreen laptop is not stuck with a
+        // phone's layout because somebody once tapped the map.
+        if get_last_key_pressed().is_some() {
+            self.touched = false;
+        }
         let pointers = pointers(&fingers, &self.prev_touches);
         self.prev_touches = live_touches(&fingers);
         let mut mute = is_key_pressed(KeyCode::M);
@@ -418,6 +489,20 @@ impl Input {
             return Some(Command::Move(dir));
         }
 
+        // The paging control listens wherever the sidebar is drawn, which in
+        // the three-panel layout is all the time — a list you can read is a
+        // list you can page, browser open or not.
+        let sidebar_showing = !layout.sidebar_overlay || view.mode == UiMode::Organelles;
+        if sidebar_showing
+            && let Some(by) = pointers
+                .iter()
+                .filter(|pointer| pointer.pressed)
+                .find_map(|pointer| sidebar_page_at(layout, pointer.at))
+        {
+            self.turn_page(by, view, layout);
+            return Some(Command::PageOrganelles(by));
+        }
+
         // The organelle browser owns the whole screen while it is open — in
         // the map-first layout it is literally drawn over the map — so nothing
         // there is a map tap.
@@ -450,9 +535,10 @@ impl Input {
 
     /// Move the sidebar by whole screens, wrapping at both ends.
     fn turn_page(&mut self, by: i32, view: &RenderView, layout: &Layout) {
+        let footer = layout.sidebar_pager().map_or(1, |pager| pager.rows);
         let pages = hud::pages(
             view.organelles.len(),
-            hud::sidebar_capacity(layout.sidebar_rows),
+            hud::sidebar_capacity(layout.sidebar_rows, footer),
         );
         let pages = i32::try_from(pages).unwrap_or(1).max(1);
         let at = i32::try_from(self.page).unwrap_or(0);
@@ -617,6 +703,17 @@ fn game_over(controls: &Controls, pointers: &[Pointer]) -> Option<Command> {
         .iter()
         .any(|pointer| pointer.pressed && button.contains(pointer.at));
     (is_key_pressed(KeyCode::R) || tapped).then(|| Command::Restart { seed: fresh_seed() })
+}
+
+/// Which way a tap on the organelle list's paging control asks to go, if the
+/// control is on screen at all and the tap landed on it.
+fn sidebar_page_at(layout: &Layout, point: Vec2) -> Option<i32> {
+    let pager = layout.sidebar_pager()?;
+    pager
+        .buttons
+        .iter()
+        .zip([-1, 1])
+        .find_map(|(rect, by)| rect.contains(point).then_some(by))
 }
 
 /// Whichever direction is being held: arrow keys first, then the pad.
@@ -914,10 +1011,19 @@ mod tests {
             );
             assert!(controls.covers(gear.center()), "it swallowed a map tap");
             assert!(gear.right() <= width && gear.bottom() <= height);
-            // It lives in the far corner, clear of the pad and the buttons.
-            assert!(!controls.dpad.overlaps(&gear));
-            for (_, rect) in controls.buttons {
-                assert!(!rect.overlaps(&gear), "{width}x{height}: it hit a button");
+            // It sits in the row above the button cluster: clear of the pad,
+            // and touching the buttons without ever taking one of their taps.
+            assert!(!controls.dpad.overlaps(&gear), "{width}x{height}");
+            for (action, rect) in controls.buttons {
+                assert!(
+                    gear.bottom() <= rect.y,
+                    "{width}x{height}: it sat on a button"
+                );
+                assert_eq!(
+                    controls.action_at(rect.center()),
+                    Some(action),
+                    "{width}x{height}: it stole a button's taps"
+                );
             }
         }
     }

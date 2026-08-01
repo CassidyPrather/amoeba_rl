@@ -11,8 +11,9 @@ use amoeba_rl::sim::actors::{Rgb, palette};
 use amoeba_rl::sim::view::{Described, OrganelleEntry};
 use amoeba_rl::sim::{Phase, RenderView, UiMode};
 
-use crate::render::{SIDEBAR_COLS, Term, rgba};
-use macroquad::shapes::draw_rectangle;
+use crate::render::{SIDEBAR_COLS, Term, rgb, rgba};
+use macroquad::math::Rect;
+use macroquad::shapes::{draw_rectangle, draw_rectangle_lines};
 
 /// Column the sidebar's selection marker sits in.
 const MARK_COL: i32 = 1;
@@ -40,20 +41,34 @@ const WIDE_HINT_COLS: i32 = 60;
 /// Only the account goes: examine mode and the organelle browser still describe
 /// what they are pointing at, because those answer a question the player just
 /// asked rather than narrating one they did not.
-pub fn info(term: &Term, view: &RenderView, cols: i32, rows: i32, audio: Option<&str>, log: bool) {
+///
+/// `touch` decides whether the bottom row names keys or taps. It is the whole
+/// of this module's answer to a phone: every key letter in here is a dead end
+/// on a screen that has no keys, so a screen with none is told about the
+/// buttons it does have instead.
+pub fn info(
+    term: &Term,
+    view: &RenderView,
+    cols: i32,
+    rows: i32,
+    audio: Option<&str>,
+    log: bool,
+    touch: bool,
+) {
     let content = (rows - 2).max(1);
     match view.mode {
         UiMode::Messages if log => {
             // Filled upwards from the last row, so the newest line is always
             // in the same place however few lines there are to show.
             let shown = usize::try_from(content).unwrap_or(0);
-            for (row, line) in view.messages.iter().rev().take(shown).enumerate() {
+            for (row, line) in fill_upwards(&view.messages, cols - 2, shown)
+                .iter()
+                .enumerate()
+            {
                 let Ok(offset) = i32::try_from(row) else {
                     break;
                 };
-                // The sim wraps to 62 columns; a collapsed bar has fewer.
-                let line = truncate(line, cols - 2);
-                term.text(1, content - offset, &line, palette::TEXT_HEADING);
+                term.text(1, content - offset, line, palette::TEXT_HEADING);
             }
         }
         UiMode::Messages => {}
@@ -74,7 +89,7 @@ pub fn info(term: &Term, view: &RenderView, cols: i32, rows: i32, audio: Option<
             None => term.text(1, 1, "You see nothing there.", palette::FLOOR_FOV),
         },
     }
-    let hints = hint(view.mode, view.phase, cols);
+    let hints = hint(view.mode, view.phase, cols, touch);
     // A phone's viewport can be narrower than any useful line of hints, so the
     // row is cut to the panel rather than allowed to run off the end of it.
     term.text(1, rows - 1, &truncate(hints, cols - 2), palette::TEXT_BODY);
@@ -85,6 +100,28 @@ pub fn info(term: &Term, view: &RenderView, cols: i32, rows: i32, audio: Option<
     }
 }
 
+/// The last `rows` rows of the log, wrapped to `width` and ordered bottom row
+/// first — the order the panel fills in, newest at the floor.
+///
+/// The wrapping is the point. The sim breaks its own lines at sixty-two
+/// columns and a phone's panel is barely half that, so cutting them to fit
+/// would lose the end of every sentence that had any news in it. A message
+/// that no longer fits takes two rows and pushes an older one off the top
+/// instead, which is what a message log is for.
+fn fill_upwards(messages: &[String], width: i32, rows: usize) -> Vec<String> {
+    let mut out = Vec::with_capacity(rows);
+    for message in messages.iter().rev() {
+        if out.len() >= rows {
+            break;
+        }
+        // A message's own rows read downwards; this list is being built the
+        // other way, so its last row is the one that goes in first.
+        out.extend(wrap(message, width).into_iter().rev());
+    }
+    out.truncate(rows);
+    out
+}
+
 /// The column a right-aligned `note` starts in, if the row still has room for
 /// it after `hints` and a gap. `None` when it would collide.
 fn fits_after(hints: &str, note: &str, cols: i32) -> Option<i32> {
@@ -93,12 +130,29 @@ fn fits_after(hints: &str, note: &str, cols: i32) -> Option<i32> {
     (col >= end + 2).then_some(col)
 }
 
+/// The organelle list's paging control on a screen with no keyboard: where its
+/// two buttons are, and how many rows of the panel they have taken.
+///
+/// The rectangles are in window pixels and come from the layout, so the
+/// buttons are drawn exactly where [`input`](crate::input) is listening for
+/// them.
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Pager {
+    /// Rows at the foot of the sidebar that are the control's, not the list's.
+    pub rows: i32,
+    /// Previous page, then next page.
+    pub buttons: [Rect; 2],
+}
+
 /// The organelle sidebar: the numbers that decide the run, then the mass.
 ///
 /// `page` is the frontend's own, counted in the rows this panel actually has.
 /// The sim tracks a page too, but in fixed fifty-five-line pages it never puts
 /// in [`RenderView`], so paging has to be mirrored out here.
-pub fn sidebar(term: &Term, view: &RenderView, rows: i32, page: usize) {
+///
+/// `pager` is the touchable version of the `Q` and `E` hints in the bottom
+/// corners, and is `None` wherever there is a keyboard to press them on.
+pub fn sidebar(term: &Term, view: &RenderView, rows: i32, page: usize, pager: Option<Pager>) {
     let status = &view.status;
     term.text(1, 1, "Organelles", palette::TEXT_HEADING);
     for (row, line) in [
@@ -119,7 +173,8 @@ pub fn sidebar(term: &Term, view: &RenderView, rows: i32, page: usize) {
         term.text(1, 2 + offset, line, palette::TEXT_BODY);
     }
 
-    let capacity = sidebar_capacity(rows);
+    let footer = pager.map_or(1, |p| p.rows);
+    let capacity = sidebar_capacity(rows, footer);
     let count = view.organelles.len();
     let selected_at = view.organelles.iter().position(|e| e.selected).unwrap_or(0);
     let (start, end) = visible_range(count, page, selected_at, capacity);
@@ -136,28 +191,60 @@ pub fn sidebar(term: &Term, view: &RenderView, rows: i32, page: usize) {
         let Ok(offset) = i32::try_from(row) else {
             break;
         };
-        entry_text(term, entry, ENTRY_ROW + offset);
+        entry_text(term, entry, ENTRY_ROW + offset, pager.is_some());
     }
-    if count > capacity {
-        term.text_on(
-            0,
-            rows - 1,
-            "Q\u{25B2}",
-            palette::TEXT_HEADING,
-            palette::SLIME,
+    // The control stays put whether or not the list overflows, because a
+    // button that comes and goes under a thumb is worse than a dead one; the
+    // key hints, which cost a row nobody is aiming at, still only appear when
+    // there is somewhere to page to.
+    match pager {
+        Some(pager) => page_buttons(term, &pager),
+        None if count > capacity => {
+            term.text_on(
+                0,
+                rows - 1,
+                "Q\u{25B2}",
+                palette::TEXT_HEADING,
+                palette::SLIME,
+            );
+            term.text_on(
+                SIDEBAR_COLS - 2,
+                rows - 1,
+                "E\u{25BC}",
+                palette::TEXT_HEADING,
+                palette::SLIME,
+            );
+        }
+        None => {}
+    }
+}
+
+/// The two paging buttons, drawn where the layout put them.
+fn page_buttons(term: &Term, pager: &Pager) {
+    for (rect, glyph) in pager.buttons.iter().zip(['\u{25B2}', '\u{25BC}']) {
+        draw_rectangle(
+            rect.x,
+            rect.y,
+            rect.w,
+            rect.h,
+            rgba(palette::FLOOR_BACKGROUND_FOV, 0.55),
         );
-        term.text_on(
-            SIDEBAR_COLS - 2,
-            rows - 1,
-            "E\u{25BC}",
-            palette::TEXT_HEADING,
-            palette::SLIME,
+        draw_rectangle_lines(rect.x, rect.y, rect.w, rect.h, 2.0, rgb(palette::SLIME));
+        let size = (rect.h * 0.5).min(rect.w * 0.5).max(8.0);
+        term.font().draw(
+            glyph,
+            (rect.center().x - size * 0.5).floor(),
+            (rect.center().y - size * 0.5).floor(),
+            size,
+            rgb(palette::TEXT_HEADING),
         );
     }
 }
 
-/// The one-line overlay the map-first layout owes the numbers the sidebar
-/// would otherwise be showing.
+/// The one line the map-first layout owes the numbers the sidebar would
+/// otherwise be showing. It has a row of its own above the map, so this can
+/// paint its background solid rather than hoping a cell of the world reads
+/// through it.
 pub fn status_strip(term: &Term, view: &RenderView, cols: i32) {
     let status = &view.status;
     let line = format!(
@@ -170,7 +257,7 @@ pub fn status_strip(term: &Term, view: &RenderView, cols: i32) {
         term.origin().y,
         cols as f32 * cell,
         cell,
-        rgba(palette::FLOOR_BACKGROUND_FOV, 0.85),
+        rgb(palette::FLOOR_BACKGROUND_FOV),
     );
     term.text(1, 0, &truncate(&line, cols - 2), palette::TEXT_HEADING);
 }
@@ -197,7 +284,7 @@ fn entry_background(term: &Term, entry: &OrganelleEntry, row: i32) {
 }
 
 /// One sidebar row's marker, name and navigation hint.
-fn entry_text(term: &Term, entry: &OrganelleEntry, row: i32) {
+fn entry_text(term: &Term, entry: &OrganelleEntry, row: i32, touch: bool) {
     if entry.examined {
         term.glyph(MARK_COL, row, '>', palette::CURSOR);
     } else if entry.selected {
@@ -205,7 +292,26 @@ fn entry_text(term: &Term, entry: &OrganelleEntry, row: i32) {
     }
     term.text(NAME_COL, row, &truncate(&entry.name, NAME_COLS), entry.fg);
     if let Some(hint) = entry.nucleus_hint {
-        term.glyph(SIDEBAR_COLS - 1, row, hint, palette::SUPER_BRIGHT);
+        term.glyph(
+            SIDEBAR_COLS - 1,
+            row,
+            nucleus_mark(hint, touch),
+            palette::SUPER_BRIGHT,
+        );
+    }
+}
+
+/// The mark against the nuclei either side of the one you are steering.
+///
+/// The sim names the keys that reach them, which is the answer on a keyboard
+/// and nothing at all on a phone. There the same two are marked with the
+/// arrows the *prev* and *next* buttons wear, so the mark points at the button
+/// that gets you there. `@` — you are here — needs no translating.
+const fn nucleus_mark(hint: char, touch: bool) -> char {
+    match (hint, touch) {
+        ('A', true) => '\u{25C4}',
+        ('D', true) => '\u{25BA}',
+        (mark, _) => mark,
     }
 }
 
@@ -280,11 +386,12 @@ pub const fn pages(count: usize, capacity: usize) -> usize {
 
 /// Rows this window gives the organelle list, given the sidebar's height.
 ///
-/// One row goes to the paging keys at the bottom; the rest of the difference
-/// is the header.
+/// `footer` rows go to the paging control at the bottom — one for the key
+/// hints, several for a pair of buttons a thumb can hit — and the rest of the
+/// difference is the header.
 #[must_use]
-pub fn sidebar_capacity(rows: i32) -> usize {
-    usize::try_from(rows - 1 - ENTRY_ROW).unwrap_or(0)
+pub fn sidebar_capacity(rows: i32, footer: i32) -> usize {
+    usize::try_from(rows - footer.max(0) - ENTRY_ROW).unwrap_or(0)
 }
 
 /// How many of a bar's columns are filled, floored as the original floored it.
@@ -292,13 +399,26 @@ fn fill_cols(fraction: f32) -> i32 {
     (NAME_COLS as f32 * fraction.clamp(0.0, 1.0)) as i32
 }
 
-/// The key hints for whatever mode is open, abbreviated on a narrow panel.
+/// The hints for whatever mode is open, abbreviated on a narrow panel.
 ///
 /// Every one of these has to fit the map it is drawn under, and the default
 /// difficulty's map is 48 columns wide — so the narrow tier, not the wide one,
-/// is what most players read. `S settings` earns its place in all of them: it is
-/// the only way to find the panel that turns any of this off.
-const fn hint(mode: UiMode, phase: Phase, cols: i32) -> &'static str {
+/// is what most players read. `S settings` earns its place in every keyboard
+/// one: it is the only way to find the panel that turns any of this off.
+///
+/// The touch tier names no keys and no settings, for the same reason in both
+/// cases — the buttons are already on the screen, labelled. What it says
+/// instead is the one thing they cannot say for themselves: that the map takes
+/// taps too.
+const fn hint(mode: UiMode, phase: Phase, cols: i32, touch: bool) -> &'static str {
+    if touch {
+        return match (mode, phase) {
+            (_, Phase::GameOver { .. }) => "tap play again",
+            (UiMode::Messages, _) => "tap a tile beside you to move",
+            (UiMode::Organelles, _) => "list closes   arrows page",
+            (UiMode::Examine, _) => "tap a tile to look at it",
+        };
+    }
     let wide = cols >= WIDE_HINT_COLS;
     if matches!(phase, Phase::GameOver { .. }) {
         return "R plays again   S settings";
@@ -422,10 +542,14 @@ mod tests {
     #[test]
     fn the_sidebar_reports_the_rows_it_can_actually_draw() {
         // The reference sidebar: 59 rows, eight of header, one of paging keys.
-        assert_eq!(sidebar_capacity(59), 50);
-        assert_eq!(sidebar_capacity(ENTRY_ROW + 1), 0);
-        assert_eq!(sidebar_capacity(0), 0);
-        assert_eq!(sidebar_capacity(-20), 0);
+        assert_eq!(sidebar_capacity(59, 1), 50);
+        assert_eq!(sidebar_capacity(ENTRY_ROW + 1, 1), 0);
+        assert_eq!(sidebar_capacity(0, 1), 0);
+        assert_eq!(sidebar_capacity(-20, 1), 0);
+        // A thumb needs a taller control than a key hint does, and every row
+        // of it is a row the list does not get.
+        assert_eq!(sidebar_capacity(59, 5), 46);
+        assert_eq!(sidebar_capacity(ENTRY_ROW + 3, 5), 0);
     }
 
     #[test]
@@ -437,6 +561,32 @@ mod tests {
         assert_eq!(fill_cols(-1.0), 0);
         assert_eq!(fill_cols(2.0), NAME_COLS);
         assert_eq!(fill_cols(f32::NAN), 0);
+    }
+
+    #[test]
+    fn the_log_fills_upwards_newest_first() {
+        let log = ["one".to_owned(), "two".to_owned(), "three".to_owned()];
+        // Bottom row first, so the newest line always lands in the same place.
+        assert_eq!(fill_upwards(&log, 20, 4), ["three", "two", "one"]);
+        // And an older line falls off the top rather than the newest.
+        assert_eq!(fill_upwards(&log, 20, 2), ["three", "two"]);
+        assert!(fill_upwards(&log, 20, 0).is_empty());
+        assert!(fill_upwards(&[], 20, 4).is_empty());
+    }
+
+    #[test]
+    fn a_line_too_wide_for_the_panel_wraps_rather_than_losing_its_end() {
+        // The sim wraps at sixty-two columns; a phone's panel has about half
+        // that, and the half it would drop is the half with the news in it.
+        let log = ["The militia hits your maw for four".to_owned()];
+        let rows = fill_upwards(&log, 20, 4);
+        assert!(rows.len() > 1, "it was cut instead of wrapped");
+        // Read bottom-up, the message is whole and in order.
+        let whole: Vec<&str> = rows.iter().rev().map(String::as_str).collect();
+        assert_eq!(whole.join(" "), log[0]);
+        for row in &rows {
+            assert!(row.chars().count() <= 20, "{row:?} was too wide");
+        }
     }
 
     #[test]
@@ -497,25 +647,75 @@ mod tests {
         for (cols, budget) in [(48, 46_usize), (64, 62)] {
             for mode in MODES {
                 for phase in [Phase::Playing, Phase::GameOver { won: true }] {
-                    let line = hint(mode, phase, cols);
-                    assert!(
-                        line.chars().count() <= budget,
-                        "{cols} cols, {mode:?}: {line:?} is {} characters",
-                        line.chars().count()
-                    );
+                    for touch in [false, true] {
+                        let line = hint(mode, phase, cols, touch);
+                        assert!(
+                            line.chars().count() <= budget,
+                            "{cols} cols, {mode:?}: {line:?} is {} characters",
+                            line.chars().count()
+                        );
+                    }
                 }
             }
         }
     }
 
     #[test]
-    fn every_hint_points_at_the_settings_panel() {
-        // It is the only way to find the panel, and the panel is the only way
-        // to turn the log or the animations off.
+    fn the_touch_hints_fit_a_phones_share_of_a_phone() {
+        // The narrow layout draws this row under a map cut to the window, and
+        // a 390 px phone at ten pixels a cell has 39 columns of it — two of
+        // which are the panel's own margins.
+        for mode in MODES {
+            for phase in [Phase::Playing, Phase::GameOver { won: true }] {
+                let line = hint(mode, phase, 39, true);
+                assert!(
+                    line.chars().count() <= 37,
+                    "{mode:?}: {line:?} is {} characters",
+                    line.chars().count()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn no_touch_hint_names_a_key() {
+        // The whole point: a phone has no S to press, no Esc to go back with
+        // and no Q and E to page with, so a row that names them is a row of
+        // dead ends.
         for cols in [30, 48, 64] {
             for mode in MODES {
                 for phase in [Phase::Playing, Phase::GameOver { won: false }] {
-                    let line = hint(mode, phase, cols);
+                    let line = hint(mode, phase, cols, true);
+                    for key in ["S settings", "Esc", "Q/E", "Q and E", "R plays", "space"] {
+                        assert!(!line.contains(key), "{mode:?}: {line:?} still says {key:?}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_nucleus_marks_point_at_whatever_gets_you_there() {
+        // A keyboard is told which key; a thumb is told which button, using
+        // the same two arrows those buttons wear.
+        assert_eq!(nucleus_mark('A', false), 'A');
+        assert_eq!(nucleus_mark('D', false), 'D');
+        assert_eq!(nucleus_mark('A', true), '\u{25C4}');
+        assert_eq!(nucleus_mark('D', true), '\u{25BA}');
+        // "You are here" needs no translating either way.
+        assert_eq!(nucleus_mark('@', true), '@');
+        assert_eq!(nucleus_mark('@', false), '@');
+    }
+
+    #[test]
+    fn every_key_hint_points_at_the_settings_panel() {
+        // It is the only way to find the panel, and the panel is the only way
+        // to turn the log or the animations off. A phone reaches it by the
+        // button on the pad, so its hints are excused.
+        for cols in [30, 48, 64] {
+            for mode in MODES {
+                for phase in [Phase::Playing, Phase::GameOver { won: false }] {
+                    let line = hint(mode, phase, cols, false);
                     assert!(
                         line.contains("S settings"),
                         "{cols} cols, {mode:?}: {line:?}"
