@@ -310,6 +310,17 @@ const fn style(kind: EffectKind) -> Style {
             secs: 0.26,
             rank: MAJOR,
         },
+        // A stretch of turns nobody did anything with, drifting off the mass
+        // that spent them. The one overlay that stands for a span of time
+        // rather than for a moment, which is why it is the slowest thing here.
+        EffectKind::Rest => Style::glyph(
+            LIGHT_SHADE,
+            palette::OVERFILL,
+            Motion::Mark,
+            None,
+            0.30,
+            MINOR,
+        ),
         EffectKind::Wave => Style::glyph(
             DARK_SHADE,
             palette::ELECTRONICS,
@@ -812,7 +823,7 @@ mod tests {
     use crate::tileset::cp437;
 
     /// Every kind, for the table sweeps.
-    const KINDS: [EffectKind; 21] = [
+    const KINDS: [EffectKind; 22] = [
         EffectKind::Flow,
         EffectKind::Swap,
         EffectKind::Refused,
@@ -832,6 +843,7 @@ mod tests {
         EffectKind::Shot,
         EffectKind::Terrify,
         EffectKind::Depart,
+        EffectKind::Rest,
         EffectKind::Wave,
         EffectKind::GateFell,
     ];

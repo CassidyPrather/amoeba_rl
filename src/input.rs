@@ -61,6 +61,8 @@ pub fn fresh_seed() -> u64 {
 pub enum Action {
     /// Pass the turn.
     Wait,
+    /// Pass turns until there is something to look at.
+    Rest,
     /// Open or close the examine cursor.
     Examine,
     /// Open or close the organelle browser.
@@ -86,6 +88,7 @@ impl Action {
     pub const fn name(self) -> &'static str {
         match self {
             Self::Wait => "wait",
+            Self::Rest => "rest",
             Self::Examine => "look",
             Self::Organelles => "list",
             Self::CyclePrev => "prev",
@@ -103,6 +106,7 @@ impl Action {
     pub const fn command(self) -> Option<Command> {
         match self {
             Self::Wait => Some(Command::Wait),
+            Self::Rest => Some(Command::Rest),
             Self::Examine => Some(Command::ToggleExamine),
             Self::Organelles => Some(Command::ToggleOrganelles),
             Self::CyclePrev => Some(Command::CycleNucleus { forward: false }),
@@ -114,13 +118,18 @@ impl Action {
 }
 
 /// Where the action buttons sit in their grid, bottom row first.
-const BUTTON_GRID: [(Action, i32, i32); 6] = [
+///
+/// Row `-1` is the row the settings button sits in, off at the far corner; the
+/// two squares of it that the settings button does not want are the only spare
+/// room the pad's band has, and rest is what earned one of them.
+const BUTTON_GRID: [(Action, i32, i32); 7] = [
     (Action::CyclePrev, 0, 0),
     (Action::CycleNext, 1, 0),
     (Action::Help, 2, 0),
     (Action::Organelles, 0, 1),
     (Action::Examine, 1, 1),
     (Action::Wait, 2, 1),
+    (Action::Rest, 0, -1),
 ];
 
 /// The on-screen pad: geometry only, so hit testing can be tested without a
@@ -135,12 +144,14 @@ pub struct Controls {
     /// The direction pad, a three-by-three grid of which four cells are live.
     pub dpad: Rect,
     /// The action buttons.
-    pub buttons: [(Action, Rect); 6],
-    /// The way into the settings panel on a screen with no keyboard. It sits
-    /// one row above the button cluster rather than in it, because a fourth
+    pub buttons: [(Action, Rect); 7],
+    /// The way into the settings panel on a screen with no keyboard. It sits in
+    /// the row above the button cluster rather than in it, because a fourth
     /// column of buttons does not fit a 320 px phone beside the pad — and
     /// inside the pad's band rather than off in a screen corner, because
-    /// anywhere else is somewhere the map wanted to be.
+    /// anywhere else is somewhere the map wanted to be. That row has three
+    /// squares and this takes the far one, which is what leaves room for the
+    /// seventh button at the other end of it.
     pub settings: Rect,
 }
 
@@ -573,6 +584,9 @@ fn key_command(mode: UiMode) -> Option<Command> {
     .any(is_key_pressed)
     {
         return Some(Command::Wait);
+    }
+    if is_key_pressed(KeyCode::R) {
+        return Some(Command::Rest);
     }
     if is_key_pressed(KeyCode::X) {
         return Some(Command::ToggleExamine);
@@ -1041,6 +1055,54 @@ mod tests {
         assert_eq!(Settings.command(), None);
     }
 
+    /// Whether two rectangles share any area.
+    ///
+    /// macroquad's own `overlaps` counts a shared edge as an overlap, and every
+    /// button in a grid shares edges with its neighbours.
+    fn collides(a: Rect, b: Rect) -> bool {
+        a.x < b.right() && b.x < a.right() && a.y < b.bottom() && b.y < a.bottom()
+    }
+
+    #[test]
+    fn no_two_controls_can_be_hit_by_the_same_thumb() {
+        for (width, height) in [
+            (320.0, 568.0),
+            (390.0, 844.0),
+            (844.0, 390.0),
+            (1440.0, 900.0),
+        ] {
+            let controls = Controls::fit(width, height, true);
+            let mut rects: Vec<Rect> = controls.buttons.iter().map(|&(_, rect)| rect).collect();
+            rects.push(controls.settings);
+            rects.push(controls.dpad);
+            for (i, a) in rects.iter().enumerate() {
+                assert!(
+                    a.right() <= width && a.bottom() <= height,
+                    "{width}x{height}"
+                );
+                for b in rects.iter().skip(i + 1) {
+                    assert!(!collides(*a, *b), "{width}x{height}: {a:?} over {b:?}");
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn every_button_answers_to_its_own_middle() {
+        let controls = Controls::fit(390.0, 844.0, true);
+        for (action, rect) in controls.buttons {
+            assert_eq!(controls.action_at(rect.center()), Some(action));
+            assert!(
+                controls.covers(rect.center()),
+                "{action:?} let a map tap past"
+            );
+        }
+        assert_eq!(
+            controls.action_at(controls.settings.center()),
+            Some(Action::Settings)
+        );
+    }
+
     #[test]
     fn the_settings_button_is_reachable_and_out_of_everything_else_way() {
         for (width, height) in [
@@ -1059,13 +1121,14 @@ mod tests {
             );
             assert!(controls.covers(gear.center()), "it swallowed a map tap");
             assert!(gear.right() <= width && gear.bottom() <= height);
-            // It sits in the row above the button cluster: clear of the pad,
-            // and touching the buttons without ever taking one of their taps.
+            // It sits in the row above the button cluster, sharing that row
+            // with the one button that fits up there beside it: clear of the
+            // pad, and touching everything without taking anybody's taps.
             assert!(!controls.dpad.overlaps(&gear), "{width}x{height}");
             for (action, rect) in controls.buttons {
                 assert!(
-                    gear.bottom() <= rect.y,
-                    "{width}x{height}: it sat on a button"
+                    !collides(gear, rect),
+                    "{width}x{height}: it sat on {action:?}"
                 );
                 assert_eq!(
                     controls.action_at(rect.center()),

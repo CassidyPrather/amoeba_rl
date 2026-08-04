@@ -49,6 +49,20 @@ pub use view::RenderView;
 /// which are as likely to be the nucleus dying as another footstep.
 const MAX_EFFECTS: usize = 4096;
 
+/// Turns one [`Command::Rest`] will sit through before handing back control
+/// anyway.
+///
+/// Long enough to cover a producer's whole cycle three times over, short enough
+/// that a rest is never something a player regrets having started.
+const REST_TURNS: u32 = 50;
+
+/// How far the ground stays unsound around a gate that has come down.
+///
+/// Taxicab, and wide enough to take in a gate or two on a 48-cell map without
+/// reaching the far side of it: the relief is meant to reward clearing a
+/// neighbourhood, not to reward clearing anything at all.
+const COLLAPSE_RANGE: i32 = 16;
+
 /// How hard the humans push back, and how big the cavern is.
 ///
 /// The original picked this from the command line. There is no command line on
@@ -126,13 +140,15 @@ pub struct Rules {
     pub evolution_rate: i32,
     /// Ceiling on a wave's budget.
     pub max_budget: i32,
-    /// Mass the first gate costs to break, and what every gate after it adds.
+    /// Mass the first gate costs to break, and what every gate after it adds —
+    /// or gives back, when it comes down beside one.
     ///
     /// DELIBERATE CHANGE from C# (§1), where every gate cost a flat
     /// `CityArmor` — 100 on Normal and Easy, 160 on GJ. That was the whole
     /// early game spent growing to a threshold nothing else needed. The first
     /// gate now costs a fifth of the old price and each one after it costs a
-    /// fifth more, so the last gate a Normal run has to break still costs 160.
+    /// fifth more; [`Sim::gate_price`] is what stops that climb from becoming
+    /// the same problem at the other end of the run.
     pub city_armor_step: i32,
     /// Gates the map is generated with.
     pub num_cities: i32,
@@ -206,6 +222,8 @@ pub enum Command {
     Move(Dir),
     /// Pass the turn.
     Wait,
+    /// Pass turns until there is something to look at.
+    Rest,
     /// Hand control to the next or previous nucleus. Free.
     CycleNucleus {
         /// Forwards through the acquisition order, or backwards.
@@ -351,6 +369,9 @@ pub struct Sim {
     reticles: Vec<Reticle>,
     /// Humans a terror core is currently holding off the schedule.
     terrified: Vec<Terrified>,
+    /// Where the gates that have already fallen were standing. The rock around
+    /// each of these is unsound, and prices the gates near it accordingly.
+    wrecks: Vec<Coord>,
     /// Where the humans think you are, newest last.
     rumors: Vec<Rumor>,
     /// The middle of every chamber the generator carved, in the order it
@@ -403,6 +424,7 @@ impl Sim {
             cursor: None,
             reticles: Vec::new(),
             terrified: Vec::new(),
+            wrecks: Vec::new(),
             rumors: Vec::new(),
             junctions: Vec::new(),
             depth: vec![i32::MAX; cells],
@@ -635,6 +657,10 @@ impl Sim {
                 self.messages.add("You wait.");
                 true
             }
+            Command::Rest => {
+                self.rest();
+                false
+            }
             Command::CycleNucleus { forward } => {
                 self.next_nucleus(if forward { 1 } else { -1 });
                 false
@@ -674,6 +700,80 @@ impl Sim {
         if ends_turn {
             self.player_turn = false;
         }
+    }
+
+    /// Sit out the turns nothing is going to come of.
+    ///
+    /// A chloroplast produces once every sixteen turns and a gate opens once
+    /// every fifty, so a run has long stretches in it where the only correct
+    /// move is to pass — and pressing wait forty times is not a decision, it is
+    /// the absence of one. This spends up to [`REST_TURNS`] of them in one key
+    /// and stops the instant there is something to answer: a human in sight, a
+    /// shot lined up on the mass, the mass changing size, or the run ending.
+    ///
+    /// Only the last of those turns is reported. The rest are, by construction,
+    /// turns nothing came of — replaying forty of them would be a light show
+    /// about nothing — so each one clears what the one before it had to say and
+    /// what is left is the turn that ended the rest.
+    fn rest(&mut self) {
+        let Some(here) = self
+            .active
+            .and_then(|id| self.actors.get(id))
+            .map(|a| a.pos)
+        else {
+            return;
+        };
+        if let Some(reason) = self.disturbance() {
+            self.messages.add(&format!("You cannot rest: {reason}."));
+            self.effect_at(EffectKind::Refused, here);
+            return;
+        }
+        let mass = self.mass();
+        let mut turns = 0;
+        while turns < REST_TURNS {
+            self.cues.clear();
+            self.effects.clear();
+            self.player_turn = false;
+            self.pump();
+            turns += 1;
+            if self.phase != Phase::Playing {
+                return;
+            }
+            if self.mass() != mass || self.disturbance().is_some() {
+                break;
+            }
+        }
+        let at = self
+            .active
+            .and_then(|id| self.actors.get(id))
+            .map_or(here, |a| a.pos);
+        self.effect_at(EffectKind::Rest, at);
+        match self.disturbance() {
+            Some(reason) => self
+                .messages
+                .add(&format!("You rest for {turns} turns, until {reason}.")),
+            None => self.messages.add(&format!("You rest for {turns} turns.")),
+        }
+    }
+
+    /// Whatever there is to stop resting for, worded so the log can say it.
+    ///
+    /// Deliberately short. Everything on this list is something the player has
+    /// to answer *this turn*; a chloroplast coming due is not, and a rest that
+    /// broke off for one would be a rest that never lasted longer than sixteen
+    /// turns.
+    fn disturbance(&self) -> Option<String> {
+        let aimed_at = self.reticles.iter().any(|reticle| {
+            self.actor_at(reticle.pos)
+                .is_some_and(|id| self.player_mass.contains(&id))
+        });
+        if aimed_at {
+            return Some("something has you in its sights".to_owned());
+        }
+        self.actors
+            .iter()
+            .find(|(_, actor)| actors::is_npc(actor.kind) && self.grid.in_fov(actor.pos))
+            .map(|(_, actor)| format!("a {} comes into sight", actor.name.to_lowercase()))
     }
 
     fn scroll_organelles(&mut self, by: i32) {
@@ -720,6 +820,7 @@ impl Sim {
             InputStyle::Keys => &[
                 "Arrow keys: Move / Select",
                 "Space: Wait",
+                "R: Rest until something happens",
                 "X: Toggle examine mode",
                 "Z: Toggle organelle browsing mode",
                 "ESC: Back to player mode",
@@ -733,6 +834,7 @@ impl Sim {
                 "List is what you are made of.",
                 "Prev and next change nucleus.",
                 "Look examines whatever you tap.",
+                "Rest passes turns until something happens.",
                 "Wait passes the turn.",
                 "The pad moves you, and so does tapping a tile beside you.",
             ],
@@ -796,11 +898,52 @@ impl Sim {
         &self.cities
     }
 
-    /// Mass needed to break the next gate. Every gate standing is worth this
-    /// much, and the price goes up by one step each time one falls.
+    /// Mass needed to break the cheapest gate still standing.
+    ///
+    /// Gates are no longer all worth the same, so this is a floor rather than
+    /// a fact about any one of them — the number to grow to before there is
+    /// anything you can break at all. What a *particular* gate costs is on the
+    /// gate, and the examine cursor will tell you.
     #[must_use]
-    pub const fn city_armor(&self) -> i32 {
-        self.rules.city_armor(self.cities_destroyed)
+    pub fn city_armor(&self) -> i32 {
+        self.cities
+            .iter()
+            .filter_map(|id| self.actors.get(*id))
+            .map(|gate| gate.armor)
+            .min()
+            .unwrap_or_else(|| self.rules.city_armor(self.cities_destroyed))
+    }
+
+    /// Mass needed to break the gate standing at `at`.
+    ///
+    /// DELIBERATE CHANGE from C#, and from this remaster's own first pass at
+    /// it. Pricing every gate one step dearer than the last fixed the original
+    /// problem — an early game spent growing to a threshold nothing else needed
+    /// — by moving it to the end, where the last few gates cost a hundred and
+    /// sixty mass apiece and a run turned into a march. So the rock now gives
+    /// some of it back: a gate that comes down leaves the ground around it
+    /// unsound, and every gate within [`COLLAPSE_RANGE`] of a wreck is a step
+    /// cheaper for it, down to a floor of the opening price.
+    ///
+    /// Working a neighbourhood therefore stays affordable while wandering the
+    /// map does not, which turns the endgame into a cascade with a route to
+    /// plan rather than a treadmill with a number on it.
+    #[must_use]
+    pub fn gate_price(&self, at: Coord) -> i32 {
+        let base = self.rules.city_armor(self.cities_destroyed);
+        let unsound = self
+            .wrecks
+            .iter()
+            .filter(|wreck| wreck.taxi(at) <= COLLAPSE_RANGE)
+            .count();
+        let relief = i32::try_from(unsound).unwrap_or(0) * self.rules.city_armor_step;
+        (base - relief).max(self.rules.city_armor_step)
+    }
+
+    /// Where the gates that have already fallen were standing.
+    #[must_use]
+    pub fn wrecks(&self) -> &[Coord] {
+        &self.wrecks
     }
 
     /// The nucleus under your control.
@@ -922,7 +1065,7 @@ impl Sim {
     pub(crate) fn add_actor(&mut self, kind: Kind, pos: Coord) -> ActorId {
         let mut actor = Actor::new(kind, pos);
         if actors::is_city(kind) {
-            actor.armor = self.city_armor();
+            actor.armor = self.gate_price(pos);
         }
         let slime = actor.slime;
         let delay = actor.delay;
@@ -1214,13 +1357,54 @@ mod tests {
         let step = sim.rules.city_armor_step;
         assert!(sim.cities().iter().all(|id| sim.actors[*id].armor == step));
         let doomed = sim.cities()[0];
+        let wreck = sim.actors[doomed].pos;
         sim.destroy_city(doomed);
-        assert_eq!(sim.city_armor(), 2 * step);
-        assert!(
-            sim.cities()
-                .iter()
-                .all(|id| sim.actors[*id].armor == 2 * step),
-            "every gate still standing went up together"
+        for id in sim.cities() {
+            let at = sim.actors[*id].pos;
+            let unsound = at.taxi(wreck) <= COLLAPSE_RANGE;
+            assert_eq!(
+                sim.actors[*id].armor,
+                if unsound { step } else { 2 * step },
+                "the gate at {at:?} is {} from the wreck",
+                at.taxi(wreck)
+            );
+        }
+        let cheapest = sim
+            .cities()
+            .iter()
+            .map(|id| sim.actors[*id].armor)
+            .min()
+            .expect("gates are still standing");
+        assert_eq!(
+            sim.city_armor(),
+            cheapest,
+            "the status line quotes the best"
+        );
+    }
+
+    #[test]
+    fn clearing_a_neighbourhood_is_what_keeps_the_price_down() {
+        // The late game's whole shape. Gates near a wreck stand in unsound
+        // rock and stay near the opening price; gates across the map pay the
+        // full climb, so the run ends in a cascade with a route to plan.
+        let mut sim = sandbox(70);
+        sim.rules.grace_cities = 0;
+        let step = sim.rules.city_armor_step;
+        let huddle: Vec<ActorId> = [Coord::new(1, 3), Coord::new(1, 6), Coord::new(1, 9)]
+            .into_iter()
+            .map(|at| sim.add_actor(Kind::City, at))
+            .collect();
+        let lonely = sim.add_actor(Kind::City, Coord::new(18, 18));
+        sim.destroy_city(huddle[0]);
+        sim.destroy_city(huddle[1]);
+        assert_eq!(
+            sim.actors[huddle[2]].armor, step,
+            "the rest of the huddle stayed at the opening price"
+        );
+        assert_eq!(
+            sim.actors[lonely].armor,
+            3 * step,
+            "and the one across the arena paid for both of them"
         );
     }
 
@@ -1330,6 +1514,65 @@ mod tests {
     }
 
     #[test]
+    fn resting_spends_the_turns_nothing_comes_of() {
+        let mut sim = playing(50);
+        let before = sim.schedule().time();
+        sim.advance(Some(Command::Rest));
+        let spent = (sim.schedule().time() - before) / schedule::TURN;
+        assert!(spent > 1, "a rest passed {spent} turns");
+        assert!(
+            spent <= u64::from(REST_TURNS),
+            "a rest passed {spent} turns"
+        );
+        assert!(sim.is_player_turn(), "and handed control back");
+        assert!(!sim.effects().is_empty(), "with something to look at");
+    }
+
+    #[test]
+    fn a_rest_will_not_start_with_somebody_watching() {
+        let mut sim = playing(51);
+        let at = sim.actors[sim.player_mass()[0]].pos;
+        let spot = sim
+            .grid
+            .adjacent_walkable(at)
+            .next()
+            .expect("room beside the blob");
+        sim.add_actor(Kind::Militia, spot);
+        sim.update_player_fov();
+        let before = sim.schedule().time();
+        sim.advance(Some(Command::Rest));
+        assert_eq!(sim.schedule().time(), before, "it rested anyway");
+        assert!(
+            sim.messages()
+                .lines()
+                .last()
+                .is_some_and(|line| line.contains("cannot rest")),
+            "and it did not say why"
+        );
+    }
+
+    #[test]
+    fn a_rest_ends_the_moment_the_mass_changes() {
+        // A chloroplast produces on turn twenty, well inside a rest's budget,
+        // and growing by a cell is exactly the sort of thing the player has
+        // asked to be handed control back for.
+        let mut sim = playing(52);
+        let at = sim.actors[sim.player_mass()[0]].pos;
+        let spot = sim
+            .grid
+            .adjacent_walkable(at)
+            .next()
+            .expect("room beside the blob");
+        sim.add_actor(Kind::Chloroplast, spot);
+        let mass = sim.mass();
+        let before = sim.schedule().time();
+        sim.advance(Some(Command::Rest));
+        let spent = (sim.schedule().time() - before) / schedule::TURN;
+        assert!(sim.mass() > mass, "the chloroplast never produced");
+        assert!(spent < u64::from(REST_TURNS), "the rest ran on regardless");
+    }
+
+    #[test]
     fn waiting_always_costs_a_turn() {
         let mut sim = playing(14);
         let before = sim.schedule().time();
@@ -1340,7 +1583,8 @@ mod tests {
 
     /// A deterministic stream of plausible key presses.
     fn scripted_command(rng: &mut Rng) -> Command {
-        match rng.u32(0..14) {
+        match rng.u32(0..16) {
+            14 => Command::Rest,
             0 | 11 => Command::Move(Dir::Up),
             1 | 12 => Command::Move(Dir::Down),
             2 | 13 => Command::Move(Dir::Left),
@@ -1713,12 +1957,23 @@ mod tests {
             check_invariants(&sim, &format!("unopposed seed {seed} end"));
             if sim.phase() == (Phase::GameOver { won: true }) {
                 won += 1;
-                // The last gate it broke was the dearest one, and it had to be
-                // standing in front of it with that much mass.
-                let last = sim.rules.city_armor(sim.cities_destroyed - 1);
+                // It had to be standing in front of the last gate with what
+                // that gate cost, which is the climb less whatever the rock
+                // gave back for the wrecks already around it.
+                let (last, earlier) = sim.wrecks().split_last().expect("a gate fell");
+                let unsound = earlier
+                    .iter()
+                    .filter(|wreck| wreck.taxi(*last) <= COLLAPSE_RANGE)
+                    .count();
+                let step = sim.rules.city_armor_step;
+                #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+                let price = (sim.rules.city_armor(sim.cities_destroyed - 1)
+                    - unsound as i32 * step)
+                    .max(step);
                 assert!(
-                    sim.mass() >= last.unsigned_abs() as usize,
-                    "seed {seed}: it won without the mass to do it"
+                    sim.mass() >= price.unsigned_abs() as usize,
+                    "seed {seed}: it won with {} mass against a gate worth {price}",
+                    sim.mass()
                 );
                 assert!(
                     sim.cities().len() <= sim.rules.grace_cities.unsigned_abs() as usize,
@@ -1744,6 +1999,7 @@ mod tests {
                 let said = sim.messages().lines().len() - before;
                 // Waiting narrates the interface rather than the world, and its
                 // one line is the only one with nothing on the map behind it.
+                // Resting is the interface too, but it draws where it happened.
                 let narration = usize::from(command == Command::Wait);
                 assert!(
                     said <= narration || !sim.effects().is_empty(),

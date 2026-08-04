@@ -160,9 +160,11 @@ pub fn sidebar(term: &Term, view: &RenderView, rows: i32, page: usize, pager: Op
         format!("Turn:  {:.0}", status.turn),
         format!("Gates left: {}", status.cities_remaining),
         format!("Must break: {}", status.cities_required),
-        // The gate price goes up with every gate that falls, so unlike the
-        // rest of these it is not a number you can learn once.
-        format!("Next gate: {}", status.city_armor),
+        // Gates are not all priced the same once one has come down, so this
+        // is the cheapest of the ones still standing rather than a number that
+        // holds for all of them — the mass to reach before any gate at all is
+        // breakable. What a particular gate costs is on the gate.
+        format!("Best gate: {}", status.city_armor),
     ]
     .iter()
     .enumerate()
@@ -424,8 +426,8 @@ const fn hint(mode: UiMode, phase: Phase, cols: i32, touch: bool) -> &'static st
         return "R plays again   S settings";
     }
     match (mode, wide) {
-        (UiMode::Messages, true) => "arrows move  space wait  X examine  Z list  S settings",
-        (UiMode::Messages, false) => "move  wait  X examine  Z list  S settings",
+        (UiMode::Messages, true) => "arrows move  space wait  R rest  X look  Z list  S settings",
+        (UiMode::Messages, false) => "move  wait  R rest  X look  Z list  S settings",
         (UiMode::Organelles, true) => {
             "arrows select  Q and E page  X examine  Esc back  S settings"
         }

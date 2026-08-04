@@ -129,7 +129,7 @@ pub struct Status {
     pub cities_remaining: usize,
     /// Gates that must come down for this difficulty.
     pub cities_required: i32,
-    /// Mass needed to break the next gate. Goes up with every gate that falls.
+    /// Mass needed to break the cheapest gate still standing.
     pub city_armor: i32,
     /// The nucleus under your control.
     pub active_nucleus: Option<(String, Coord)>,

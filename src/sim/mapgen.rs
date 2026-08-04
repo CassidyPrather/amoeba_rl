@@ -165,6 +165,7 @@ impl Sim {
         self.cities_destroyed = 0;
         self.reticles.clear();
         self.terrified.clear();
+        self.wrecks.clear();
         self.rumors.clear();
         self.junctions.clear();
         self.depth = vec![i32::MAX; cells];
