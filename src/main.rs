@@ -33,6 +33,7 @@ mod anim;
 mod audio;
 mod hud;
 mod input;
+mod links;
 mod render;
 mod settings;
 mod tileset;

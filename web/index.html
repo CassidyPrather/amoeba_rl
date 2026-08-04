@@ -96,6 +96,10 @@
          first-gesture handler that resumes the audio context, which browsers keep
          suspended until the user presses something. -->
     <script src="audio.js"></script>
+    <!-- links.js is ours: it hands the two links on the title and post-mortem
+         screens to window.open. Same rule as audio.js about order — it registers
+         its import at parse time, before load() instantiates the wasm below. -->
+    <script src="links.js"></script>
     <script>
         "use strict";
         const status = document.getElementById("status");

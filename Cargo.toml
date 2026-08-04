@@ -39,7 +39,11 @@ fastrand = "2"
 criterion = "0.7"
 
 [lints.rust]
-unsafe_code = "forbid"
+# `deny` rather than `forbid` so that `src/links.rs` can `#[expect]` its way to
+# the one extern block in the crate: opening a URL from wasm needs an import
+# from js, and there is no safe way to declare one. Everything else is still an
+# error, and the expect names what it is claiming.
+unsafe_code = "deny"
 
 [lints.clippy]
 # Turn everything up. I'm not a coward!

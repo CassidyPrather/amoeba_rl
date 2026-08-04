@@ -84,6 +84,10 @@ and the sound. Arrows choose a row, enter or left/right changes it, `S` or
 Difficulty (Normal / Easy / GJ) is chosen on the title screen — the original's
 `--easy` and `--gj` command-line flags, made playable in a browser.
 
+The title screen and the one at the end of a run both carry a pair of links,
+under the key hints: [wirenook.net](https://wirenook.net/) and the source on
+GitHub. They open in a new tab on the web and in your usual browser natively.
+
 ## Development
 
 Requires [Rust](https://rustup.rs/). Native builds on Linux also need ALSA's
