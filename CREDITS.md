@@ -14,8 +14,10 @@ it. Thirty seconds now versus archaeology later.
 | `web/audio.js` | quad-snd's miniquad audio plugin, vendored unmodified from the quad-snd 0.2.8 crate (`js/audio.js`) — <https://github.com/not-fl3/quad-snd> | not-fl3 and contributors | MIT OR Apache-2.0 | 2026-07 |
 | `assets/terminal12x12_gs_ro.png` | CP437 bitmap font, carried over from the original C# AmoebaRL, itself from libtcod's font collection — <https://github.com/libtcod/libtcod/blob/develop/data/fonts/terminal12x12_gs_ro.png> | libtcod contributors | CC0 / public domain (libtcod data fonts) | 2026-07 |
 
-Both js files are copied verbatim so refreshing them after a `cargo update` is
-a straight `cp` out of `~/.cargo/registry/src/*/<crate>/`. Upstream `audio.js`
+Both of those js files are copied verbatim so refreshing them after a
+`cargo update` is a straight `cp` out of `~/.cargo/registry/src/*/<crate>/`.
+(`web/links.js` is the one in that folder that is ours, and so is not listed
+above — it has nothing upstream to refresh from.) Upstream `audio.js`
 logs `"fix"` to the console on the first click and builds one throwaway
 `AudioContext` while it is at it; that is theirs, left alone deliberately.
 

@@ -25,6 +25,7 @@ use amoeba_rl::sim::{Phase, RenderView, UiMode};
 use crate::anim::Anim;
 use crate::hud;
 use crate::input::{Action, Controls, MIN_TARGET};
+use crate::links::{GAP, LINKS, row_width_chars};
 use crate::settings::{ROWS, Settings};
 use crate::tileset::Tileset;
 
@@ -310,9 +311,15 @@ fn floor_div(span: f32, cell: f32) -> i32 {
 /// run off the edge.
 #[must_use]
 pub fn fit_text(text: &str, width: f32, max: f32) -> f32 {
-    (width / text.chars().count().max(1) as f32)
-        .min(max)
-        .max(1.0)
+    fit_chars(text.chars().count(), width, max)
+}
+
+/// The same, for a row whose width is known before its text is: the two link
+/// labels and the gap between them are laid out as one line, then drawn as
+/// three separate pieces.
+#[must_use]
+pub fn fit_chars(chars: usize, width: f32, max: f32) -> f32 {
+    (width / chars.max(1) as f32).min(max).max(1.0)
 }
 
 /// Centre `content` in the window, on whole pixels so cells stay crisp.
@@ -551,13 +558,179 @@ fn play(font: &Tileset, view: &RenderView, layout: &Layout, camera: Coord, ui: &
     }
 }
 
+/// Where the difficulty buttons start, as a fraction of the window height.
+/// The title above them is sized to stop short of it.
+const TITLE_BUTTONS_TOP: f32 = 0.42;
+
+/// The name, in two lines: too long to draw as one and still be a title.
+const NAME: &str = "AMOEBA ROGUELIKE";
+const REMASTER: &str = "REMASTERED";
+const TAGLINE: &str = "a giant, constantly evolving amoeba";
+
+/// The title screen's text is laid out in pixels rather than in cells, inside
+/// a margin of its own: a phone in portrait has room for a big title and not
+/// much else.
+fn title_inner(screen_w: f32) -> f32 {
+    (screen_w * 0.88).max(1.0)
+}
+
+/// The glyph size and baseline of each line of the title block.
+///
+/// Split out of [`title`] because three stacked lines can grow into the
+/// difficulty buttons on a short window, and that is arithmetic a test can
+/// check where a title screen is not.
+struct TitleBlock {
+    name: f32,
+    remaster: f32,
+    name_y: f32,
+    remaster_y: f32,
+    tagline_y: f32,
+}
+
+impl TitleBlock {
+    /// Where the name starts, as a fraction of the window height.
+    const TOP: f32 = 0.14;
+    /// `REMASTERED` relative to the name above it.
+    const REMASTER_SCALE: f32 = 0.55;
+    /// Each baseline relative to the glyph size of the line before it.
+    const NAME_LEADING: f32 = 1.15;
+    const REMASTER_LEADING: f32 = 1.5;
+
+    fn fit(screen_w: f32, screen_h: f32, cell: f32) -> Self {
+        let inner = title_inner(screen_w);
+        let name_y = screen_h * Self::TOP;
+        // The name is capped by the height it has to play with as well as by
+        // the width: a phone in landscape runs out of the first long before
+        // the second. The divisor is the block's height in multiples of the
+        // name's glyph size, with a whole one allowed for the tagline — which
+        // is clamped to 20px and so is never actually that tall.
+        let stack = Self::REMASTER_SCALE.mul_add(Self::REMASTER_LEADING, Self::NAME_LEADING) + 1.0;
+        let room = (screen_h.mul_add(TITLE_BUTTONS_TOP, -name_y) / stack).max(1.0);
+        let name = fit_text(NAME, inner, (cell * 3.0).clamp(24.0, 72.0).min(room));
+        // No width check on `REMASTERED`: it is shorter than the line above it
+        // and drawn smaller, so whatever fits that fits this with room spare.
+        let remaster = name * Self::REMASTER_SCALE;
+        let remaster_y = name.mul_add(Self::NAME_LEADING, name_y);
+        Self {
+            name,
+            remaster,
+            name_y,
+            remaster_y,
+            tagline_y: remaster.mul_add(Self::REMASTER_LEADING, remaster_y),
+        }
+    }
+}
+
+/// One row of links: where it is centred, where its glyphs start, and how big
+/// they are drawn.
+///
+/// The title and post-mortem screens each own where their row goes; from
+/// there on both of them draw it and hit-test it through this.
+#[derive(Clone, Copy)]
+pub struct LinkRow {
+    centre: f32,
+    /// The top of the glyph row, which is what [`Tileset::draw_text`] takes.
+    top: f32,
+    size: f32,
+}
+
+impl LinkRow {
+    /// The title screen's row: below the two lines of key hints, in the same
+    /// rhythm and at the same size.
+    ///
+    /// The audio nag goes below *this* rather than above it. The nag comes and
+    /// goes with the first press, and a row that is always on screen should
+    /// not move about when a transient one turns up over it.
+    #[must_use]
+    pub fn title(screen_w: f32, screen_h: f32, cell: f32, touch: bool) -> Self {
+        let size = title_hint_size(screen_w, cell, touch);
+        Self {
+            centre: screen_w * 0.5,
+            top: size.mul_add(3.0, screen_h * 0.86),
+            size,
+        }
+    }
+
+    /// The post-mortem screen's row: under the panel rather than inside it.
+    /// The panel is already rationing rows between the verdict and the log,
+    /// and the map behind it is not using them.
+    #[must_use]
+    pub fn post_mortem(screen_w: f32, screen_h: f32) -> Self {
+        let (panel, _) = post_mortem_panel(screen_w, screen_h);
+        let size = fit_chars(
+            row_width_chars(),
+            panel.w,
+            (panel.h * 0.04).clamp(9.0, 15.0),
+        );
+        Self {
+            centre: panel.center().x,
+            top: panel.bottom() + size * 2.0,
+            size,
+        }
+    }
+
+    /// One rect per link, in [`LINKS`] order.
+    ///
+    /// Padded out around the glyphs to something a thumb can hit: at the size
+    /// these are drawn at, the text alone would be a nine-pixel-tall target.
+    #[must_use]
+    pub fn rects(self) -> [Rect; 2] {
+        let mut x = (self.size * row_width_chars() as f32).mul_add(-0.5, self.centre);
+        let pad = self.size * 0.5;
+        LINKS.map(|link| {
+            let w = self.size * link.label().chars().count() as f32;
+            let rect = Rect::new(
+                x - pad * 0.5,
+                self.top - pad,
+                w + pad,
+                self.size + pad * 2.0,
+            );
+            x += self.size.mul_add(GAP.chars().count() as f32, w);
+            rect
+        })
+    }
+
+    /// Draw the row.
+    ///
+    /// Cyan because nothing else in the interface is: the chrome around them
+    /// is the muted grey of the key hints, and a link wants to look like the
+    /// one thing on the screen that goes somewhere else.
+    fn draw(self, font: &Tileset) {
+        for (link, rect) in LINKS.iter().zip(self.rects()) {
+            font.draw_text(
+                link.label(),
+                self.size.mul_add(0.25, rect.x),
+                self.top,
+                self.size,
+                rgb(palette::OVERFILL),
+            );
+        }
+    }
+}
+
+/// The size the title screen's key hints — and so its links — are drawn at.
+///
+/// The bottom strip is laid out in rows of this, so it is worked out once here
+/// and read by both [`title`] and the input code, which has to find the links
+/// again without redrawing them.
+fn title_hint_size(screen_w: f32, cell: f32, touch: bool) -> f32 {
+    let inner = title_inner(screen_w);
+    let hints = if touch {
+        TOUCH_TITLE_HINTS
+    } else {
+        TITLE_HINTS
+    };
+    let small = fit_text(TAGLINE, inner, cell.clamp(10.0, 20.0));
+    fit_text(hints[1], inner, small * 0.8)
+}
+
 /// The three difficulty buttons, in the order the number keys pick them.
 #[must_use]
 pub fn title_buttons(screen_w: f32, screen_h: f32) -> [Rect; 3] {
     let width = (screen_w * 0.55).clamp(180.0, 420.0);
     let height = (screen_h * 0.085).clamp(48.0, 72.0);
     let gap = height * 0.3;
-    let top = screen_h * 0.42;
+    let top = screen_h * TITLE_BUTTONS_TOP;
     let left = (screen_w - width) * 0.5;
     [0.0, 1.0, 2.0].map(|i| Rect::new(left, (height + gap).mul_add(i, top), width, height))
 }
@@ -762,7 +935,6 @@ const TOUCH_TITLE_HINTS: [&str; 2] = [
 
 /// The title screen: the name, the three difficulties, and the controls.
 fn title(font: &Tileset, layout: &Layout, controls: &Controls, audio: Option<&str>) {
-    const TAGLINE: &str = "a giant, constantly evolving amoeba";
     let hints = if layout.touch {
         TOUCH_TITLE_HINTS
     } else {
@@ -770,25 +942,23 @@ fn title(font: &Tileset, layout: &Layout, controls: &Controls, audio: Option<&st
     };
 
     let (screen_w, screen_h) = (controls.screen.x, controls.screen.y);
-    // Everything is sized to fit the window rather than to the cell grid: a
-    // phone in portrait has room for a big title and not much else.
-    let margin = screen_w * 0.06;
-    let inner = (screen_w - margin * 2.0).max(1.0);
-    let big = fit_text("AMOEBA RL", inner, (layout.cell * 3.0).clamp(24.0, 72.0));
+    let block = TitleBlock::fit(screen_w, screen_h, layout.cell);
+    let inner = title_inner(screen_w);
     let small = fit_text(TAGLINE, inner, layout.cell.clamp(10.0, 20.0));
     let centre = screen_w * 0.5;
 
+    font.draw_text_centred(NAME, centre, block.name_y, block.name, rgb(palette::SLIME));
     font.draw_text_centred(
-        "AMOEBA RL",
+        REMASTER,
         centre,
-        screen_h * 0.14,
-        big,
-        rgb(palette::SLIME),
+        block.remaster_y,
+        block.remaster,
+        rgb(palette::TEXT_HEADING),
     );
     font.draw_text_centred(
         TAGLINE,
         centre,
-        big.mul_add(1.4, screen_h * 0.14),
+        block.tagline_y,
         small,
         rgb(palette::TEXT_BODY),
     );
@@ -812,7 +982,7 @@ fn title(font: &Tileset, layout: &Layout, controls: &Controls, audio: Option<&st
         );
     }
 
-    let hint = fit_text(hints[1], inner, small * 0.8);
+    let hint = title_hint_size(screen_w, layout.cell, layout.touch);
     for (i, line) in hints.iter().enumerate() {
         font.draw_text_centred(
             line,
@@ -823,13 +993,15 @@ fn title(font: &Tileset, layout: &Layout, controls: &Controls, audio: Option<&st
         );
     }
 
+    LinkRow::title(screen_w, screen_h, layout.cell, layout.touch).draw(font);
+
     // The only screen where the audio nag can still be true: choosing a
     // difficulty is a press, and a press is what a browser is waiting for.
     if let Some(note) = audio {
         font.draw_text_centred(
             note,
             centre,
-            hint.mul_add(3.0, screen_h * 0.86),
+            hint.mul_add(4.5, screen_h * 0.86),
             hint,
             rgb(palette::SUPER_BRIGHT),
         );
@@ -895,6 +1067,10 @@ fn post_mortem(font: &Tileset, view: &RenderView, controls: &Controls, won: bool
         size,
         rgb(palette::TEXT_HEADING),
     );
+
+    // Outside the frame, where the run has just ended and nothing else is
+    // competing for the room.
+    LinkRow::post_mortem(controls.screen.x, controls.screen.y).draw(font);
 }
 
 /// The on-screen pad, drawn only once a touch has arrived or the screen is
@@ -1182,11 +1358,123 @@ mod tests {
     fn the_title_screen_fits_the_narrowest_phone() {
         // Nothing here can be checked by eye in CI, so check the arithmetic:
         // the widest line the title draws has to fit the smallest screen.
-        let screen_w = 320.0_f32;
-        let inner = screen_w * 0.88;
-        for hint in TITLE_HINTS {
+        let inner = title_inner(320.0);
+        for hint in TITLE_HINTS.iter().chain([&NAME, &REMASTER, &TAGLINE]) {
             let size = fit_text(hint, inner, 20.0);
             assert!(size * hint.chars().count() as f32 <= inner, "{hint:?}");
+        }
+    }
+
+    #[test]
+    fn the_title_block_stacks_downwards_and_stops_above_the_buttons() {
+        // A landscape phone is the tight one: plenty of width for the name and
+        // barely any height to stack three lines of it in.
+        for screen in [DESKTOP, PHONE, (844.0, 390.0), (320.0, 480.0)] {
+            let (w, h) = screen;
+            let block = TitleBlock::fit(w, h, fit(screen, (64, 48)).cell);
+            assert!(block.name_y < block.remaster_y, "{screen:?}");
+            assert!(block.remaster_y < block.tagline_y, "{screen:?}");
+            assert!(
+                block.remaster < block.name,
+                "{screen:?} loses the hierarchy"
+            );
+            // The tagline is clamped to 20px, so that is the deepest its
+            // baseline can sit below the line it hangs off.
+            let bottom = block.tagline_y + 20.0;
+            let buttons = title_buttons(w, h);
+            assert!(
+                bottom <= buttons[0].top(),
+                "{screen:?}: title runs into the buttons"
+            );
+            // The name still has to fit across, whatever the height allowed.
+            assert!(
+                block.name * NAME.chars().count() as f32 <= title_inner(w),
+                "{screen:?}"
+            );
+        }
+    }
+
+    /// Every window shape the layout tests care about, plus the two that make
+    /// the bottom strip tight: a landscape phone and a small square screen.
+    const SHAPES: [(f32, f32); 5] = [
+        DESKTOP,
+        PHONE,
+        (844.0, 390.0),
+        (320.0, 480.0),
+        (1920.0, 1080.0),
+    ];
+
+    #[test]
+    fn the_title_links_take_a_row_of_their_own_in_the_bottom_strip() {
+        for screen in SHAPES {
+            let (w, h) = screen;
+            for touch in [false, true] {
+                let cell = fit(screen, (64, 48)).cell;
+                let hint = title_hint_size(w, cell, touch);
+                let row = LinkRow::title(w, h, cell, touch);
+                let where_ = format!("{screen:?} touch={touch}");
+                // Four rows share the strip, each a glyph tall: two lines of
+                // key hints, the links, then the audio nag. What is checked
+                // here is the drawn text, not the rects — those are padded out
+                // past the glyphs on purpose, and the strip has nothing else
+                // in it for that padding to steal a press from.
+                let hint_bottom = hint.mul_add(1.5, h * 0.86) + hint;
+                assert!(hint_bottom <= row.top, "{where_}: links overwrite a hint");
+                let nag_top = hint.mul_add(4.5, h * 0.86);
+                assert!(
+                    row.top + row.size <= nag_top,
+                    "{where_}: links overwrite the audio nag"
+                );
+                assert!(nag_top + hint <= h, "{where_}: the strip runs off the foot");
+            }
+        }
+    }
+
+    #[test]
+    fn the_title_links_cannot_swallow_a_press_meant_for_a_difficulty() {
+        // The padding that makes the links thumb-sized is only free because
+        // nothing else down there is listening. The buttons are.
+        for screen in SHAPES {
+            let (w, h) = screen;
+            for touch in [false, true] {
+                let rects = LinkRow::title(w, h, fit(screen, (64, 48)).cell, touch).rects();
+                for button in title_buttons(w, h) {
+                    for rect in rects {
+                        assert!(button.bottom() <= rect.y, "{screen:?} touch={touch}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn the_post_mortem_links_sit_below_the_panel_and_stay_on_screen() {
+        for screen in SHAPES {
+            let (w, h) = screen;
+            let (panel, _) = post_mortem_panel(w, h);
+            let rects = LinkRow::post_mortem(w, h).rects();
+            assert!(panel.bottom() <= rects[0].y, "{screen:?}");
+            assert!(rects[1].bottom() <= h, "{screen:?}: links run off the foot");
+        }
+    }
+
+    #[test]
+    fn a_link_row_reads_left_to_right_without_its_targets_overlapping() {
+        for screen in SHAPES {
+            let (w, h) = screen;
+            for row in [
+                LinkRow::title(w, h, fit(screen, (64, 48)).cell, false),
+                LinkRow::post_mortem(w, h),
+            ] {
+                let rects = row.rects();
+                assert!(rects[0].right() <= rects[1].x, "{screen:?}");
+                for rect in rects {
+                    assert!(rect.x >= 0.0 && rect.right() <= w, "{screen:?} off screen");
+                    // Wider than the glyphs and taller than the line, so a
+                    // thumb aimed at the middle of the word lands on it.
+                    assert!(rect.h > row.size, "{screen:?} no padding to hit");
+                }
+            }
         }
     }
 

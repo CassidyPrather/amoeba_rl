@@ -1,11 +1,11 @@
-# Amoeba RL
+# Amoeba Roguelike Remastered
 
 Play as a giant, constantly evolving amoeba and fight off intensifying waves
 of humans trying to protect their cities. Engulf and digest them, craft new
 organelles and cores from their remains, and destroy the city gates to escape
 to the surface.
 
-This is a Rust rewrite of the original 7DRL entry, built on
+This is a Rust remaster of the original 7DRL entry, built on
 [game-template](https://github.com/CassidyPrather/game-template)
 (macroquad + wasm): the whole game is a pure, deterministic, unit-tested
 library (`src/sim/`), and the frontend is a thin shell that draws it with the
@@ -14,8 +14,16 @@ home is <https://wirenook.net/amoeba-rl/>.
 
 The original C# version (RogueSharp + RLNET) lives on in this repo's git
 history (`main`, pre-port); [`docs/PORT_SPEC.md`](docs/PORT_SPEC.md) is the
-complete spec the port was built from, including which of the original's
+complete spec the remaster was built from, including which of the original's
 quirks were kept on purpose.
+
+The 7DRL entry and the patches after it shipped as *Amoeba RL*. Enough has
+changed since — another language, animation, a layout that fits a phone, a
+rebalanced core — that this version takes a name of its own and starts its own
+numbering at 1.0.0 rather than continuing the C# line. The rename is a cover
+and not a move, though: the crate, the binary, the wasm file and the published
+URL are all still `amoeba-rl`, so every link that already points at the game
+keeps working.
 
 ## How to play
 
@@ -75,6 +83,10 @@ and the sound. Arrows choose a row, enter or left/right changes it, `S` or
 
 Difficulty (Normal / Easy / GJ) is chosen on the title screen — the original's
 `--easy` and `--gj` command-line flags, made playable in a browser.
+
+The title screen and the one at the end of a run both carry a pair of links,
+under the key hints: [wirenook.net](https://wirenook.net/) and the source on
+GitHub. They open in a new tab on the web and in your usual browser natively.
 
 ## Development
 

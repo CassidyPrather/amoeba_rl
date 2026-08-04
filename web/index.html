@@ -4,8 +4,8 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="description" content="Amoeba RL: play as a giant, constantly evolving amoeba. A roguelike in Rust + WebAssembly.">
-    <title>Amoeba RL</title>
+    <meta name="description" content="Amoeba Roguelike Remastered: play as a giant, constantly evolving amoeba. A roguelike in Rust + WebAssembly.">
+    <title>Amoeba Roguelike Remastered</title>
     <!-- Inline so the shell keeps making zero external requests. -->
     <link rel="icon"
         href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0naHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmcnIHZpZXdCb3g9JzAgMCAxNiAxNic+PHJlY3Qgd2lkdGg9JzE2JyBoZWlnaHQ9JzE2JyBmaWxsPScjMTQxYzBjJy8+PGNpcmNsZSBjeD0nOCcgY3k9JzgnIHI9JzYuNScgZmlsbD0nIzg0YmUzOCcvPjxjaXJjbGUgY3g9JzknIGN5PSc3JyByPScyLjUnIGZpbGw9JyNkMDQ2NDgnLz48L3N2Zz4=">
@@ -96,6 +96,10 @@
          first-gesture handler that resumes the audio context, which browsers keep
          suspended until the user presses something. -->
     <script src="audio.js"></script>
+    <!-- links.js is ours: it hands the two links on the title and post-mortem
+         screens to window.open. Same rule as audio.js about order — it registers
+         its import at parse time, before load() instantiates the wasm below. -->
+    <script src="links.js"></script>
     <script>
         "use strict";
         const status = document.getElementById("status");

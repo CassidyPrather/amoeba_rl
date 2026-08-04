@@ -24,7 +24,8 @@ use amoeba_rl::sim::grid::{Coord, Dir};
 use amoeba_rl::sim::{Command, Difficulty, Phase, RenderView, UiMode};
 
 use crate::hud;
-use crate::render::{Layout, Mode, post_mortem_panel, settings_panel, title_buttons};
+use crate::links::{self, LINKS, Link};
+use crate::render::{Layout, LinkRow, Mode, post_mortem_panel, settings_panel, title_buttons};
 use crate::settings::{ROWS, Settings, Toggled};
 
 /// How long a held direction waits before it starts repeating.
@@ -429,11 +430,7 @@ impl Input {
                     // mid-repeat into the next one.
                     self.repeat = Repeat::default();
                     self.pending = None;
-                    if phase == Phase::Title {
-                        title(controls, &pointers)
-                    } else {
-                        game_over(controls, &pointers)
-                    }
+                    menu_screen(phase, layout, controls, &pointers)
                 }
             },
             mute,
@@ -692,6 +689,57 @@ fn title(controls: &Controls, pointers: &[Pointer]) -> Option<Command> {
                 .position(|button| button.contains(pointer.at))
                 .and_then(|i| CHOICES.get(i))
                 .map(|&(difficulty, _, _)| Command::Start(difficulty))
+        })
+}
+
+/// The two screens that are not the game: the title and the post-mortem.
+///
+/// They share a row of links, and the link has first claim on a press. A tap
+/// that opens one is not a command and must not fall through to the difficulty
+/// button or the restart button it was drawn near.
+fn menu_screen(
+    phase: Phase,
+    layout: &Layout,
+    controls: &Controls,
+    pointers: &[Pointer],
+) -> Option<Command> {
+    let row = if phase == Phase::Title {
+        LinkRow::title(
+            controls.screen.x,
+            controls.screen.y,
+            layout.cell,
+            layout.touch,
+        )
+    } else {
+        LinkRow::post_mortem(controls.screen.x, controls.screen.y)
+    };
+    if let Some(link) = link_at(row, pointers) {
+        links::open(link);
+        return None;
+    }
+    if phase == Phase::Title {
+        title(controls, pointers)
+    } else {
+        game_over(controls, pointers)
+    }
+}
+
+/// Which link a press landed on, if any.
+///
+/// Pointer-only, and deliberately so: a link is a thing you point at, every
+/// letter the title screen could spare is already spoken for by the
+/// difficulties, and a key that opened a browser tab from under someone's
+/// fingers would be a worse surprise than a link they have to click.
+fn link_at(row: LinkRow, pointers: &[Pointer]) -> Option<Link> {
+    let rects = row.rects();
+    pointers
+        .iter()
+        .filter(|pointer| pointer.pressed)
+        .find_map(|pointer| {
+            rects
+                .iter()
+                .position(|rect| rect.contains(pointer.at))
+                .and_then(|i| LINKS.get(i).copied())
         })
 }
 
