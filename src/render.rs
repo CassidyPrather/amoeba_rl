@@ -931,8 +931,8 @@ fn settings_menu(font: &Tileset, ui: &Frontend, touch: bool) {
 /// What the title screen says about the controls. Hoisted so the test that
 /// checks it fits the narrowest phone is checking the real thing.
 const TITLE_HINTS: [&str; 2] = [
-    "arrows move   space waits   X examines   Z organelles",
-    "A and D cycle nuclei   S settings   F1 for help",
+    "arrows move   space waits   R rests   X examines",
+    "Z organelles   A and D cycle nuclei   S settings   F1 help",
 ];
 
 /// The same, for a screen with no keys to name: the pad and the buttons are

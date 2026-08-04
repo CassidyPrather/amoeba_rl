@@ -1316,7 +1316,7 @@ pub struct CityState {
 
 /// What a human does with a turn nobody is in sight for.
 ///
-/// DELIBERATE CHANGE from C# (§11.5): the original had one answer — take a
+/// DELIBERATE CHANGE from C# (§6.2): the original had one answer — take a
 /// random step, or stand still, with standing still as likely as any one
 /// direction — so a cavern full of humans with nothing to do looked exactly
 /// like a cavern full of humans with nothing to do. These are the answers
@@ -1475,7 +1475,7 @@ impl Actor {
         let extra = if is_dissolving(kind) {
             Extra::Dissolving { overfill: 0 }
         } else if is_hunter_family(kind) {
-            // DELIBERATE CHANGE from C# (§5.6): `FiringTime` was 2, so a shot
+            // DELIBERATE CHANGE from C# (§6.4): `FiringTime` was 2, so a shot
             // cost aim, charge and fire — three turns, with the reticles up for
             // the last two. A gunman now announces that it is *about to* line
             // up a turn before it does, the way every other human announces its
