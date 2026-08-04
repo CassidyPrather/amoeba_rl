@@ -51,10 +51,10 @@ const MAX_EFFECTS: usize = 4096;
 
 /// How far the ground stays unsound around a gate that has come down.
 ///
-/// Taxicab, and wide enough to take in a gate or two on a 48-cell map without
-/// reaching the far side of it: the relief is meant to reward clearing a
-/// neighbourhood, not to reward clearing anything at all.
-const COLLAPSE_RANGE: i32 = 16;
+/// Taxicab, and wide enough to take in a gate or two without reaching the far
+/// side of the map: the relief is meant to reward clearing a neighbourhood, not
+/// to reward clearing anything at all.
+const COLLAPSE_RANGE: i32 = 12;
 
 /// How hard the humans push back, and how big the cavern is.
 ///
@@ -77,32 +77,32 @@ impl Difficulty {
     pub const fn rules(self) -> Rules {
         match self {
             Self::Normal => Rules {
-                map_width: 48,
-                map_height: 48,
+                map_width: 38,
+                map_height: 38,
                 spawn_rate: 50,
                 evolution_rate: 6,
                 max_budget: 5,
-                city_armor_step: 20,
+                city_armor_step: 10,
                 num_cities: 12,
                 grace_cities: 4,
             },
             Self::Easy => Rules {
-                map_width: 48,
-                map_height: 48,
+                map_width: 38,
+                map_height: 38,
                 spawn_rate: 75,
                 evolution_rate: 7,
                 max_budget: 5,
-                city_armor_step: 20,
+                city_armor_step: 10,
                 num_cities: 10,
                 grace_cities: 4,
             },
             Self::Gj => Rules {
-                map_width: 64,
-                map_height: 48,
+                map_width: 48,
+                map_height: 40,
                 spawn_rate: 50,
                 evolution_rate: 5,
                 max_budget: 6,
-                city_armor_step: 32,
+                city_armor_step: 14,
                 num_cities: 16,
                 grace_cities: 0,
             },
@@ -123,9 +123,14 @@ impl Difficulty {
 /// Everything a [`Difficulty`] decides.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Rules {
-    /// Map columns. The original's console could not show more than 64.
+    /// Map columns.
+    ///
+    /// DELIBERATE CHANGE from C# (§2), where every map was 64 by 48 because
+    /// that was as much as the console could show. A warren uses its cells —
+    /// see [`mapgen`] — so it needs fewer of them, and a smaller map is a
+    /// shorter walk between the things worth walking to.
     pub map_width: i32,
-    /// Map rows. The original's console could not show more than 48.
+    /// Map rows.
     pub map_height: i32,
     /// Turns between a gate's waves, after the first.
     pub spawn_rate: i32,
@@ -139,9 +144,14 @@ pub struct Rules {
     /// DELIBERATE CHANGE from C# (§1), where every gate cost a flat
     /// `CityArmor` — 100 on Normal and Easy, 160 on GJ. That was the whole
     /// early game spent growing to a threshold nothing else needed. The first
-    /// gate now costs a fifth of the old price and each one after it costs a
-    /// fifth more; [`Sim::gate_price`] is what stops that climb from becoming
-    /// the same problem at the other end of the run.
+    /// gate now costs a small fraction of the old price and each one after it
+    /// costs that much more again; [`Sim::gate_price`] is what stops the climb
+    /// from becoming the same problem at the other end of the run.
+    ///
+    /// The step is also what ties the win condition to the size of the cavern.
+    /// A warren is denser than the open box the original generated, so it has
+    /// fewer floor cells in it, and a threshold that did not come down with
+    /// them would be asking the player to be a third of the map.
     pub city_armor_step: i32,
     /// Gates the map is generated with.
     pub num_cities: i32,
@@ -1242,24 +1252,25 @@ mod tests {
     #[test]
     fn difficulty_tables_match_the_spec() {
         let normal = Difficulty::Normal.rules();
-        assert_eq!((normal.map_width, normal.map_height), (48, 48));
+        assert_eq!((normal.map_width, normal.map_height), (38, 38));
         assert_eq!(normal.cities_required(), 8);
         let easy = Difficulty::Easy.rules();
         assert_eq!(easy.spawn_rate, 75);
         assert_eq!(easy.cities_required(), 6);
         let gj = Difficulty::Gj.rules();
-        assert_eq!((gj.map_width, gj.map_height), (64, 48));
-        assert_eq!(gj.city_armor(0), 32);
+        assert_eq!((gj.map_width, gj.map_height), (48, 40));
+        assert_eq!(gj.city_armor(0), 14);
         assert_eq!(gj.cities_required(), 16);
     }
 
     #[test]
     fn every_gate_costs_one_step_more_than_the_last() {
         let normal = Difficulty::Normal.rules();
-        assert_eq!(normal.city_armor(0), 20, "the first gate is cheap");
-        assert_eq!(normal.city_armor(1), 40);
-        // The last gate a Normal run has to break costs what every gate used to.
-        assert_eq!(normal.city_armor(normal.cities_required() - 1), 160);
+        assert_eq!(normal.city_armor(0), 10, "the first gate is cheap");
+        assert_eq!(normal.city_armor(1), 20);
+        // The dearest gate a Normal run can be asked for, before any relief the
+        // rock gives back for the wrecks around it.
+        assert_eq!(normal.city_armor(normal.cities_required() - 1), 80);
     }
 
     #[test]
@@ -1938,7 +1949,7 @@ mod tests {
         for frame in 0..24 {
             sim.advance(Some(Command::Wait));
             let view = sim.view(frame);
-            assert_eq!(view.cells.len(), 48 * 48);
+            assert_eq!(view.cells.len(), 38 * 38);
         }
     }
 }

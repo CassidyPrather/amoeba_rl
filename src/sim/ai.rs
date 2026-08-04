@@ -19,13 +19,10 @@
 //! outside the gate they came from. Humans out of sight are still *going
 //! somewhere*, and where they are going is a thing the player can learn.
 //!
-//! Two details from the original are worth keeping in mind while reading this.
-//! Sight is a taxicab diamond with **no occlusion at all** — humans detect you
-//! through solid rock, which the original chose deliberately for speed and
-//! which the whole difficulty curve is balanced against. And a "shortest path"
-//! here is found by one breadth-first sweep that stops as soon as it has
-//! reached the nearest targets, rather than by one search per target; the set
-//! of nearest targets that comes out is the same.
+//! One detail of the machinery is worth knowing before reading further: a
+//! "shortest path" here is found by one breadth-first sweep that stops as soon
+//! as it has reached the nearest targets, rather than by one search per target.
+//! The set of nearest targets that comes out is the same.
 
 use std::collections::VecDeque;
 
@@ -75,18 +72,30 @@ const CONVOY_CHOICES: usize = 4;
 impl Sim {
     // -- sensing ------------------------------------------------------------
 
-    /// Everything matching `pred` within this actor's awareness.
+    /// Everything matching `pred` this actor can actually see: inside its
+    /// awareness, and with rock out of the way.
     ///
-    /// KEPT from C# (§11.2): this is a plain taxicab-diamond scan with no
-    /// line-of-sight test, so humans notice you through solid rock. It was a
-    /// deliberate performance trade in the original and every awareness number
-    /// in the game was tuned against it.
+    /// DELIBERATE CHANGE from C# (§11.2). The original scanned a taxicab
+    /// diamond with no line-of-sight test at all, so every human in the game
+    /// detected the amoeba through solid rock. It was a deliberate performance
+    /// trade — `Seen` ran for every human every turn on a 2008-era engine — and
+    /// the whole difficulty curve was balanced against it.
+    ///
+    /// The constraint behind that trade is long gone — the cost is one Bresenham
+    /// walk per cell of a diamond a few cells across, per human, per turn, which
+    /// is nothing on any machine this will ever run on — and what it bought was
+    /// never worth having. Cover that does not conceal is scenery.
+    ///
+    /// What the wallhack was doing for the humans, [rumors](super::Rumor) do
+    /// instead, and better: lose sight of the amoeba and you walk to where it
+    /// was, and so does everybody the report reaches.
     pub(crate) fn seen(&self, id: ActorId, pred: impl Fn(&Actor) -> bool) -> Vec<ActorId> {
         let Some(actor) = self.actors.get(id) else {
             return Vec::new();
         };
         self.grid
             .cells_in_diamond(actor.pos, actor.awareness)
+            .filter(|c| self.grid.line_of_sight(actor.pos, *c))
             .filter_map(|c| self.actor_at(c))
             .filter(|&other| other != id && self.actors.get(other).is_some_and(&pred))
             .collect()
@@ -1128,17 +1137,47 @@ mod tests {
     use crate::sim::tests::sandbox;
 
     #[test]
-    fn sight_is_a_diamond_that_ignores_walls() {
+    fn sight_is_a_diamond_that_rock_stops() {
         let mut sim = sandbox(1);
         let militia = sim.add_actor(Kind::Militia, Coord::new(5, 5));
-        let far = sim.add_actor(Kind::Cytoplasm, Coord::new(9, 5));
+        let far = sim.add_actor(Kind::Cytoplasm, Coord::new(10, 5));
         let near = sim.add_actor(Kind::Cytoplasm, Coord::new(7, 5));
-        // Solid rock in between changes nothing: this is the deliberate
-        // wallhack the original shipped with.
+        assert!(sim.seen(militia, Actor::is_player_aligned).contains(&near));
+        assert!(
+            !sim.seen(militia, Actor::is_player_aligned).contains(&far),
+            "awareness four stops at four cells"
+        );
+        // One cell of rock in the way is the whole of the difference. This is
+        // the original's deliberate wallhack, gone.
         sim.grid.set_props(Coord::new(6, 5), false, false, true);
-        let seen = sim.seen(militia, Actor::is_player_aligned);
-        assert!(seen.contains(&near));
-        assert!(!seen.contains(&far), "awareness 3 stops at three cells");
+        assert!(
+            !sim.seen(militia, Actor::is_player_aligned).contains(&near),
+            "it saw straight through the rock"
+        );
+    }
+
+    #[test]
+    fn a_human_that_loses_sight_of_you_walks_to_where_you_were() {
+        // What the wallhack used to do, the rumors do instead.
+        let mut sim = sandbox(48);
+        let militia = sim.add_actor(Kind::Militia, Coord::new(5, 5));
+        let cyto = sim.add_actor(Kind::Cytoplasm, Coord::new(8, 5));
+        sim.human_act(militia);
+        assert_eq!(sim.rumors().len(), 1, "it reported what it saw");
+        // Now wall the mass off and let it keep coming.
+        for y in 3..8 {
+            sim.grid.set_props(Coord::new(7, y), false, false, true);
+        }
+        assert!(sim.seen(militia, Actor::is_player_aligned).is_empty());
+        for _ in 0..3 {
+            sim.human_act(militia);
+        }
+        assert!(
+            sim.actors[militia].pos.x > 5,
+            "it went to look where the report put them: {:?}",
+            sim.actors[militia].pos
+        );
+        assert!(sim.actors.contains(cyto), "and has not got there yet");
     }
 
     #[test]

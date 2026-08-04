@@ -660,9 +660,9 @@ mod tests {
     fn the_view_covers_the_whole_map() {
         let sim = playing(1);
         let view = sim.view(0);
-        assert_eq!(view.width, 48);
-        assert_eq!(view.height, 48);
-        assert_eq!(view.cells.len(), 48 * 48);
+        assert_eq!(view.width, 38);
+        assert_eq!(view.height, 38);
+        assert_eq!(view.cells.len(), 38 * 38);
     }
 
     #[test]
@@ -791,7 +791,7 @@ mod tests {
         assert_eq!(view.status.mass, 6);
         assert_eq!(view.status.cities_remaining, 12);
         assert_eq!(view.status.cities_required, 8);
-        assert_eq!(view.status.city_armor, 20, "the first gate is the cheapest");
+        assert_eq!(view.status.city_armor, 10, "the first gate is the cheapest");
         assert!((view.status.turn - 1.0).abs() < f32::EPSILON);
     }
 

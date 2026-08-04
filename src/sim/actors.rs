@@ -372,6 +372,12 @@ impl Kind {
             stats.max_hp = max_hp;
             stats
         }
+        // DELIBERATE CHANGE from C# (§6.1): every human's awareness is one cell
+        // wider than the original's, and a scout's is nearly twice. The numbers
+        // were balanced against sight that ignored walls; now that rock stops
+        // it (see `Sim::seen`) the same numbers would leave the humans groping
+        // about, and a scout — whose whole job is to be the one that finds you
+        // — would be no better at it than a militiaman.
         match self {
             Self::Nucleus => resting(
                 s(
@@ -639,7 +645,7 @@ impl Kind {
                 "A human with a stick and a grudge. Alone it is food; in numbers it is a problem.",
                 'm',
                 palette::MILITIA,
-                3,
+                4,
                 16,
                 0,
             ),
@@ -648,7 +654,7 @@ impl Kind {
                 "A human with a long gun. It paints a line across the cavern and fires down it two turns later.",
                 'h',
                 palette::ELECTRONICS,
-                3,
+                4,
                 16,
                 0,
             ),
@@ -657,7 +663,7 @@ impl Kind {
                 "A human with a short gun and sharp eyes. It sees you before the others do.",
                 's',
                 palette::ELECTRONICS,
-                4,
+                7,
                 16,
                 0,
             ),
@@ -667,7 +673,7 @@ impl Kind {
                     "A human in plate. Slow, and proof against anything not sharpened into bone.",
                     't',
                     palette::CALCIUM,
-                    3,
+                    4,
                     48,
                     0,
                 ),
@@ -679,7 +685,7 @@ impl Kind {
                     "A walking machine. Armoured like a tank and half again as quick.",
                     'c',
                     palette::CALCIUM,
-                    3,
+                    4,
                     32,
                     0,
                 ),
@@ -691,7 +697,7 @@ impl Kind {
                     "A supply wagon. It runs from you, and it is worth the chase.",
                     'v',
                     palette::MILITIA,
-                    3,
+                    4,
                     32,
                     0,
                 ),

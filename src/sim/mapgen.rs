@@ -1,19 +1,46 @@
 //! Map generation.
 //!
-//! The cavern is the underside of a human city, and it is built the way one
-//! would be. The rock is cut into districts; a chamber is dissolved out of the
-//! middle of each; streets two cells wide are run between the chambers, with a
-//! couple of loops so the map is a network rather than a tree; and the humans'
-//! gates are sunk into the rock at the end of narrow dead-end passages, spread
-//! out so no two of them open onto the same corner.
+//! The cavern is a warren, and one rule decides its whole character: **no cell
+//! of it is more than a step from rock.** [`Sim::plant_pillars`] enforces that
+//! by putting rock back into anything that came out wide open, and everything
+//! else here is in service of it.
 //!
-//! Everything after that is placed against one number. [`Sim::measure_depth`]
-//! floods outward from every gate doorway and records how far each cell is from
-//! the nearest one, and that field is what the rest of the generator asks:
+//! That rule is not decoration. Every mechanic this game has that is worth
+//! anything needs a wall to work against:
+//!
+//! * **Engulfing** — the only answer to armour — captures a human with no free
+//!   cell to step into. In the middle of a hall that costs four organelles. Beside
+//!   a pillar it costs three, in an alcove two, at the end of a blind tendril
+//!   one. A map of halls is a map where the amoeba's signature move is priced
+//!   out of reach.
+//! * **Cover.** A wall a shot cannot cross is the difference between being
+//!   hunted and being shot at.
+//! * **Chokepoints.** A passage that wanders between one and two cells wide has a
+//!   throat every few cells, which is somewhere to meet a crowd on your terms.
+//!
+//! An earlier pass at this generated smoothed cellular-automata caverns. Their
+//! jagged edges were real geometry in the wrong place. Everything that walks
+//! this map walks between gates and chambers, so the ragged rim of a big room
+//! is the one part of it nothing ever happens against — and the fights that
+//! happened in the middle of the room happened as if the walls were not there,
+//! because for those fights they were not. Interesting walls have to be *on the
+//! traffic*, which is what the passages, the erosion and the pillars are
+//! between them for. The map is smaller for the same reason: space nothing
+//! happens in is not scenery, it is a walk.
+//!
+//! The order of work is: scatter chamber sites on a jittered lattice, eat a
+//! small chamber out of each, join them with passages of wandering width, erode
+//! alcoves and tendrils off whatever exists, plant pillars in whatever is still
+//! open, then sink the gates into the rock at the end of dead-end passages.
+//!
+//! Everything on the floor is then placed against one number.
+//! [`Sim::measure_depth`] floods outward from every gate doorway and records how
+//! far each cell is from the nearest one, and that field is what the rest of the
+//! generator asks:
 //!
 //! * **Barbed wire** goes in a ring just outside each gate, because that is
 //!   where humans put barbed wire.
-//! * **Nutrients** go in caches out along the streets — clumps, not confetti,
+//! * **Nutrients** go in caches out along the passages — clumps, not confetti,
 //!   because a cache is a thing somebody left somewhere.
 //! * **Plants** grow in the deep, where nobody has been to pull them up.
 //! * **DNA** hides in the dead ends of the deep, so the one catalyst that grows
@@ -41,33 +68,44 @@ use super::actors::{ActorId, ItemKind, Kind};
 use super::grid::{Coord, Dir, Grid, rand_inclusive, rand_index};
 use super::{Sim, actors};
 
-/// Smallest side a district may be cut down to.
-const DISTRICT_MIN: i32 = 13;
-/// How many times every district is offered a cut.
-const DISTRICT_CUTS: u32 = 4;
-/// Rock left inside a district's edge, so two chambers never touch.
-const DISTRICT_WALL: i32 = 1;
-/// Percent of a district seeded as rock before smoothing.
-const ROCK_PERCENT: i32 = 45;
-/// Smoothing passes over a district.
-const SMOOTHING_ROUNDS: u32 = 4;
-/// Rock neighbours that turn a cell to rock in the next pass. The classic
-/// four-five rule: five of the eight, and everything past the district's edge
-/// counts, which is what pulls a chamber away from its own walls.
-const CROWDED: i32 = 5;
-/// Cells a smoothed chamber needs before it is worth carving.
-const CHAMBER_MIN_CELLS: usize = 24;
-/// Chambers a map needs before it is worth playing.
-const CHAMBERS_MIN: usize = 3;
-/// Streets carved beyond the spanning tree, so the map holds loops.
-const STREET_LOOPS: usize = 2;
+/// Roughly how far apart the warren's chambers sit.
+const SITE_SPACING: i32 = 8;
+/// How far a chamber may be jittered off the lattice, so the warren is not a
+/// grid wearing a disguise.
+const SITE_JITTER: i32 = 2;
+/// Fewest and most cells one chamber is eaten out to, before erosion. Small on
+/// purpose: a chamber is a widening of the warren, not a room.
+const CHAMBER_CELLS: (i32, i32) = (12, 26);
+/// Growth attempts one chamber may waste before it is called finished.
+const CHAMBER_ATTEMPTS: i32 = 200;
+/// Sites a map needs before it is worth playing.
+const SITES_MIN: usize = 6;
+/// Passages carved beyond the spanning tree, so the warren holds loops.
+const PASSAGE_LOOPS: usize = 3;
+/// Chance in a hundred that a passage cell gets its second lane. Anything under
+/// certainty puts a throat in every few cells; anything over nothing keeps a
+/// hundred-cell amoeba from having to file down the whole thing.
+const PASSAGE_WIDE_PERCENT: i32 = 66;
+/// Erosion passes over the whole map.
+const EROSION_ROUNDS: u32 = 2;
+/// Chance in a hundred that an eligible rock cell is eaten in one pass.
+const EROSION_PERCENT: i32 = 22;
+/// Floor neighbours a rock cell must have to be eroded: exactly one, so every
+/// cell erosion takes is a blind alcove hung off something that already exists.
+/// Allowing two would let it join passages together, which dissolves the
+/// skeleton — and a map you cannot recognise your way around is its own kind of
+/// dead space.
+const EROSION_NEIGHBOURS: usize = 1;
+/// Passes of pillar planting before the loop gives up. A backstop only: each
+/// pass plants at least one pillar and there are finitely many cells.
+const PILLAR_ROUNDS: u32 = 32;
 /// Shortest gatehouse passage, in cells of rock cut away.
 const GATEHOUSE_MIN: i32 = 2;
 /// Longest gatehouse passage.
 const GATEHOUSE_MAX: i32 = 4;
-/// Distances gates are asked to keep from each other, tried in order. The last
-/// one is a formality: by then the map is telling us it has no room left.
-const GATE_GAPS: [i32; 4] = [14, 10, 6, 2];
+/// Shares of the map's short side that gates are asked to keep from each other,
+/// tried in order. The last is a formality: by then the map has no room left.
+const GATE_GAPS: [i32; 4] = [3, 4, 6, 16];
 /// Cells in the starting blob: two nuclei and four cytoplasm.
 const START_MASS: usize = 6;
 /// How far from a chamber's middle the blob may be seeded.
@@ -82,7 +120,11 @@ const DNA_AMT: i32 = 5;
 const WIRE_AMT: i32 = 8;
 /// Plants scattered.
 const PLANT_AMT: i32 = 8;
-/// Nearest and furthest a coil of wire is dropped from its gate's doorway.
+/// Nearest and furthest a coil of wire is dropped from a gate, in steps of open
+/// floor rather than as the crow flies. In a warren the two are nothing like
+/// each other — a cell three cells off can be a dozen steps round a wall — and
+/// it is the walk that decides whether taking the wire means walking up to a
+/// gate.
 const WIRE_RING: (i32, i32) = (2, 5);
 /// Fewest and most nutrients in one cache.
 const CACHE_SIZE: (i32, i32) = (3, 5);
@@ -100,27 +142,6 @@ const DEEP_BAND: i32 = 60;
 const START_ATTEMPTS: i32 = 64;
 /// Whole maps to throw away before giving up and playing the last one.
 const MAP_ATTEMPTS: u32 = 64;
-
-/// A half-open rectangle of cells: `x..x + w` by `y..y + h`.
-#[derive(Clone, Copy, Debug)]
-struct Rect {
-    x: i32,
-    y: i32,
-    w: i32,
-    h: i32,
-}
-
-impl Rect {
-    /// The same rectangle with `by` cells taken off every side.
-    const fn inset(self, by: i32) -> Self {
-        Self {
-            x: self.x + by,
-            y: self.y + by,
-            w: self.w - by * 2,
-            h: self.h - by * 2,
-        }
-    }
-}
 
 /// The shortest way to join two disjoint regions.
 #[derive(Clone, Copy, Debug)]
@@ -179,19 +200,25 @@ impl Sim {
 
     /// One generation attempt. `false` means the map is unusable.
     fn try_generate(&mut self) -> bool {
-        let districts = self.districts();
-        let mut hubs = Vec::new();
-        for district in districts {
-            if let Some(hub) = self.carve_chamber(district) {
-                hubs.push(hub);
-            }
-        }
-        if hubs.len() < CHAMBERS_MIN {
+        let sites = self.sites();
+        if sites.len() < SITES_MIN {
             return false;
         }
-        self.carve_streets(&hubs);
+        for site in &sites {
+            self.carve_chamber(*site);
+        }
+        self.carve_passages(&sites);
+        self.erode();
         self.connect_pockets();
-        self.junctions = hubs;
+        self.plant_pillars();
+        // Planting can put a pillar on a chamber's own middle. The humans anchor
+        // their beats and patrols on these, so each one is nudged to whatever
+        // open ground is nearest — which, a pillar being a single cell in an
+        // otherwise open place, is always right beside it.
+        self.junctions = sites
+            .into_iter()
+            .map(|at| self.on_open_ground(at))
+            .collect();
         if !self.place_gates() {
             return false;
         }
@@ -203,157 +230,73 @@ impl Sim {
         true
     }
 
-    // -- districts and chambers ---------------------------------------------
+    // -- the warren ----------------------------------------------------------
 
-    /// Cut the map's interior into districts, recursively and along the long
-    /// side of whatever is being cut.
-    fn districts(&mut self) -> Vec<Rect> {
-        let mut leaves = vec![Rect {
-            x: 1,
-            y: 1,
-            w: self.grid.width() - 2,
-            h: self.grid.height() - 2,
-        }];
-        for _ in 0..DISTRICT_CUTS {
-            let mut next = Vec::with_capacity(leaves.len() * 2);
-            for leaf in leaves {
-                match self.cut(leaf) {
-                    Some((left, right)) => {
-                        next.push(left);
-                        next.push(right);
-                    }
-                    None => next.push(leaf),
-                }
-            }
-            leaves = next;
-        }
-        leaves
-    }
-
-    /// Cut one district in two, or refuse because either half would be too
-    /// small to hold a chamber.
-    fn cut(&mut self, r: Rect) -> Option<(Rect, Rect)> {
-        // Cut the long way when a district is clearly oblong, and toss a coin
-        // when it is roughly square: districts that are all one shape read as a
-        // grid, and a grid is the thing this generator exists to avoid.
-        let across = if r.w * 4 > r.h * 5 {
-            true
-        } else if r.h * 4 > r.w * 5 {
-            false
-        } else {
-            rand_inclusive(&mut self.rng, 0, 1) == 0
-        };
-        let span = if across { r.w } else { r.h };
-        if span < DISTRICT_MIN * 2 {
-            return None;
-        }
-        let at = rand_inclusive(&mut self.rng, DISTRICT_MIN, span - DISTRICT_MIN);
-        Some(if across {
-            (
-                Rect { w: at, ..r },
-                Rect {
-                    x: r.x + at,
-                    w: r.w - at,
-                    ..r
-                },
-            )
-        } else {
-            (
-                Rect { h: at, ..r },
-                Rect {
-                    y: r.y + at,
-                    h: r.h - at,
-                    ..r
-                },
-            )
-        })
-    }
-
-    /// Dissolve a chamber out of the middle of one district and report the cell
-    /// nearest its centre, or `None` when the smoothing left nothing worth
-    /// carving.
+    /// Chamber sites: a lattice, jittered off true so the warren does not read
+    /// as a grid.
     ///
-    /// Random noise smoothed four times is the standard recipe for a cave that
-    /// looks eaten rather than drawn. Only the largest piece of what comes out
-    /// is carved, so a district never contributes an island for the connector
-    /// to have to find later.
-    fn carve_chamber(&mut self, district: Rect) -> Option<Coord> {
-        let room = district.inset(DISTRICT_WALL);
-        if room.w < 5 || room.h < 5 {
-            return None;
-        }
-        let (w, h) = (room.w, room.h);
-        #[allow(clippy::cast_sign_loss)] // Both sides are positive by the guard above.
-        let len = (w * h) as usize;
-        #[allow(clippy::cast_sign_loss)]
-        let at = |x: i32, y: i32| (y * w + x) as usize;
-        let mut open: Vec<bool> = (0..len)
-            .map(|_| rand_inclusive(&mut self.rng, 0, 99) >= ROCK_PERCENT)
-            .collect();
-        for _ in 0..SMOOTHING_ROUNDS {
-            let mut next = vec![false; len];
-            for y in 0..h {
-                for x in 0..w {
-                    let mut rock = 0;
-                    for dy in -1..=1 {
-                        for dx in -1_i32..=1 {
-                            let (nx, ny) = (x + dx, y + dy);
-                            let outside = nx < 0 || ny < 0 || nx >= w || ny >= h;
-                            if (dx != 0 || dy != 0) && (outside || !open[at(nx, ny)]) {
-                                rock += 1;
-                            }
-                        }
-                    }
-                    next[at(x, y)] = rock < CROWDED;
-                }
+    /// A lattice rather than a scatter because the spacing has to be reliable.
+    /// Two chambers that land on top of each other make a hall, and a hall is
+    /// the thing this generator exists to not produce. It is stretched to the
+    /// map's own edges rather than stepped out from one corner, because a
+    /// remainder left over at the far side is exactly the dead space the whole
+    /// design is trying to be rid of.
+    fn sites(&mut self) -> Vec<Coord> {
+        let margin = SITE_JITTER + 2;
+        let across = lattice(self.grid.width(), margin);
+        let down = lattice(self.grid.height(), margin);
+        let mut out = Vec::with_capacity(across.len() * down.len());
+        for y in &down {
+            for x in &across {
+                let at = Coord::new(
+                    x + rand_inclusive(&mut self.rng, -SITE_JITTER, SITE_JITTER),
+                    y + rand_inclusive(&mut self.rng, -SITE_JITTER, SITE_JITTER),
+                );
+                out.push(Coord::new(
+                    at.x.clamp(margin, self.grid.width() - 1 - margin),
+                    at.y.clamp(margin, self.grid.height() - 1 - margin),
+                ));
             }
-            open = next;
         }
-        let body = largest_region(&open, w, h)?;
-        if body.len() < CHAMBER_MIN_CELLS {
-            return None;
-        }
-        let mut sum = (0_i64, 0_i64);
-        let mut cells = Vec::with_capacity(body.len());
-        for i in body {
-            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-            let c = Coord::new(room.x + i as i32 % w, room.y + i as i32 / w);
-            self.carve(c);
-            sum.0 += i64::from(c.x);
-            sum.1 += i64::from(c.y);
-            cells.push(c);
-        }
-        let count = i64::try_from(cells.len()).unwrap_or(1).max(1);
-        #[allow(clippy::cast_possible_truncation)] // Map coordinates fit an i32 with room to spare.
-        let mean = Coord::new((sum.0 / count) as i32, (sum.1 / count) as i32);
-        // The mean of a crescent lands in the rock, so report the cell of the
-        // chamber nearest it rather than the mean itself.
-        cells.into_iter().min_by_key(|c| c.taxi(mean))
+        out
     }
 
-    /// Turn one cell to floor, unless it is part of the map's outer wall.
+    /// Eat a small chamber out of the rock around one site.
     ///
-    /// Everything that cuts rock goes through here, which is the whole of why
-    /// the border stays solid without anybody having to remember it.
-    fn carve(&mut self, c: Coord) -> bool {
-        let inside =
-            c.x > 0 && c.y > 0 && c.x < self.grid.width() - 1 && c.y < self.grid.height() - 1;
-        if inside {
-            self.grid.set_props(c, true, true, false);
+    /// Growth is by accretion — pick a cell already eaten, eat one of its
+    /// neighbours — which gives a lumpy blob rather than the smooth disc a
+    /// radius would and the stringy worm a drunkard's walk would.
+    fn carve_chamber(&mut self, site: Coord) {
+        let want = rand_inclusive(&mut self.rng, CHAMBER_CELLS.0, CHAMBER_CELLS.1);
+        let mut body = vec![site];
+        self.carve(site);
+        for _ in 0..CHAMBER_ATTEMPTS {
+            if i32::try_from(body.len()).unwrap_or(i32::MAX) >= want {
+                break;
+            }
+            let Some(index) = rand_index(&mut self.rng, body.len()) else {
+                break;
+            };
+            let from = body[index];
+            let Some(dir) = self.pick(&[Dir::Left, Dir::Right, Dir::Up, Dir::Down]) else {
+                break;
+            };
+            let next = from + dir.offset();
+            if body.contains(&next) || !self.carve(next) {
+                continue;
+            }
+            body.push(next);
         }
-        inside
     }
 
-    // -- streets ------------------------------------------------------------
-
-    /// Join the chambers with streets: a minimum spanning tree so everywhere is
-    /// reachable, plus [`STREET_LOOPS`] short-cuts so the map is not a tree.
+    /// Join the chambers: a minimum spanning tree so everywhere is reachable,
+    /// plus [`PASSAGE_LOOPS`] short-cuts so the warren is not a tree.
     ///
     /// The loops matter more than they look. A map with none is a map where
     /// every retreat is back the way you came, which is the shape that turns a
     /// long run into a walk.
-    fn carve_streets(&mut self, hubs: &[Coord]) {
-        let n = hubs.len();
+    fn carve_passages(&mut self, sites: &[Coord]) {
+        let n = sites.len();
         if n < 2 {
             return;
         }
@@ -370,7 +313,7 @@ impl Sim {
                     if *outside {
                         continue;
                     }
-                    let dist = hubs[i].taxi(hubs[j]);
+                    let dist = sites[i].taxi(sites[j]);
                     if best.is_none_or(|(seen, _, _)| dist < seen) {
                         best = Some((dist, i, j));
                     }
@@ -383,17 +326,22 @@ impl Sim {
         let mut spare: Vec<(i32, usize, usize)> = (0..n)
             .flat_map(|i| (i + 1..n).map(move |j| (i, j)))
             .filter(|(i, j)| !edges.contains(&(*i, *j)) && !edges.contains(&(*j, *i)))
-            .map(|(i, j)| (hubs[i].taxi(hubs[j]), i, j))
+            .map(|(i, j)| (sites[i].taxi(sites[j]), i, j))
             .collect();
         spare.sort_unstable();
-        edges.extend(spare.into_iter().take(STREET_LOOPS).map(|(_, i, j)| (i, j)));
+        edges.extend(
+            spare
+                .into_iter()
+                .take(PASSAGE_LOOPS)
+                .map(|(_, i, j)| (i, j)),
+        );
         for (i, j) in edges {
-            self.carve_street(hubs[i], hubs[j]);
+            self.carve_passage(sites[i], sites[j]);
         }
     }
 
-    /// One street: two straight legs meeting at an elbow.
-    fn carve_street(&mut self, from: Coord, to: Coord) {
+    /// One passage: two straight legs meeting at an elbow.
+    fn carve_passage(&mut self, from: Coord, to: Coord) {
         let elbow = if rand_inclusive(&mut self.rng, 0, 1) == 0 {
             Coord::new(to.x, from.y)
         } else {
@@ -403,20 +351,120 @@ impl Sim {
         self.carve_run(elbow, to);
     }
 
-    /// One straight leg, two cells wide.
+    /// One straight leg, wandering between one and two cells wide.
     ///
-    /// Two rather than one on purpose: a single-file corridor is a place a
-    /// hundred-cell amoeba goes to get stuck, and every one of them is a turn
-    /// spent shuffling rather than playing.
+    /// The wandering is the point. Two cells everywhere is a road, and nothing
+    /// happens on a road; one cell everywhere is a queue, and a hundred-cell
+    /// amoeba spends its turns filing down it. Rolling for the second lane per
+    /// cell puts a throat every few cells — somewhere a crowd has to come at you
+    /// in ones, and somewhere a shot has to come straight down.
     fn carve_run(&mut self, from: Coord, to: Coord) {
         let step = Coord::new((to.x - from.x).signum(), (to.y - from.y).signum());
         let lane = Coord::new(step.y.abs(), step.x.abs());
         let steps = (to.x - from.x).abs().max((to.y - from.y).abs());
         for i in 0..=steps {
-            let c = from + Coord::new(step.x * i, step.y * i);
-            self.carve(c);
-            self.carve(c + lane);
+            let at = from + Coord::new(step.x * i, step.y * i);
+            self.carve(at);
+            if rand_inclusive(&mut self.rng, 0, 99) < PASSAGE_WIDE_PERCENT {
+                self.carve(at + lane);
+            }
         }
+    }
+
+    /// Eat at the edges of what is already there.
+    ///
+    /// Only rock with exactly one open neighbour is eligible, so every cell this
+    /// takes is a blind alcove hung off what is already there. That is the
+    /// cheapest geometry in the game — a human standing in one costs two
+    /// organelles to seal instead of four — and it is bought without touching
+    /// the shape of the warren, because nothing that joins two passages or fills
+    /// in a corner passes the test.
+    fn erode(&mut self) {
+        for _ in 0..EROSION_ROUNDS {
+            let mut eaten = Vec::new();
+            for y in 1..self.grid.height() - 1 {
+                for x in 1..self.grid.width() - 1 {
+                    let at = Coord::new(x, y);
+                    if self.grid.walkable(at) {
+                        continue;
+                    }
+                    if self.grid.adjacent_walkable(at).count() == EROSION_NEIGHBOURS
+                        && rand_inclusive(&mut self.rng, 0, 99) < EROSION_PERCENT
+                    {
+                        eaten.push(at);
+                    }
+                }
+            }
+            for at in eaten {
+                self.carve(at);
+            }
+        }
+    }
+
+    /// Plant rock back into anything that came out wide open.
+    ///
+    /// A cell with all eight of its neighbours open is the middle of a hall, and
+    /// a hall is where this game has nothing to offer: nothing can be cornered
+    /// in one, a shot crosses it unobstructed, and there is no cell in it that
+    /// costs fewer than four organelles to seal. So the middle of every hall
+    /// becomes a pillar, and the rule is applied until there is no such cell
+    /// left — which leaves the whole map within one step of a wall.
+    ///
+    /// It cannot cut the map in two, and needs no check that it has not. The
+    /// four orthogonal neighbours of such a cell are joined to each other around
+    /// the diagonals, which are open too by the same test, so everything that
+    /// reached the cell still reaches everything else without it.
+    fn plant_pillars(&mut self) {
+        for _ in 0..PILLAR_ROUNDS {
+            let mut open: Vec<Coord> = Vec::new();
+            for y in 1..self.grid.height() - 1 {
+                for x in 1..self.grid.width() - 1 {
+                    let at = Coord::new(x, y);
+                    if self.wide_open(at) {
+                        open.push(at);
+                    }
+                }
+            }
+            if open.is_empty() {
+                return;
+            }
+            // Shuffled, because taking them in reading order lays the pillars
+            // out in ranks and the warren starts to look like a car park.
+            self.shuffle(&mut open);
+            for at in open {
+                if self.wide_open(at) {
+                    self.grid.set_props(at, false, false, false);
+                }
+            }
+        }
+    }
+
+    /// This cell if it is open, otherwise whatever open cell is next to it.
+    fn on_open_ground(&self, at: Coord) -> Coord {
+        if self.grid.walkable(at) {
+            return at;
+        }
+        self.grid.adjacent_walkable(at).next().unwrap_or(at)
+    }
+
+    /// Whether this cell and every one of its eight neighbours is open floor.
+    fn wide_open(&self, at: Coord) -> bool {
+        self.grid.walkable(at)
+            && (-1..=1)
+                .all(|dy| (-1..=1).all(|dx| self.grid.walkable(Coord::new(at.x + dx, at.y + dy))))
+    }
+
+    /// Turn one cell to floor, unless it is part of the map's outer wall.
+    ///
+    /// Everything that cuts rock goes through here, which is the whole of why
+    /// the border stays solid without anybody having to remember it.
+    fn carve(&mut self, c: Coord) -> bool {
+        let inside =
+            c.x > 0 && c.y > 0 && c.x < self.grid.width() - 1 && c.y < self.grid.height() - 1;
+        if inside {
+            self.grid.set_props(c, true, true, false);
+        }
+        inside
     }
 
     // -- gates --------------------------------------------------------------
@@ -425,7 +473,9 @@ impl Sim {
     /// them as far apart as the map will allow.
     fn place_gates(&mut self) -> bool {
         let mut placed = 0;
-        for gap in GATE_GAPS {
+        let short = self.grid.width().min(self.grid.height());
+        for share in GATE_GAPS {
+            let gap = short / share;
             let mut sites = self.gatehouse_sites();
             self.shuffle(&mut sites);
             for (from, dir) in sites {
@@ -692,9 +742,11 @@ impl Sim {
             };
             let spots: Vec<Coord> = self
                 .grid
-                .cells_in_diamond(door, WIRE_RING.1)
+                .cells_in_diamond(door, WIRE_RING.1 * 2)
                 .filter(|c| {
-                    c.taxi(door) >= WIRE_RING.0 && self.grid.walkable(*c) && self.is_empty_cell(*c)
+                    (WIRE_RING.0..=WIRE_RING.1).contains(&self.depth_at(*c))
+                        && self.grid.walkable(*c)
+                        && self.is_empty_cell(*c)
                 })
                 .collect();
             if let Some(spot) = self.pick(&spots) {
@@ -818,10 +870,11 @@ impl Sim {
 
     /// Tunnel between any regions the carving left disjoint.
     ///
-    /// The streets already join every chamber, so on almost every map this is a
+    /// The passages already join every chamber, so on almost every map this is a
     /// no-op that runs once and finds one region. It stays because "almost
     /// every" is not a guarantee and an unreachable pocket is an unwinnable
-    /// run.
+    /// run. It goes before [`Sim::plant_pillars`] so that the pillars get the
+    /// last word: a bridge carved afterwards could reopen a hall.
     fn connect_pockets(&mut self) {
         let pockets = self.calculate_pockets();
         if pockets.len() < 2 {
@@ -953,44 +1006,16 @@ impl Sim {
     }
 }
 
-/// The largest four-connected run of `true` in a `width` by `height` bitmap,
-/// as indices into it.
-fn largest_region(open: &[bool], width: i32, height: i32) -> Option<Vec<usize>> {
-    #[allow(clippy::cast_sign_loss)] // Both sides are checked positive by the caller.
-    let at = |col: i32, row: i32| (row * width + col) as usize;
-    let mut seen = vec![false; open.len()];
-    let mut best: Option<Vec<usize>> = None;
-    for start in 0..open.len() {
-        if !open[start] || seen[start] {
-            continue;
-        }
-        seen[start] = true;
-        let mut members = vec![start];
-        let mut queue = VecDeque::from([start]);
-        while let Some(here) = queue.pop_front() {
-            #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
-            let (col, row) = (here as i32 % width, here as i32 / width);
-            for step in [(-1, 0), (1, 0), (0, -1), (0, 1)] {
-                let (col, row) = (col + step.0, row + step.1);
-                if col < 0 || row < 0 || col >= width || row >= height {
-                    continue;
-                }
-                let next = at(col, row);
-                if open[next] && !seen[next] {
-                    seen[next] = true;
-                    members.push(next);
-                    queue.push_back(next);
-                }
-            }
-        }
-        if best
-            .as_ref()
-            .is_none_or(|found| members.len() > found.len())
-        {
-            best = Some(members);
-        }
-    }
-    best
+/// Evenly spaced lattice coordinates from `margin` to `span - 1 - margin`.
+///
+/// The count comes from [`SITE_SPACING`] but the spacing comes from the span,
+/// so the lattice always reaches both edges and the sites end up a little
+/// closer together than asked for rather than leaving a strip over.
+fn lattice(span: i32, margin: i32) -> Vec<i32> {
+    let low = margin;
+    let usable = (span - 1 - margin - low).max(1);
+    let count = (usable / SITE_SPACING + 1).max(2);
+    (0..count).map(|i| low + usable * i / (count - 1)).collect()
 }
 
 /// The closest pair of cells between two regions, by taxicab distance.
@@ -1065,6 +1090,107 @@ mod tests {
             .collect()
     }
 
+    /// Every cell the generator cut out of the rock.
+    ///
+    /// Transparency, rather than walkability or [`Sim::is_wall`]: the generator
+    /// sets it and nothing standing on a cell ever changes it, so this is the
+    /// map's own shape and not a snapshot of who is where. A gate is rock with
+    /// somebody in it and does not count.
+    fn carved(sim: &Sim) -> Vec<Coord> {
+        (0..sim.grid().height())
+            .flat_map(|y| (0..sim.grid().width()).map(move |x| Coord::new(x, y)))
+            .filter(|c| sim.grid().transparent(*c))
+            .collect()
+    }
+
+    /// Open neighbours of a cell, which is also what it costs to seal somebody
+    /// standing on it.
+    fn openings(sim: &Sim, at: Coord) -> usize {
+        sim.grid()
+            .adjacent(at)
+            .filter(|c| sim.grid().transparent(*c))
+            .count()
+    }
+
+    #[test]
+    fn nowhere_is_more_than_a_step_from_rock() {
+        // The rule the whole generator is built around. Break it and there is
+        // somewhere on the map where the amoeba cannot corner anything, a shot
+        // cannot be broken, and the geometry may as well not be there.
+        for seed in 0..24 {
+            let sim = playing(seed);
+            for at in carved(&sim) {
+                let beside_rock = (-1..=1).any(|dy| {
+                    (-1..=1).any(|dx| !sim.grid().transparent(Coord::new(at.x + dx, at.y + dy)))
+                });
+                assert!(
+                    beside_rock,
+                    "seed {seed}: {at:?} is in the middle of a hall"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn most_of_the_cavern_is_somewhere_you_could_corner_something() {
+        // Engulfing is the amoeba's answer to armour and it is priced in
+        // organelles: four to seal a cell in the open, three beside a pillar,
+        // two in an alcove. If that price is four almost everywhere then the
+        // mechanic is decorative, so a good map is mostly cheaper than four.
+        for seed in 0..16 {
+            let sim = playing(seed);
+            let open = carved(&sim);
+            let cheap = open.iter().filter(|c| openings(&sim, **c) <= 2).count();
+            let share = cheap * 100 / open.len();
+            assert!(share >= 30, "seed {seed}: only {share}% costs under four");
+            let sum: usize = open.iter().map(|c| openings(&sim, *c)).sum();
+            let mean = sum as f64 / open.len() as f64;
+            assert!(mean < 3.0, "seed {seed}: mean {mean:.2} ways out of a cell");
+        }
+    }
+
+    #[test]
+    fn the_cavern_is_dense_without_being_solid() {
+        // Floor the amoeba never reaches is a walk, and floor it cannot move
+        // through is a wall. The band is what a warren looks like from outside.
+        for seed in 0..16 {
+            let sim = playing(seed);
+            let cells = (sim.grid().width() * sim.grid().height()).unsigned_abs() as usize;
+            let share = carved(&sim).len() * 100 / cells;
+            assert!(share > 25, "seed {seed}: only {share}% of the map is floor");
+            assert!(share < 55, "seed {seed}: {share}% floor is an arena");
+        }
+    }
+
+    #[test]
+    fn rock_actually_stops_a_militias_eyes() {
+        // The other half of the same bargain: geometry only counts if sight
+        // runs into it. A militia's diamond is forty-one cells; in a warren it
+        // should be seeing well under all of them.
+        let sim = playing(9);
+        let radius = Kind::Militia.stats().awareness;
+        let open = carved(&sim);
+        let full: usize = open
+            .iter()
+            .map(|c| sim.grid().cells_in_diamond(*c, radius).count())
+            .sum();
+        let seen: usize = open
+            .iter()
+            .map(|c| {
+                sim.grid()
+                    .cells_in_diamond(*c, radius)
+                    .filter(|t| sim.grid().line_of_sight(*c, *t))
+                    .count()
+            })
+            .sum();
+        let share = seen * 100 / full;
+        assert!(
+            share < 80,
+            "rock hides almost nothing: {share}% still visible"
+        );
+        assert!(share > 30, "rock hides almost everything: {share}% visible");
+    }
+
     #[test]
     fn the_whole_cavern_is_connected() {
         for seed in 0..40 {
@@ -1088,20 +1214,6 @@ mod tests {
         for y in 0..grid.height() {
             assert!(!grid.walkable(Coord::new(0, y)));
             assert!(!grid.walkable(Coord::new(grid.width() - 1, y)));
-        }
-    }
-
-    #[test]
-    fn the_cavern_has_room_to_move_in_but_is_not_an_open_box() {
-        // Chambers and streets: enough floor for a hundred-cell amoeba to live
-        // on, and enough rock left that the map has a shape.
-        for seed in 0..12 {
-            let sim = playing(seed);
-            let open = open_cells(&sim);
-            let all = (sim.grid().width() * sim.grid().height()).unsigned_abs() as usize;
-            let share = open * 100 / all;
-            assert!(share > 20, "seed {seed}: only {share}% of the map is floor");
-            assert!(share < 70, "seed {seed}: {share}% floor is an arena");
         }
     }
 
@@ -1196,9 +1308,9 @@ mod tests {
         let mut sim = Sim::new(3, Difficulty::Gj);
         sim.advance(Some(Command::Start(Difficulty::Gj)));
         assert_eq!(sim.cities().len(), 16);
-        assert_eq!(sim.grid().width(), 64);
+        assert_eq!(sim.grid().width(), 48);
         for id in sim.cities() {
-            assert_eq!(sim.actors()[*id].armor, 32);
+            assert_eq!(sim.actors()[*id].armor, 14);
         }
     }
 
@@ -1324,7 +1436,7 @@ mod tests {
         for seed in 0..12 {
             let sim = playing(seed);
             assert!(
-                sim.junctions().len() >= CHAMBERS_MIN,
+                sim.junctions().len() >= SITES_MIN,
                 "seed {seed}: {} chambers",
                 sim.junctions().len()
             );
