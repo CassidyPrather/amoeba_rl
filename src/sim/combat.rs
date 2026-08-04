@@ -179,6 +179,9 @@ impl Sim {
         let dropped = self.pick(kind.drops_on_die());
         self.remove_actor(id);
         self.effect_at(EffectKind::Slain, pos);
+        // Somebody dying noisily is the other way the humans find out where you
+        // are: a hunter two chambers away will come and look.
+        self.raise_rumor(pos);
         if let Some(item) = dropped {
             self.become_item(item, pos);
         }

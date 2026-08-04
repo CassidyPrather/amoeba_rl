@@ -279,12 +279,27 @@ pub enum Cue {
     WaveSpawned,
     /// A gate is fewer than ten turns from its next wave.
     GateCountdown,
+    /// A caravan reached a gate and left the map with its cargo.
+    Depart,
     /// A gate came down.
     CityDestroyed,
     /// The run ended in escape.
     Win,
     /// The run ended in death.
     Lose,
+}
+
+/// Somewhere a human has heard the amoeba is.
+///
+/// A rumor is how a human that cannot see you still knows which way to walk.
+/// One is raised whenever somebody lays eyes on the mass or dies to it, and it
+/// stops being worth walking to after a while — see [`Sim::raise_rumor`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Rumor {
+    /// Where the amoeba was said to be.
+    pub pos: Coord,
+    /// The instant this stops being news.
+    pub until: u64,
 }
 
 /// One human a terror core has lifted off the schedule, and the speed it had
@@ -336,6 +351,15 @@ pub struct Sim {
     reticles: Vec<Reticle>,
     /// Humans a terror core is currently holding off the schedule.
     terrified: Vec<Terrified>,
+    /// Where the humans think you are, newest last.
+    rumors: Vec<Rumor>,
+    /// The middle of every chamber the generator carved, in the order it
+    /// carved them. These are the corners the humans patrol between.
+    junctions: Vec<Coord>,
+    /// One entry per cell: steps of open floor to the nearest gate doorway, or
+    /// [`i32::MAX`] for rock and for anywhere a gate cannot reach. Fixed by
+    /// [`mapgen`] and read by everything that cares where the deep is.
+    depth: Vec<i32>,
     /// Bumped by every world mutation, so the drag-path cache can tell whether
     /// it is still describing the world it was computed from.
     version: u64,
@@ -379,6 +403,9 @@ impl Sim {
             cursor: None,
             reticles: Vec::new(),
             terrified: Vec::new(),
+            rumors: Vec::new(),
+            junctions: Vec::new(),
+            depth: vec![i32::MAX; cells],
             version: 0,
             drag_cache: None,
             input_style: InputStyle::Keys,
@@ -511,6 +538,7 @@ impl Sim {
 
     /// One trip through the original's `AdvanceTurn` loop body.
     fn advance_turn_step(&mut self) {
+        self.forget_stale_rumors();
         let Some(id) = self.schedule.pop() else {
             return;
         };
@@ -561,9 +589,12 @@ impl Sim {
         }
         match kind {
             Kind::City => self.city_act(id),
-            Kind::Militia | Kind::Tank | Kind::Mech => self.militia_act(id),
-            Kind::Hunter | Kind::Scout => self.ranged_act(id),
-            Kind::Caravan => self.caravan_act(id),
+            Kind::Militia
+            | Kind::Tank
+            | Kind::Mech
+            | Kind::Hunter
+            | Kind::Scout
+            | Kind::Caravan => self.human_act(id),
             Kind::Maw | Kind::ReinforcedMaw => self.maw_act(id),
             Kind::Tentacle => self.tentacle_act(id),
             Kind::Chloroplast | Kind::Bioreactor | Kind::BiometalForge | Kind::PrimordialSoup => {
@@ -794,6 +825,28 @@ impl Sim {
     #[must_use]
     pub fn reticle_at(&self, c: Coord) -> bool {
         self.reticles.iter().any(|r| r.pos == c)
+    }
+
+    /// The middle of every chamber the generator carved.
+    #[must_use]
+    pub fn junctions(&self) -> &[Coord] {
+        &self.junctions
+    }
+
+    /// How far this cell is from the nearest gate, in steps of open floor.
+    ///
+    /// Solid rock, and anywhere no gate can reach, answers [`i32::MAX`]. This
+    /// is a property of the map and not of the moment: it is measured once,
+    /// before anything is standing anywhere.
+    #[must_use]
+    pub fn depth_at(&self, c: Coord) -> i32 {
+        self.cell_index(c).map_or(i32::MAX, |i| self.depth[i])
+    }
+
+    /// Where the humans currently think you are.
+    #[must_use]
+    pub fn rumors(&self) -> &[Rumor] {
+        &self.rumors
     }
 
     /// Report that something happened, once per advance however often it did.
@@ -1111,6 +1164,7 @@ mod tests {
         sim.grid = Grid::new(20, 20);
         sim.actor_at = vec![None; 400];
         sim.item_at = vec![None; 400];
+        sim.depth = vec![0; 400];
         for y in 0..20 {
             for x in 0..20 {
                 let solid = x == 0 || y == 0 || x == 19 || y == 19;

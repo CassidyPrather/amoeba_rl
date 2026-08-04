@@ -37,13 +37,26 @@
 //! Playback never costs the player latency: any command asked for while an
 //! animation is running cuts it short (see the main loop), so the show only
 //! happens while nobody is in a hurry.
+//!
+//! ## The other tense
+//!
+//! Everything above is the past tense: a replay of a turn that has already
+//! resolved. [`telegraphs`] is the future tense, and the only thing in the
+//! frontend that is — every human in sight has committed to one action, and
+//! this draws that commitment over the cell it will land on until it does. It
+//! pulses rather than plays, because it is a standing statement and not an
+//! event, and the two never share the screen: while a turn is showing itself
+//! the telegraphs are held back, or the player would be looking at two turns at
+//! once.
 
 use macroquad::math::{Rect, Vec2};
 use macroquad::shapes::draw_rectangle;
 
-use amoeba_rl::sim::actors::{Rgb, palette};
+use amoeba_rl::sim::RenderView;
+use amoeba_rl::sim::actors::{IntentKind, Rgb, palette};
 use amoeba_rl::sim::effect::{Effect, EffectKind};
 use amoeba_rl::sim::grid::Coord;
+use amoeba_rl::sim::view::Telegraph;
 
 use crate::render::rgba;
 use crate::settings::{Settings, Speed};
@@ -287,6 +300,16 @@ const fn style(kind: EffectKind) -> Style {
             0.24,
             MINOR,
         ),
+        // A caravan getting away is somebody else's good news, and it is drawn
+        // as an exit rather than as a loss: the wagon crosses into the gate.
+        EffectKind::Depart => Style {
+            face: Face::Arrow,
+            color: palette::MILITIA,
+            motion: Motion::Travel,
+            tint: Some(palette::CITY),
+            secs: 0.26,
+            rank: MAJOR,
+        },
         EffectKind::Wave => Style::glyph(
             DARK_SHADE,
             palette::ELECTRONICS,
@@ -377,27 +400,16 @@ impl Anim {
     }
 
     /// Draw whatever is on screen this instant, over the map.
-    ///
-    /// `map` is the viewport rectangle, `camera` its top-left map cell, and
-    /// `cols`/`rows` its size — anything outside it is skipped rather than
-    /// clipped, so an overlay can never spill onto a panel.
-    pub fn draw(&self, font: &Tileset, map: Rect, cell: f32, camera: Coord, cols: i32, rows: i32) {
+    pub fn draw(&self, font: &Tileset, screen: &Viewport) {
         if !self.playing() {
             return;
         }
-        let view = Viewport {
-            map,
-            cell,
-            camera,
-            cols,
-            rows,
-        };
         for shot in &self.shots {
             if self.clock < shot.start || self.clock >= shot.end {
                 continue;
             }
             let span = (shot.end - shot.start).max(f32::EPSILON);
-            view.shot(font, shot.effect, (self.clock - shot.start) / span);
+            screen.shot(font, shot.effect, (self.clock - shot.start) / span);
         }
     }
 }
@@ -468,13 +480,144 @@ fn keep(effects: &[Effect], waves: &[std::ops::Range<usize>]) -> Vec<std::ops::R
     order.into_iter().map(|i| waves[i].clone()).collect()
 }
 
-/// The viewport an overlay is being drawn into.
-struct Viewport {
-    map: Rect,
-    cell: f32,
-    camera: Coord,
-    cols: i32,
-    rows: i32,
+// -- telegraphs ---------------------------------------------------------------
+
+/// Seconds a telegraph takes to pulse once.
+///
+/// Slow enough to read as breathing rather than as flashing. It is a standing
+/// state and not an event, and the whole point of it is to be looked at for as
+/// long as the player wants to think.
+pub const PULSE_SECS: f64 = 1.2;
+
+/// How opaque a telegraph's wash gets under the glyph.
+const TELEGRAPH_WASH: f32 = 0.45;
+
+/// Exclamation mark: a shot going off this turn.
+const BANG: char = '!';
+/// Plus: a gun about to line up on a cell.
+const CROSS: char = '+';
+
+/// What one committed move looks like.
+struct Look {
+    /// The glyph, or a rule for picking one.
+    face: Face,
+    /// The glyph's colour.
+    color: Rgb,
+    /// A wash over the cell it will happen to.
+    tint: Option<Rgb>,
+    /// How loudly it is drawn, at the top of the pulse.
+    strength: f32,
+}
+
+/// The look of every commitment a human can make.
+///
+/// Exhaustive like [`style`], and for the same reason: a new
+/// [`IntentKind`](amoeba_rl::sim::actors::IntentKind) in the sim does not
+/// compile until somebody here has decided how the player is to be shown it.
+///
+/// Loudness is a ranking of consequence, so the eye sorts the crowd on its own:
+/// a blow about to land on your mass is the brightest thing on the map, a
+/// footstep is barely there, and standing still is a dot.
+const fn telegraph_look(kind: IntentKind) -> Look {
+    match kind {
+        IntentKind::Step => Look {
+            face: Face::Arrow,
+            color: palette::MILITIA,
+            tint: None,
+            strength: 0.45,
+        },
+        IntentKind::Strike => Look {
+            face: Face::Arrow,
+            color: palette::RETICLE_FOREGROUND,
+            tint: Some(palette::RETICLE_BACKGROUND),
+            strength: 0.95,
+        },
+        IntentKind::Aim => Look {
+            face: Face::Glyph(CROSS),
+            color: palette::ELECTRONICS,
+            tint: Some(palette::RETICLE_BACKGROUND),
+            strength: 0.85,
+        },
+        // The reticles are already blinking down the whole line, so this only
+        // has to say which gun is about to let go of it.
+        IntentKind::Fire => Look {
+            face: Face::Glyph(BANG),
+            color: palette::RETICLE_FOREGROUND,
+            tint: None,
+            strength: 0.9,
+        },
+        IntentKind::Hold => Look {
+            face: Face::Glyph(BULLET),
+            color: palette::RESTING_MILITIA,
+            tint: None,
+            strength: 0.35,
+        },
+        IntentKind::Depart => Look {
+            face: Face::Arrow,
+            color: palette::CITY,
+            tint: Some(palette::CITY),
+            strength: 0.8,
+        },
+    }
+}
+
+/// Which cell a telegraph is drawn on: where the thing will happen, except for
+/// a shot, which happens down a line the reticles are already drawing, and for
+/// standing still, which happens where the human is.
+const fn telegraph_cell(mark: &Telegraph) -> Coord {
+    match mark.kind {
+        IntentKind::Fire | IntentKind::Hold => mark.from,
+        _ => mark.to,
+    }
+}
+
+/// Draw what every human in sight has committed to doing next.
+///
+/// `phase` runs `0..1` once per [`PULSE_SECS`]. Unlike everything else in this
+/// module these are not a replay of a turn that has happened; they are a
+/// standing statement about the turn that has not, and they sit on screen for
+/// exactly as long as the player takes to answer them.
+pub fn telegraphs(font: &Tileset, view: &RenderView, screen: &Viewport, phase: f32) {
+    let pulse = 0.35f32.mul_add((phase * std::f32::consts::TAU).sin(), 0.65);
+    for mark in &view.telegraphs {
+        let look = telegraph_look(mark.kind);
+        let Some(at) = screen.at(telegraph_cell(mark)) else {
+            continue;
+        };
+        let face = match look.face {
+            Face::Glyph(glyph) => glyph,
+            Face::Arrow => arrow(mark.from, mark.to),
+        };
+        let alpha = look.strength * pulse;
+        if let Some(tint) = look.tint {
+            draw_rectangle(
+                at.x,
+                at.y,
+                screen.cell,
+                screen.cell,
+                rgba(tint, alpha * TELEGRAPH_WASH),
+            );
+        }
+        font.draw(face, at.x, at.y, screen.cell, rgba(look.color, alpha));
+    }
+}
+
+/// The rectangle of window an overlay is drawn into, and the part of the map
+/// it is showing.
+///
+/// Anything outside it is skipped rather than clipped, so an overlay can never
+/// spill onto a panel.
+pub struct Viewport {
+    /// The window rectangle the map occupies.
+    pub map: Rect,
+    /// The side of one cell, in pixels.
+    pub cell: f32,
+    /// The map cell drawn in the viewport's top-left corner.
+    pub camera: Coord,
+    /// Columns of map on screen.
+    pub cols: i32,
+    /// Rows of map on screen.
+    pub rows: i32,
 }
 
 impl Viewport {
@@ -669,7 +812,7 @@ mod tests {
     use crate::tileset::cp437;
 
     /// Every kind, for the table sweeps.
-    const KINDS: [EffectKind; 20] = [
+    const KINDS: [EffectKind; 21] = [
         EffectKind::Flow,
         EffectKind::Swap,
         EffectKind::Refused,
@@ -688,6 +831,7 @@ mod tests {
         EffectKind::Aim,
         EffectKind::Shot,
         EffectKind::Terrify,
+        EffectKind::Depart,
         EffectKind::Wave,
         EffectKind::GateFell,
     ];
@@ -714,6 +858,69 @@ mod tests {
                     "{kind:?} draws a glyph the atlas has not got"
                 );
             }
+        }
+    }
+
+    /// Every commitment a human can make, for the telegraph table sweep.
+    const INTENTS: [IntentKind; 6] = [
+        IntentKind::Step,
+        IntentKind::Strike,
+        IntentKind::Aim,
+        IntentKind::Fire,
+        IntentKind::Hold,
+        IntentKind::Depart,
+    ];
+
+    #[test]
+    fn every_commitment_is_drawable() {
+        for kind in INTENTS {
+            let look = telegraph_look(kind);
+            assert!(look.strength > 0.0, "{kind:?} is drawn invisibly");
+            assert!(look.strength <= 1.0, "{kind:?} is drawn over the top");
+            if let Face::Glyph(glyph) = look.face {
+                assert_ne!(
+                    cp437(glyph),
+                    b'?',
+                    "{kind:?} draws a glyph the atlas has not got"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_blow_is_drawn_louder_than_a_footstep() {
+        // The eye is meant to sort a crowd of humans on its own, so the ranking
+        // has to hold: what is about to hurt you outshines what is about to
+        // walk past you, and standing still is the quietest thing on the map.
+        let loudness = |kind| telegraph_look(kind).strength;
+        assert!(loudness(IntentKind::Strike) > loudness(IntentKind::Step));
+        assert!(loudness(IntentKind::Aim) > loudness(IntentKind::Step));
+        assert!(loudness(IntentKind::Step) > loudness(IntentKind::Hold));
+    }
+
+    #[test]
+    fn a_telegraph_is_drawn_where_the_thing_will_happen() {
+        let mark = |kind| Telegraph {
+            from: Coord::new(4, 4),
+            to: Coord::new(5, 4),
+            kind,
+        };
+        assert_eq!(telegraph_cell(&mark(IntentKind::Step)), Coord::new(5, 4));
+        assert_eq!(telegraph_cell(&mark(IntentKind::Strike)), Coord::new(5, 4));
+        // Except a shot, which is already drawn down its whole line by the
+        // reticles, and a pause, which happens where the human is standing.
+        assert_eq!(telegraph_cell(&mark(IntentKind::Fire)), Coord::new(4, 4));
+        assert_eq!(telegraph_cell(&mark(IntentKind::Hold)), Coord::new(4, 4));
+    }
+
+    #[test]
+    fn the_pulse_never_leaves_the_screen() {
+        // `phase` comes off a wall clock, so it has to survive whatever the
+        // clock hands over.
+        for step in 0..24 {
+            let phase = step as f32 / 12.0;
+            let pulse = 0.35f32.mul_add((phase * std::f32::consts::TAU).sin(), 0.65);
+            assert!((0.0..=1.0).contains(&pulse), "{pulse}");
         }
     }
 

@@ -135,6 +135,7 @@ async fn main() {
                 sound_on: !audio.muted(),
                 settings: &settings,
                 anim: &anim,
+                pulse: telegraph_phase(),
             },
         );
 
@@ -186,6 +187,18 @@ fn anim_frame() -> u32 {
     #[allow(clippy::cast_sign_loss)] // `get_time` counts up from process start.
     {
         (get_time() / ANIMATION_RATE) as u32
+    }
+}
+
+/// Where the telegraph pulse is in its cycle, `0..1`.
+///
+/// Kept in `f64` until the last moment: this counts up from process start, and
+/// taking the fraction first is what stops a long session from turning the
+/// pulse into a stutter.
+fn telegraph_phase() -> f32 {
+    #[allow(clippy::cast_possible_truncation)] // A fraction of one, by construction.
+    {
+        (get_time() / anim::PULSE_SECS).fract() as f32
     }
 }
 

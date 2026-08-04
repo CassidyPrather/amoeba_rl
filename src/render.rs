@@ -22,7 +22,7 @@ use amoeba_rl::sim::grid::Coord;
 use amoeba_rl::sim::view::CellView;
 use amoeba_rl::sim::{Phase, RenderView, UiMode};
 
-use crate::anim::Anim;
+use crate::anim::{self, Anim};
 use crate::hud;
 use crate::input::{Action, Controls, MIN_TARGET};
 use crate::links::{GAP, LINKS, row_width_chars};
@@ -478,6 +478,8 @@ pub struct Frontend<'a> {
     pub settings: &'a Settings,
     /// The turn currently showing itself.
     pub anim: &'a Anim,
+    /// Where the telegraph pulse is in its cycle, `0..1`.
+    pub pulse: f32,
 }
 
 /// One frame.
@@ -506,14 +508,22 @@ fn play(font: &Tileset, view: &RenderView, layout: &Layout, camera: Coord, ui: &
     });
     // Over the world and under the panels: an overlay is a note about the map,
     // so it may cover a cell but never a number.
-    ui.anim.draw(
-        font,
-        layout.map,
-        layout.cell,
+    //
+    // What the humans are about to do is only drawn once they have stopped
+    // doing what they did — two turns' worth of arrows on screen at once would
+    // be a picture of nothing in particular.
+    let screen = anim::Viewport {
+        map: layout.map,
+        cell: layout.cell,
         camera,
-        layout.cols,
-        layout.rows,
-    );
+        cols: layout.cols,
+        rows: layout.rows,
+    };
+    if ui.anim.playing() {
+        ui.anim.draw(font, &screen);
+    } else {
+        anim::telegraphs(font, view, &screen, ui.pulse);
+    }
 
     draw_rectangle(
         layout.info.x,
