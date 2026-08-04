@@ -122,8 +122,6 @@ pub enum EffectKind {
     /// The caravan at `from` reached the gate at `to` and left the map through
     /// it, taking its cargo with it.
     Depart,
-    /// The mass at `to` sat out a stretch of turns nothing came of.
-    Rest,
     /// The gate at `from` queued a fresh wave.
     Wave,
     /// The gate at `to` came down.

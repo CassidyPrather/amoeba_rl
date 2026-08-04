@@ -426,8 +426,8 @@ const fn hint(mode: UiMode, phase: Phase, cols: i32, touch: bool) -> &'static st
         return "R plays again   S settings";
     }
     match (mode, wide) {
-        (UiMode::Messages, true) => "arrows move  space wait  R rest  X look  Z list  S settings",
-        (UiMode::Messages, false) => "move  wait  R rest  X look  Z list  S settings",
+        (UiMode::Messages, true) => "arrows move  space wait  X examine  Z list  S settings",
+        (UiMode::Messages, false) => "move  wait  X examine  Z list  S settings",
         (UiMode::Organelles, true) => {
             "arrows select  Q and E page  X examine  Esc back  S settings"
         }

@@ -49,13 +49,6 @@ pub use view::RenderView;
 /// which are as likely to be the nucleus dying as another footstep.
 const MAX_EFFECTS: usize = 4096;
 
-/// Turns one [`Command::Rest`] will sit through before handing back control
-/// anyway.
-///
-/// Long enough to cover a producer's whole cycle three times over, short enough
-/// that a rest is never something a player regrets having started.
-const REST_TURNS: u32 = 50;
-
 /// How far the ground stays unsound around a gate that has come down.
 ///
 /// Taxicab, and wide enough to take in a gate or two on a 48-cell map without
@@ -222,8 +215,6 @@ pub enum Command {
     Move(Dir),
     /// Pass the turn.
     Wait,
-    /// Pass turns until there is something to look at.
-    Rest,
     /// Hand control to the next or previous nucleus. Free.
     CycleNucleus {
         /// Forwards through the acquisition order, or backwards.
@@ -657,10 +648,6 @@ impl Sim {
                 self.messages.add("You wait.");
                 true
             }
-            Command::Rest => {
-                self.rest();
-                false
-            }
             Command::CycleNucleus { forward } => {
                 self.next_nucleus(if forward { 1 } else { -1 });
                 false
@@ -700,80 +687,6 @@ impl Sim {
         if ends_turn {
             self.player_turn = false;
         }
-    }
-
-    /// Sit out the turns nothing is going to come of.
-    ///
-    /// A chloroplast produces once every sixteen turns and a gate opens once
-    /// every fifty, so a run has long stretches in it where the only correct
-    /// move is to pass — and pressing wait forty times is not a decision, it is
-    /// the absence of one. This spends up to [`REST_TURNS`] of them in one key
-    /// and stops the instant there is something to answer: a human in sight, a
-    /// shot lined up on the mass, the mass changing size, or the run ending.
-    ///
-    /// Only the last of those turns is reported. The rest are, by construction,
-    /// turns nothing came of — replaying forty of them would be a light show
-    /// about nothing — so each one clears what the one before it had to say and
-    /// what is left is the turn that ended the rest.
-    fn rest(&mut self) {
-        let Some(here) = self
-            .active
-            .and_then(|id| self.actors.get(id))
-            .map(|a| a.pos)
-        else {
-            return;
-        };
-        if let Some(reason) = self.disturbance() {
-            self.messages.add(&format!("You cannot rest: {reason}."));
-            self.effect_at(EffectKind::Refused, here);
-            return;
-        }
-        let mass = self.mass();
-        let mut turns = 0;
-        while turns < REST_TURNS {
-            self.cues.clear();
-            self.effects.clear();
-            self.player_turn = false;
-            self.pump();
-            turns += 1;
-            if self.phase != Phase::Playing {
-                return;
-            }
-            if self.mass() != mass || self.disturbance().is_some() {
-                break;
-            }
-        }
-        let at = self
-            .active
-            .and_then(|id| self.actors.get(id))
-            .map_or(here, |a| a.pos);
-        self.effect_at(EffectKind::Rest, at);
-        match self.disturbance() {
-            Some(reason) => self
-                .messages
-                .add(&format!("You rest for {turns} turns, until {reason}.")),
-            None => self.messages.add(&format!("You rest for {turns} turns.")),
-        }
-    }
-
-    /// Whatever there is to stop resting for, worded so the log can say it.
-    ///
-    /// Deliberately short. Everything on this list is something the player has
-    /// to answer *this turn*; a chloroplast coming due is not, and a rest that
-    /// broke off for one would be a rest that never lasted longer than sixteen
-    /// turns.
-    fn disturbance(&self) -> Option<String> {
-        let aimed_at = self.reticles.iter().any(|reticle| {
-            self.actor_at(reticle.pos)
-                .is_some_and(|id| self.player_mass.contains(&id))
-        });
-        if aimed_at {
-            return Some("something has you in its sights".to_owned());
-        }
-        self.actors
-            .iter()
-            .find(|(_, actor)| actors::is_npc(actor.kind) && self.grid.in_fov(actor.pos))
-            .map(|(_, actor)| format!("a {} comes into sight", actor.name.to_lowercase()))
     }
 
     fn scroll_organelles(&mut self, by: i32) {
@@ -820,7 +733,6 @@ impl Sim {
             InputStyle::Keys => &[
                 "Arrow keys: Move / Select",
                 "Space: Wait",
-                "R: Rest until something happens",
                 "X: Toggle examine mode",
                 "Z: Toggle organelle browsing mode",
                 "ESC: Back to player mode",
@@ -834,7 +746,6 @@ impl Sim {
                 "List is what you are made of.",
                 "Prev and next change nucleus.",
                 "Look examines whatever you tap.",
-                "Rest passes turns until something happens.",
                 "Wait passes the turn.",
                 "The pad moves you, and so does tapping a tile beside you.",
             ],
@@ -1514,65 +1425,6 @@ mod tests {
     }
 
     #[test]
-    fn resting_spends_the_turns_nothing_comes_of() {
-        let mut sim = playing(50);
-        let before = sim.schedule().time();
-        sim.advance(Some(Command::Rest));
-        let spent = (sim.schedule().time() - before) / schedule::TURN;
-        assert!(spent > 1, "a rest passed {spent} turns");
-        assert!(
-            spent <= u64::from(REST_TURNS),
-            "a rest passed {spent} turns"
-        );
-        assert!(sim.is_player_turn(), "and handed control back");
-        assert!(!sim.effects().is_empty(), "with something to look at");
-    }
-
-    #[test]
-    fn a_rest_will_not_start_with_somebody_watching() {
-        let mut sim = playing(51);
-        let at = sim.actors[sim.player_mass()[0]].pos;
-        let spot = sim
-            .grid
-            .adjacent_walkable(at)
-            .next()
-            .expect("room beside the blob");
-        sim.add_actor(Kind::Militia, spot);
-        sim.update_player_fov();
-        let before = sim.schedule().time();
-        sim.advance(Some(Command::Rest));
-        assert_eq!(sim.schedule().time(), before, "it rested anyway");
-        assert!(
-            sim.messages()
-                .lines()
-                .last()
-                .is_some_and(|line| line.contains("cannot rest")),
-            "and it did not say why"
-        );
-    }
-
-    #[test]
-    fn a_rest_ends_the_moment_the_mass_changes() {
-        // A chloroplast produces on turn twenty, well inside a rest's budget,
-        // and growing by a cell is exactly the sort of thing the player has
-        // asked to be handed control back for.
-        let mut sim = playing(52);
-        let at = sim.actors[sim.player_mass()[0]].pos;
-        let spot = sim
-            .grid
-            .adjacent_walkable(at)
-            .next()
-            .expect("room beside the blob");
-        sim.add_actor(Kind::Chloroplast, spot);
-        let mass = sim.mass();
-        let before = sim.schedule().time();
-        sim.advance(Some(Command::Rest));
-        let spent = (sim.schedule().time() - before) / schedule::TURN;
-        assert!(sim.mass() > mass, "the chloroplast never produced");
-        assert!(spent < u64::from(REST_TURNS), "the rest ran on regardless");
-    }
-
-    #[test]
     fn waiting_always_costs_a_turn() {
         let mut sim = playing(14);
         let before = sim.schedule().time();
@@ -1583,8 +1435,7 @@ mod tests {
 
     /// A deterministic stream of plausible key presses.
     fn scripted_command(rng: &mut Rng) -> Command {
-        match rng.u32(0..16) {
-            14 => Command::Rest,
+        match rng.u32(0..14) {
             0 | 11 => Command::Move(Dir::Up),
             1 | 12 => Command::Move(Dir::Down),
             2 | 13 => Command::Move(Dir::Left),
@@ -1999,7 +1850,6 @@ mod tests {
                 let said = sim.messages().lines().len() - before;
                 // Waiting narrates the interface rather than the world, and its
                 // one line is the only one with nothing on the map behind it.
-                // Resting is the interface too, but it draws where it happened.
                 let narration = usize::from(command == Command::Wait);
                 assert!(
                     said <= narration || !sim.effects().is_empty(),
