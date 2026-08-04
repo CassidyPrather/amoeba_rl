@@ -1,10 +1,13 @@
 [package]
+# The game is "Amoeba Roguelike Remastered"; the crate, the binary, the wasm
+# filename and the published URL all stay `amoeba-rl` so nothing already
+# deployed has to move. Only the name on the tin changed.
 name = "amoeba-rl"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2024"
 rust-version = "1.85"
 authors = ["Cassidy Prather <pratherea@gmail.com>"]
-description = "Amoeba RL: play as a giant, constantly evolving amoeba - a Rust port of the 7DRL roguelike"
+description = "Amoeba Roguelike Remastered: play as a giant, constantly evolving amoeba - a Rust remaster of the 7DRL roguelike"
 readme = "README.md"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/CassidyPrather/amoeba_rl"

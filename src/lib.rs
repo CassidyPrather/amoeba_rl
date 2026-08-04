@@ -1,4 +1,4 @@
-//! Amoeba RL: a Rust port of the 7DRL roguelike.
+//! Amoeba Roguelike Remastered: a Rust remaster of the 7DRL roguelike.
 //!
 //! The split the crate is organised around: [`sim`] is the whole game as a
 //! pure, deterministic, dependency-light library, and the binary is a thin

@@ -551,13 +551,76 @@ fn play(font: &Tileset, view: &RenderView, layout: &Layout, camera: Coord, ui: &
     }
 }
 
+/// Where the difficulty buttons start, as a fraction of the window height.
+/// The title above them is sized to stop short of it.
+const TITLE_BUTTONS_TOP: f32 = 0.42;
+
+/// The name, in two lines: too long to draw as one and still be a title.
+const NAME: &str = "AMOEBA ROGUELIKE";
+const REMASTER: &str = "REMASTERED";
+const TAGLINE: &str = "a giant, constantly evolving amoeba";
+
+/// The title screen's text is laid out in pixels rather than in cells, inside
+/// a margin of its own: a phone in portrait has room for a big title and not
+/// much else.
+fn title_inner(screen_w: f32) -> f32 {
+    (screen_w * 0.88).max(1.0)
+}
+
+/// The glyph size and baseline of each line of the title block.
+///
+/// Split out of [`title`] because three stacked lines can grow into the
+/// difficulty buttons on a short window, and that is arithmetic a test can
+/// check where a title screen is not.
+struct TitleBlock {
+    name: f32,
+    remaster: f32,
+    name_y: f32,
+    remaster_y: f32,
+    tagline_y: f32,
+}
+
+impl TitleBlock {
+    /// Where the name starts, as a fraction of the window height.
+    const TOP: f32 = 0.14;
+    /// `REMASTERED` relative to the name above it.
+    const REMASTER_SCALE: f32 = 0.55;
+    /// Each baseline relative to the glyph size of the line before it.
+    const NAME_LEADING: f32 = 1.15;
+    const REMASTER_LEADING: f32 = 1.5;
+
+    fn fit(screen_w: f32, screen_h: f32, cell: f32) -> Self {
+        let inner = title_inner(screen_w);
+        let name_y = screen_h * Self::TOP;
+        // The name is capped by the height it has to play with as well as by
+        // the width: a phone in landscape runs out of the first long before
+        // the second. The divisor is the block's height in multiples of the
+        // name's glyph size, with a whole one allowed for the tagline — which
+        // is clamped to 20px and so is never actually that tall.
+        let stack = Self::REMASTER_SCALE.mul_add(Self::REMASTER_LEADING, Self::NAME_LEADING) + 1.0;
+        let room = (screen_h.mul_add(TITLE_BUTTONS_TOP, -name_y) / stack).max(1.0);
+        let name = fit_text(NAME, inner, (cell * 3.0).clamp(24.0, 72.0).min(room));
+        // No width check on `REMASTERED`: it is shorter than the line above it
+        // and drawn smaller, so whatever fits that fits this with room spare.
+        let remaster = name * Self::REMASTER_SCALE;
+        let remaster_y = name.mul_add(Self::NAME_LEADING, name_y);
+        Self {
+            name,
+            remaster,
+            name_y,
+            remaster_y,
+            tagline_y: remaster.mul_add(Self::REMASTER_LEADING, remaster_y),
+        }
+    }
+}
+
 /// The three difficulty buttons, in the order the number keys pick them.
 #[must_use]
 pub fn title_buttons(screen_w: f32, screen_h: f32) -> [Rect; 3] {
     let width = (screen_w * 0.55).clamp(180.0, 420.0);
     let height = (screen_h * 0.085).clamp(48.0, 72.0);
     let gap = height * 0.3;
-    let top = screen_h * 0.42;
+    let top = screen_h * TITLE_BUTTONS_TOP;
     let left = (screen_w - width) * 0.5;
     [0.0, 1.0, 2.0].map(|i| Rect::new(left, (height + gap).mul_add(i, top), width, height))
 }
@@ -762,7 +825,6 @@ const TOUCH_TITLE_HINTS: [&str; 2] = [
 
 /// The title screen: the name, the three difficulties, and the controls.
 fn title(font: &Tileset, layout: &Layout, controls: &Controls, audio: Option<&str>) {
-    const TAGLINE: &str = "a giant, constantly evolving amoeba";
     let hints = if layout.touch {
         TOUCH_TITLE_HINTS
     } else {
@@ -770,25 +832,23 @@ fn title(font: &Tileset, layout: &Layout, controls: &Controls, audio: Option<&st
     };
 
     let (screen_w, screen_h) = (controls.screen.x, controls.screen.y);
-    // Everything is sized to fit the window rather than to the cell grid: a
-    // phone in portrait has room for a big title and not much else.
-    let margin = screen_w * 0.06;
-    let inner = (screen_w - margin * 2.0).max(1.0);
-    let big = fit_text("AMOEBA RL", inner, (layout.cell * 3.0).clamp(24.0, 72.0));
+    let block = TitleBlock::fit(screen_w, screen_h, layout.cell);
+    let inner = title_inner(screen_w);
     let small = fit_text(TAGLINE, inner, layout.cell.clamp(10.0, 20.0));
     let centre = screen_w * 0.5;
 
+    font.draw_text_centred(NAME, centre, block.name_y, block.name, rgb(palette::SLIME));
     font.draw_text_centred(
-        "AMOEBA RL",
+        REMASTER,
         centre,
-        screen_h * 0.14,
-        big,
-        rgb(palette::SLIME),
+        block.remaster_y,
+        block.remaster,
+        rgb(palette::TEXT_HEADING),
     );
     font.draw_text_centred(
         TAGLINE,
         centre,
-        big.mul_add(1.4, screen_h * 0.14),
+        block.tagline_y,
         small,
         rgb(palette::TEXT_BODY),
     );
@@ -1182,11 +1242,39 @@ mod tests {
     fn the_title_screen_fits_the_narrowest_phone() {
         // Nothing here can be checked by eye in CI, so check the arithmetic:
         // the widest line the title draws has to fit the smallest screen.
-        let screen_w = 320.0_f32;
-        let inner = screen_w * 0.88;
-        for hint in TITLE_HINTS {
+        let inner = title_inner(320.0);
+        for hint in TITLE_HINTS.iter().chain([&NAME, &REMASTER, &TAGLINE]) {
             let size = fit_text(hint, inner, 20.0);
             assert!(size * hint.chars().count() as f32 <= inner, "{hint:?}");
+        }
+    }
+
+    #[test]
+    fn the_title_block_stacks_downwards_and_stops_above_the_buttons() {
+        // A landscape phone is the tight one: plenty of width for the name and
+        // barely any height to stack three lines of it in.
+        for screen in [DESKTOP, PHONE, (844.0, 390.0), (320.0, 480.0)] {
+            let (w, h) = screen;
+            let block = TitleBlock::fit(w, h, fit(screen, (64, 48)).cell);
+            assert!(block.name_y < block.remaster_y, "{screen:?}");
+            assert!(block.remaster_y < block.tagline_y, "{screen:?}");
+            assert!(
+                block.remaster < block.name,
+                "{screen:?} loses the hierarchy"
+            );
+            // The tagline is clamped to 20px, so that is the deepest its
+            // baseline can sit below the line it hangs off.
+            let bottom = block.tagline_y + 20.0;
+            let buttons = title_buttons(w, h);
+            assert!(
+                bottom <= buttons[0].top(),
+                "{screen:?}: title runs into the buttons"
+            );
+            // The name still has to fit across, whatever the height allowed.
+            assert!(
+                block.name * NAME.chars().count() as f32 <= title_inner(w),
+                "{screen:?}"
+            );
         }
     }
 

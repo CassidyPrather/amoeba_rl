@@ -56,7 +56,7 @@ const ANIMATION_RATE: f64 = 0.25;
 
 fn window_conf() -> Conf {
     Conf {
-        window_title: "Amoeba RL".to_owned(),
+        window_title: "Amoeba Roguelike Remastered".to_owned(),
         // 86 x 59 cells of the 12 px font: the console the original opened.
         window_width: 1032,
         window_height: 708,
