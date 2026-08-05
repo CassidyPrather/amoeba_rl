@@ -1,9 +1,8 @@
 //! Map generation.
 //!
-//! The cavern is a warren, and one rule decides its whole character: **no cell
-//! of it is more than a step from rock.** [`Sim::plant_pillars`] enforces that
-//! by putting rock back into anything that came out wide open, and everything
-//! else here is in service of it.
+//! The cavern is a warren, and one rule decides its character: **no cell of it
+//! is more than a step from rock.** [`Sim::plant_pillars`] enforces that by
+//! putting rock back into anything that came out wide open.
 //!
 //! That rule is not decoration. Every mechanic this game has that is worth
 //! anything needs a wall to work against:
@@ -18,6 +17,19 @@
 //! * **Chokepoints.** A passage that wanders between one and two cells wide has a
 //!   throat every few cells, which is somewhere to meet a crowd on your terms.
 //!
+//! And then the rule has exceptions, which is where the game is. A cavern that
+//! is tight *everywhere* hands the amoeba every fight on its own terms, so two
+//! kinds of place are exempted from the pillars and the erosion and left as
+//! open ground:
+//!
+//! * **Galleries.** Some chambers are dug out big enough to have a middle, and
+//!   keep it. Nothing can be cornered in one and a shot crosses the whole room.
+//!   The nutrient caches go here by preference — a hall is where anybody would
+//!   stack supplies, and it means growing means going somewhere dangerous.
+//! * **Approaches.** The humans keep the ground outside their own gates clear,
+//!   so the last few cells before every gate are a field of fire rather than a
+//!   warren. The gate you have to break is the fight you do not get to pick.
+//!
 //! An earlier pass at this generated smoothed cellular-automata caverns. Their
 //! jagged edges were real geometry in the wrong place. Everything that walks
 //! this map walks between gates and chambers, so the ragged rim of a big room
@@ -29,9 +41,10 @@
 //! happens in is not scenery, it is a walk.
 //!
 //! The order of work is: scatter chamber sites on a jittered lattice, eat a
-//! small chamber out of each, join them with passages of wandering width, erode
-//! alcoves and tendrils off whatever exists, plant pillars in whatever is still
-//! open, then sink the gates into the rock at the end of dead-end passages.
+//! chamber out of each — a few of them galleries — join them with passages of
+//! wandering width, sink the gates into the rock at the end of dead-end
+//! passages, and then erode alcoves and plant pillars everywhere that is not
+//! open ground.
 //!
 //! Everything on the floor is then placed against one number.
 //! [`Sim::measure_depth`] floods outward from every gate doorway and records how
@@ -76,6 +89,25 @@ const SITE_JITTER: i32 = 2;
 /// Fewest and most cells one chamber is eaten out to, before erosion. Small on
 /// purpose: a chamber is a widening of the warren, not a room.
 const CHAMBER_CELLS: (i32, i32) = (12, 26);
+/// Chance in a hundred that a chamber comes out as a gallery instead.
+const GALLERY_PERCENT: i32 = 28;
+/// Galleries every map gets whatever the rolls said. The point of a hall is the
+/// contrast with the warren around it, and a run that never met one would never
+/// find out that the warren was doing it a favour.
+const GALLERY_MIN: usize = 2;
+/// Fewest and most cells a gallery is eaten out to, fringe included.
+const GALLERY_CELLS: (i32, i32) = (30, 50);
+/// Cells either side of a gallery's site that are opened as a solid block.
+///
+/// Accretion alone makes a sprawl as often as a room, and a sprawl has no
+/// middle — every cell of it is still within reach of a wall, which would leave
+/// a gallery indistinguishable from the warren it is meant to contrast with. A
+/// block guarantees a hall of three by three, the accretion that follows takes
+/// the straight edges off it, and two is as large as it can be without the
+/// galleries swallowing the map.
+const GALLERY_CORE: i32 = 2;
+/// How far outside a gate the humans keep the ground clear, taxicab.
+const APPROACH_RADIUS: i32 = 5;
 /// Growth attempts one chamber may waste before it is called finished.
 const CHAMBER_ATTEMPTS: i32 = 200;
 /// Sites a map needs before it is worth playing.
@@ -204,13 +236,51 @@ impl Sim {
         if sites.len() < SITES_MIN {
             return false;
         }
-        for site in &sites {
-            self.carve_chamber(*site);
+        // Open ground: the cells the erosion and the pillars are told to leave
+        // alone. Everywhere else comes out as warren.
+        let mut open_ground = vec![false; self.depth.len()];
+        let mut galleries: Vec<bool> = (0..sites.len())
+            .map(|_| rand_inclusive(&mut self.rng, 0, 99) < GALLERY_PERCENT)
+            .collect();
+        let mut promote: Vec<usize> = (0..sites.len()).collect();
+        self.shuffle(&mut promote);
+        for i in promote {
+            if galleries.iter().filter(|is| **is).count() >= GALLERY_MIN {
+                break;
+            }
+            galleries[i] = true;
+        }
+        for (site, gallery) in sites.iter().zip(&galleries) {
+            let body = self.carve_chamber(*site, *gallery);
+            if *gallery {
+                for at in body {
+                    if let Some(i) = self.cell_index(at) {
+                        open_ground[i] = true;
+                    }
+                }
+            }
         }
         self.carve_passages(&sites);
-        self.erode();
         self.connect_pockets();
-        self.plant_pillars();
+        if !self.place_gates() {
+            return false;
+        }
+        // The humans keep a field of fire outside their own gates, so the last
+        // stretch of every approach is open ground too.
+        for gate in self.cities.clone() {
+            let Some(at) = self.actors.get(gate).map(|a| a.pos) else {
+                continue;
+            };
+            let forecourt: Vec<Coord> = self.grid.cells_in_diamond(at, APPROACH_RADIUS).collect();
+            for cell in forecourt {
+                if let Some(i) = self.cell_index(cell) {
+                    open_ground[i] = true;
+                }
+            }
+        }
+        self.erode(&open_ground);
+        self.plant_pillars(&open_ground);
+        self.measure_depth();
         // Planting can put a pillar on a chamber's own middle. The humans anchor
         // their beats and patrols on these, so each one is nudged to whatever
         // open ground is nearest — which, a pillar being a single cell in an
@@ -219,14 +289,10 @@ impl Sim {
             .into_iter()
             .map(|at| self.on_open_ground(at))
             .collect();
-        if !self.place_gates() {
-            return false;
-        }
-        self.measure_depth();
         if !self.place_starting_mass() {
             return false;
         }
-        self.place_features();
+        self.place_features(&open_ground);
         true
     }
 
@@ -261,15 +327,35 @@ impl Sim {
         out
     }
 
-    /// Eat a small chamber out of the rock around one site.
+    /// Eat a chamber out of the rock around one site.
     ///
     /// Growth is by accretion — pick a cell already eaten, eat one of its
     /// neighbours — which gives a lumpy blob rather than the smooth disc a
     /// radius would and the stringy worm a drunkard's walk would.
-    fn carve_chamber(&mut self, site: Coord) {
-        let want = rand_inclusive(&mut self.rng, CHAMBER_CELLS.0, CHAMBER_CELLS.1);
+    ///
+    /// `gallery` is the whole of the difference between the two kinds of place.
+    /// A chamber is a widening of the warren and the pillars will find little in
+    /// it to plant; a gallery is opened around a solid block, is bigger, and is
+    /// left off the pillars' list entirely, so it keeps its middle.
+    fn carve_chamber(&mut self, site: Coord, gallery: bool) -> Vec<Coord> {
+        let extent = if gallery {
+            GALLERY_CELLS
+        } else {
+            CHAMBER_CELLS
+        };
+        let want = rand_inclusive(&mut self.rng, extent.0, extent.1);
         let mut body = vec![site];
         self.carve(site);
+        if gallery {
+            for dy in -GALLERY_CORE..=GALLERY_CORE {
+                for dx in -GALLERY_CORE..=GALLERY_CORE {
+                    let at = site + Coord::new(dx, dy);
+                    if !body.contains(&at) && self.carve(at) {
+                        body.push(at);
+                    }
+                }
+            }
+        }
         for _ in 0..CHAMBER_ATTEMPTS {
             if i32::try_from(body.len()).unwrap_or(i32::MAX) >= want {
                 break;
@@ -287,6 +373,7 @@ impl Sim {
             }
             body.push(next);
         }
+        body
     }
 
     /// Join the chambers: a minimum spanning tree so everywhere is reachable,
@@ -379,13 +466,20 @@ impl Sim {
     /// organelles to seal instead of four — and it is bought without touching
     /// the shape of the warren, because nothing that joins two passages or fills
     /// in a corner passes the test.
-    fn erode(&mut self) {
+    fn erode(&mut self, open_ground: &[bool]) {
         for _ in 0..EROSION_ROUNDS {
             let mut eaten = Vec::new();
             for y in 1..self.grid.height() - 1 {
                 for x in 1..self.grid.width() - 1 {
                     let at = Coord::new(x, y);
-                    if self.grid.walkable(at) {
+                    // Nothing is nibbled out of open ground, and nothing beside
+                    // a gate: an alcove there would hand the gate a second
+                    // doorway, and the whole doorway tactic rests on it having
+                    // exactly one.
+                    if self.grid.walkable(at)
+                        || self.marked(open_ground, at)
+                        || self.touches_gate(at)
+                    {
                         continue;
                     }
                     if self.grid.adjacent_walkable(at).count() == EROSION_NEIGHBOURS
@@ -414,13 +508,13 @@ impl Sim {
     /// four orthogonal neighbours of such a cell are joined to each other around
     /// the diagonals, which are open too by the same test, so everything that
     /// reached the cell still reaches everything else without it.
-    fn plant_pillars(&mut self) {
+    fn plant_pillars(&mut self, open_ground: &[bool]) {
         for _ in 0..PILLAR_ROUNDS {
             let mut open: Vec<Coord> = Vec::new();
             for y in 1..self.grid.height() - 1 {
                 for x in 1..self.grid.width() - 1 {
                     let at = Coord::new(x, y);
-                    if self.wide_open(at) {
+                    if self.wide_open(at) && !self.marked(open_ground, at) {
                         open.push(at);
                     }
                 }
@@ -432,7 +526,7 @@ impl Sim {
             // out in ranks and the warren starts to look like a car park.
             self.shuffle(&mut open);
             for at in open {
-                if self.wide_open(at) {
+                if self.wide_open(at) && !self.marked(open_ground, at) {
                     self.grid.set_props(at, false, false, false);
                 }
             }
@@ -445,6 +539,11 @@ impl Sim {
             return at;
         }
         self.grid.adjacent_walkable(at).next().unwrap_or(at)
+    }
+
+    /// Whether a per-cell mask is set here. Anything off the map reads false.
+    fn marked(&self, mask: &[bool], at: Coord) -> bool {
+        self.cell_index(at).is_some_and(|i| mask[i])
     }
 
     /// Whether this cell and every one of its eight neighbours is open floor.
@@ -716,9 +815,9 @@ impl Sim {
     // -- what is lying about -------------------------------------------------
 
     /// Everything on the floor, each kind placed for its own reason.
-    fn place_features(&mut self) {
+    fn place_features(&mut self, open_ground: &[bool]) {
         self.fortify_gates();
-        self.stock_caches();
+        self.stock_caches(open_ground);
         self.seed_the_deep();
     }
 
@@ -755,10 +854,16 @@ impl Sim {
         }
     }
 
-    /// Nutrients in caches out along the streets, rather than one at a time
-    /// everywhere. A clump is a thing somebody left somewhere; a scatter is
-    /// weather.
-    fn stock_caches(&mut self) {
+    /// Nutrients in caches, out along the passages and by preference in the
+    /// galleries.
+    ///
+    /// A clump is a thing somebody left somewhere; a scatter is weather. And a
+    /// gallery is where anybody would stack supplies — which is convenient,
+    /// because a gallery is also the one place on the map where nothing can be
+    /// cornered and a shot crosses the whole room. The food being in the
+    /// dangerous rooms is the point: a cavern where the amoeba is safe
+    /// everywhere it needs to go is a cavern with nothing to decide.
+    fn stock_caches(&mut self, open_ground: &[bool]) {
         let (low, high) = (
             self.depth_at_percent(CACHE_BAND.0),
             self.depth_at_percent(CACHE_BAND.1),
@@ -769,6 +874,13 @@ impl Sim {
             .filter(|c| (low..=high).contains(&self.depth_at(*c)))
             .collect();
         self.shuffle(&mut sites);
+        // The middle of a hall first, then anywhere else in one, then the rest
+        // of the band behind them — so a map that came out short of galleries
+        // still gets fed. The shuffle above is what decides the order inside
+        // each of the three.
+        sites.sort_by_key(|c| {
+            u8::from(!self.wide_open(*c)) * 2 + u8::from(!self.marked(open_ground, *c))
+        });
         let mut left = FOOD_AMT;
         let mut caches: Vec<Coord> = Vec::new();
         for site in sites {
@@ -786,6 +898,7 @@ impl Sim {
                 .filter(|c| self.grid.walkable(*c) && self.is_empty_cell(*c))
                 .collect();
             self.shuffle(&mut spots);
+            spots.sort_by_key(|c| u8::from(!self.marked(open_ground, *c)));
             #[allow(clippy::cast_sign_loss)] // `size` is at least `CACHE_SIZE.0`.
             for spot in spots.into_iter().take(size as usize) {
                 self.add_item(ItemKind::Nutrient, spot);
@@ -1112,22 +1225,94 @@ mod tests {
             .count()
     }
 
+    /// Cells with nothing but floor in all eight directions: the middle of a
+    /// hall, where the amoeba can corner nothing and a shot crosses unimpeded.
+    fn wide_open(sim: &Sim) -> Vec<Coord> {
+        carved(sim)
+            .into_iter()
+            .filter(|c| {
+                (-1..=1).all(|dy| {
+                    (-1..=1).all(|dx| sim.grid().transparent(Coord::new(c.x + dx, c.y + dy)))
+                })
+            })
+            .collect()
+    }
+
     #[test]
-    fn nowhere_is_more_than_a_step_from_rock() {
-        // The rule the whole generator is built around. Break it and there is
-        // somewhere on the map where the amoeba cannot corner anything, a shot
-        // cannot be broken, and the geometry may as well not be there.
+    fn the_warren_is_tight_and_the_galleries_are_not() {
+        // The whole design in one number. Nothing wide open at all and the
+        // amoeba gets every fight on its own terms; too much of it and the
+        // pillars have stopped meaning anything.
         for seed in 0..24 {
             let sim = playing(seed);
-            for at in carved(&sim) {
-                let beside_rock = (-1..=1).any(|dy| {
-                    (-1..=1).any(|dx| !sim.grid().transparent(Coord::new(at.x + dx, at.y + dy)))
-                });
-                assert!(
-                    beside_rock,
-                    "seed {seed}: {at:?} is in the middle of a hall"
-                );
+            let share = wide_open(&sim).len() * 100 / carved(&sim).len();
+            assert!(
+                share >= 2,
+                "seed {seed}: {share}% open, the map is all warren"
+            );
+            assert!(
+                share <= 25,
+                "seed {seed}: {share}% open, the pillars gave up"
+            );
+        }
+    }
+
+    #[test]
+    fn every_map_has_a_hall_in_it() {
+        // Not scattered open cells — one contiguous piece of room big enough
+        // that being caught in the middle of it is a real problem.
+        for seed in 0..16 {
+            let sim = playing(seed);
+            let open = wide_open(&sim);
+            let mut seen: Vec<Coord> = Vec::new();
+            let mut biggest = 0;
+            for start in &open {
+                if seen.contains(start) {
+                    continue;
+                }
+                seen.push(*start);
+                let mut size = 1;
+                let mut queue = VecDeque::from([*start]);
+                while let Some(at) = queue.pop_front() {
+                    for next in sim.grid().adjacent(at) {
+                        if open.contains(&next) && !seen.contains(&next) {
+                            seen.push(next);
+                            size += 1;
+                            queue.push_back(next);
+                        }
+                    }
+                }
+                biggest = biggest.max(size);
             }
+            assert!(
+                biggest >= 8,
+                "seed {seed}: the biggest hall is {biggest} cells"
+            );
+        }
+    }
+
+    #[test]
+    fn the_food_is_in_the_dangerous_rooms() {
+        // Growing has to mean going somewhere the warren is not helping, or the
+        // warren is just a free win with a longer walk.
+        for seed in 0..12 {
+            let sim = playing(seed);
+            let open = carved(&sim);
+            let mean = |cells: &[Coord]| {
+                let sum: usize = cells.iter().map(|c| openings(&sim, *c)).sum();
+                sum as f64 / cells.len().max(1) as f64
+            };
+            let food: Vec<Coord> = loot(&sim)
+                .into_iter()
+                .filter(|(kind, _)| *kind == ItemKind::Nutrient)
+                .map(|(_, at)| at)
+                .collect();
+            assert!(
+                mean(&food) > mean(&open),
+                "seed {seed}: caches sit at {:.2} ways out, the map at {:.2}",
+                mean(&food),
+                mean(&open)
+            );
         }
     }
 
@@ -1142,7 +1327,7 @@ mod tests {
             let open = carved(&sim);
             let cheap = open.iter().filter(|c| openings(&sim, **c) <= 2).count();
             let share = cheap * 100 / open.len();
-            assert!(share >= 30, "seed {seed}: only {share}% costs under four");
+            assert!(share >= 28, "seed {seed}: only {share}% costs under four");
             let sum: usize = open.iter().map(|c| openings(&sim, *c)).sum();
             let mean = sum as f64 / open.len() as f64;
             assert!(mean < 3.0, "seed {seed}: mean {mean:.2} ways out of a cell");
