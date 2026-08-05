@@ -162,7 +162,7 @@ pub fn sidebar(term: &Term, view: &RenderView, rows: i32, page: usize, pager: Op
         format!("Mass:  {}", status.mass),
         format!("Turn:  {:.0}", status.turn),
         format!("Gates left: {}", status.cities_remaining),
-        format!("Must break: {}", status.cities_required),
+        format!("Must break: {}", status.cities_to_break),
         // Gates are not all priced the same once one has come down, so this
         // is the cheapest of the ones still standing rather than a number that
         // holds for all of them — the mass to reach before any gate at all is
@@ -252,9 +252,12 @@ fn page_buttons(term: &Term, pager: &Pager) {
 /// through it.
 pub fn status_strip(term: &Term, view: &RenderView, cols: i32) {
     let status = &view.status;
+    // "Break 7 of 11" rather than a bare fraction: the numerator is how many
+    // must fall and the denominator how many are up, and a reader given
+    // "7/11" has no way to tell which way round that is.
     let line = format!(
-        "Mass {}  Turn {:.0}  Gates {}/{}",
-        status.mass, status.turn, status.cities_remaining, status.cities_required
+        "Mass {}  Turn {:.0}  Break {} of {}",
+        status.mass, status.turn, status.cities_to_break, status.cities_remaining
     );
     let cell = term.cell_size();
     draw_rectangle(

@@ -160,7 +160,11 @@ pub struct Rules {
 }
 
 impl Rules {
-    /// Gates you must actually destroy.
+    /// Gates a whole run has to destroy.
+    ///
+    /// A fact about the difficulty and not about the moment — for the number
+    /// still owed, which is what anything on screen wants, see
+    /// [`Sim::cities_to_break`].
     #[must_use]
     pub const fn cities_required(&self) -> i32 {
         self.num_cities - self.grace_cities
@@ -763,9 +767,15 @@ impl Sim {
         for line in lines {
             self.messages.add(line);
         }
-        let required = self.rules.cities_required();
+        // Live rather than the difficulty's total, for the same reason the
+        // sidebar's is: the help can be asked for at any point in a run. The
+        // wording avoids the word "escape" on purpose — a touchscreen's help
+        // may not contain the substring "esc", because a phone has no Escape
+        // key to send anybody looking for.
+        let left = self.cities_to_break();
+        let gates = if left == 1 { "gate" } else { "gates" };
         self.messages
-            .add(&format!("Destroy {required} cities to win"));
+            .add(&format!("{left} {gates} must fall before you are free"));
     }
 
     // -- world queries ------------------------------------------------------
@@ -817,6 +827,23 @@ impl Sim {
     #[must_use]
     pub fn cities(&self) -> &[ActorId] {
         &self.cities
+    }
+
+    /// Gates that still have to come down before the amoeba can escape.
+    ///
+    /// What is standing, less the ones this difficulty lets you walk away from.
+    /// It counts down beside [`Sim::cities`] and reaches zero exactly when the
+    /// run is won, which is what makes it safe to show next to one: the two are
+    /// in the same tense and the same units, and this is never the larger.
+    ///
+    /// [`Rules::cities_required`] is the other quantity — how many a whole run
+    /// must break — and showing *that* beside a live count was a bug. After
+    /// five gates a Normal run displayed eight still to break out of seven left
+    /// standing, which is not a hard thing to read so much as an untrue one.
+    #[must_use]
+    pub fn cities_to_break(&self) -> i32 {
+        let standing = i32::try_from(self.cities.len()).unwrap_or(i32::MAX);
+        (standing - self.rules.grace_cities).max(0)
     }
 
     /// Mass needed to break the cheapest gate still standing.
@@ -1301,6 +1328,35 @@ mod tests {
             sim.city_armor(),
             cheapest,
             "the status line quotes the best"
+        );
+    }
+
+    #[test]
+    fn the_gates_still_to_break_never_outnumber_the_ones_still_standing() {
+        // The bug this replaced: `Must break` was the difficulty's whole-run
+        // total sitting in the same slot as a live count, so a Normal run five
+        // gates in showed eight still to break out of seven left standing.
+        let mut sim = playing(28);
+        let mut broken = 0;
+        while sim.phase() == Phase::Playing {
+            let doomed = sim.cities()[0];
+            sim.destroy_city(doomed);
+            broken += 1;
+            let status = sim.view(0).status;
+            let standing = i32::try_from(status.cities_remaining).expect("a small count");
+            assert!(
+                status.cities_to_break <= standing,
+                "{broken} in: {} to break of {standing} standing",
+                status.cities_to_break
+            );
+            assert!(broken <= sim.rules.num_cities, "it never finished");
+        }
+        assert_eq!(broken, sim.rules.cities_required(), "the run's whole total");
+        assert_eq!(sim.phase(), Phase::GameOver { won: true });
+        assert_eq!(
+            sim.view(0).status.cities_to_break,
+            0,
+            "and it lands on zero"
         );
     }
 

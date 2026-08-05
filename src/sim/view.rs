@@ -127,8 +127,9 @@ pub struct Status {
     pub mass: usize,
     /// Gates still standing.
     pub cities_remaining: usize,
-    /// Gates that must come down for this difficulty.
-    pub cities_required: i32,
+    /// Gates that still have to come down. Never more than
+    /// [`Status::cities_remaining`].
+    pub cities_to_break: i32,
     /// Mass needed to break the cheapest gate still standing.
     pub city_armor: i32,
     /// The nucleus under your control.
@@ -509,7 +510,7 @@ impl Sim {
             turn: self.organelles.turn(),
             mass: self.player_mass.len(),
             cities_remaining: self.cities.len(),
-            cities_required: self.rules.cities_required(),
+            cities_to_break: self.cities_to_break(),
             city_armor: self.city_armor(),
             active_nucleus: self
                 .active
@@ -790,7 +791,7 @@ mod tests {
         let view = sim.view(0);
         assert_eq!(view.status.mass, 6);
         assert_eq!(view.status.cities_remaining, 12);
-        assert_eq!(view.status.cities_required, 8);
+        assert_eq!(view.status.cities_to_break, 8);
         assert_eq!(view.status.city_armor, 10, "the first gate is the cheapest");
         assert!((view.status.turn - 1.0).abs() < f32::EPSILON);
     }
