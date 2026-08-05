@@ -294,6 +294,26 @@ impl Grid {
         }
     }
 
+    /// Whether anything at `from` can see `to`.
+    ///
+    /// Every cell strictly between the two has to be transparent; the endpoints
+    /// themselves do not, so somebody standing in a doorway is visible from
+    /// both sides of it. Transparency is fixed by the generator and occupancy
+    /// never touches it, so bodies do not block sight — which is what lets a
+    /// hunter's shot pass through your own mass.
+    ///
+    /// The walk is the same Bresenham [`Grid::append_fov`] casts along, so what
+    /// a human can see and what the player's field of view lights up agree
+    /// about every wall.
+    #[must_use]
+    pub fn line_of_sight(&self, from: Coord, to: Coord) -> bool {
+        let line = Self::cells_along_line(from, to);
+        line.iter()
+            .skip(1)
+            .take(line.len().saturating_sub(2))
+            .all(|c| self.transparent(*c))
+    }
+
     /// Forget the current field of view.
     pub(crate) fn clear_fov(&mut self) {
         for cell in &mut self.cells {

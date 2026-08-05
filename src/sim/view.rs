@@ -11,7 +11,7 @@
 //! two sims fed the same commands and the same frame produce byte-identical
 //! views. Nothing here reads a clock either.
 
-use super::actors::{self, ActorId, Extra, ItemId, Kind, Resource, Rgb, palette};
+use super::actors::{self, ActorId, Extra, IntentKind, ItemId, Kind, Resource, Rgb, palette};
 use super::grid::Coord;
 use super::log::VISIBLE_LINES;
 use super::{Phase, Sim, UiMode};
@@ -80,6 +80,22 @@ pub struct OrganelleEntry {
     pub bar: Option<Bar>,
 }
 
+/// One human's committed next move, ready to be drawn over its head.
+///
+/// This is the visible half of the promise the sim makes in
+/// [`Intent`](super::actors::Intent): what is drawn here is not a guess about
+/// what a human might do, it is the thing it has already committed to and will
+/// do whatever the player does in between.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Telegraph {
+    /// The cell the human is standing on.
+    pub from: Coord,
+    /// The cell it has committed to.
+    pub to: Coord,
+    /// What it means to do there.
+    pub kind: IntentKind,
+}
+
 /// Something the examine cursor can report on.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Described {
@@ -111,9 +127,10 @@ pub struct Status {
     pub mass: usize,
     /// Gates still standing.
     pub cities_remaining: usize,
-    /// Gates that must come down for this difficulty.
-    pub cities_required: i32,
-    /// Mass needed to break the next gate. Goes up with every gate that falls.
+    /// Gates that still have to come down. Never more than
+    /// [`Status::cities_remaining`].
+    pub cities_to_break: i32,
+    /// Mass needed to break the cheapest gate still standing.
     pub city_armor: i32,
     /// The nucleus under your control.
     pub active_nucleus: Option<(String, Coord)>,
@@ -142,6 +159,8 @@ pub struct RenderView {
     /// Cells a hunter or scout is aiming at. Already blinking in the cells;
     /// here as well so a frontend can warn about them some other way.
     pub reticles: Vec<Coord>,
+    /// What every human in sight has committed to doing next.
+    pub telegraphs: Vec<Telegraph>,
     /// Where the run is.
     pub phase: Phase,
     /// Which panel is open.
@@ -205,9 +224,29 @@ impl Sim {
                 .map(|a| a.pos)
                 .collect(),
             reticles: self.reticles.iter().map(|r| r.pos).collect(),
+            telegraphs: self.telegraphs(),
             phase: self.phase,
             mode: self.mode,
         }
+    }
+
+    /// What every human you can see has committed to doing next.
+    ///
+    /// Only the ones in sight. Reading somebody's intentions is a thing you do
+    /// by looking at them, and an arrow drawn over unexplored black would say
+    /// where a human is as plainly as drawing the human would.
+    fn telegraphs(&self) -> Vec<Telegraph> {
+        self.actors
+            .iter()
+            .filter(|(_, actor)| actors::is_npc(actor.kind) && self.grid.in_fov(actor.pos))
+            .filter_map(|(_, actor)| {
+                actor.intent.map(|intent| Telegraph {
+                    from: actor.pos,
+                    to: intent.at,
+                    kind: intent.kind,
+                })
+            })
+            .collect()
     }
 
     /// Floor, wall, or nothing at all where you have never been.
@@ -471,7 +510,7 @@ impl Sim {
             turn: self.organelles.turn(),
             mass: self.player_mass.len(),
             cities_remaining: self.cities.len(),
-            cities_required: self.rules.cities_required(),
+            cities_to_break: self.cities_to_break(),
             city_armor: self.city_armor(),
             active_nucleus: self
                 .active
@@ -622,9 +661,9 @@ mod tests {
     fn the_view_covers_the_whole_map() {
         let sim = playing(1);
         let view = sim.view(0);
-        assert_eq!(view.width, 48);
-        assert_eq!(view.height, 48);
-        assert_eq!(view.cells.len(), 48 * 48);
+        assert_eq!(view.width, 38);
+        assert_eq!(view.height, 38);
+        assert_eq!(view.cells.len(), 38 * 38);
     }
 
     #[test]
@@ -752,8 +791,8 @@ mod tests {
         let view = sim.view(0);
         assert_eq!(view.status.mass, 6);
         assert_eq!(view.status.cities_remaining, 12);
-        assert_eq!(view.status.cities_required, 8);
-        assert_eq!(view.status.city_armor, 20, "the first gate is the cheapest");
+        assert_eq!(view.status.cities_to_break, 8);
+        assert_eq!(view.status.city_armor, 10, "the first gate is the cheapest");
         assert!((view.status.turn - 1.0).abs() < f32::EPSILON);
     }
 
@@ -784,7 +823,8 @@ mod tests {
         sim.add_actor(Kind::Cytoplasm, Coord::new(7, 5));
         sim.add_actor(Kind::Nucleus, Coord::new(15, 15));
         sim.update_player_fov();
-        sim.ranged_act(hunter);
+        sim.human_act(hunter);
+        sim.human_act(hunter);
         let painted = Coord::new(7, 5);
         assert!(sim.reticle_at(painted));
         let on = sim.view(0).cell(painted.x, painted.y).unwrap();
@@ -814,7 +854,8 @@ mod tests {
                 .glyph
         };
         assert_eq!(at(&sim, 0), 'h', "at rest it is a hunter");
-        sim.ranged_act(hunter);
+        sim.human_act(hunter);
+        sim.human_act(hunter);
         assert_eq!(at(&sim, 0), ARROW_LEFT, "aiming west");
         assert_eq!(at(&sim, BLINK_SPEED), 'h', "and the arrow blinks");
     }
@@ -855,6 +896,22 @@ mod tests {
         sim.schedule.remove(tank);
         sim.schedule.add(tank, 16);
         assert_eq!(fg(&sim), palette::CALCIUM, "one turn out, it wakes up");
+    }
+
+    #[test]
+    fn a_telegraph_is_only_drawn_for_a_human_you_can_see() {
+        let mut sim = crate::sim::tests::sandbox(24);
+        let near = sim.add_actor(Kind::Militia, Coord::new(6, 5));
+        let far = sim.add_actor(Kind::Militia, Coord::new(17, 17));
+        sim.add_actor(Kind::Nucleus, Coord::new(5, 5));
+        sim.update_player_fov();
+        sim.human_act(near);
+        sim.human_act(far);
+        let view = sim.view(0);
+        assert_eq!(view.telegraphs.len(), 1, "only the one in sight");
+        assert_eq!(view.telegraphs[0].from, Coord::new(6, 5));
+        assert_eq!(view.telegraphs[0].to, Coord::new(5, 5));
+        assert_eq!(view.telegraphs[0].kind, IntentKind::Strike);
     }
 
     #[test]

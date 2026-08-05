@@ -119,6 +119,9 @@ pub enum EffectKind {
     Shot,
     /// The core at `from` frightened the human at `to` out of its turn.
     Terrify,
+    /// The caravan at `from` reached the gate at `to` and left the map through
+    /// it, taking its cargo with it.
+    Depart,
     /// The gate at `from` queued a fresh wave.
     Wave,
     /// The gate at `to` came down.

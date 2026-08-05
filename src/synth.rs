@@ -230,6 +230,24 @@ pub fn upgrade() -> Vec<u8> {
     }))
 }
 
+/// Depart: a caravan reaching a far gate and taking its cargo through it.
+///
+/// The mirror of `upgrade`: the same shape of thing, going the other way and
+/// happening to somebody else. Two notes down a fifth, unhurried, and quiet —
+/// nothing has been done to you, something has merely got away.
+#[must_use]
+pub fn depart() -> Vec<u8> {
+    // A4 down to D4.
+    const NOTES: [(f32, f32); 2] = [(440.0, 0.0), (293.66, 0.14)];
+    wav(&one_shot(0.42, |t| {
+        NOTES
+            .iter()
+            .map(|(hz, start)| note(t, *start, *hz, 6.0))
+            .sum::<f32>()
+            * 0.4
+    }))
+}
+
 /// Nucleus lost.
 ///
 /// The cue that has to cut through whatever else is happening, so it is the

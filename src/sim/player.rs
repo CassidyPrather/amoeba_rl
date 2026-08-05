@@ -854,12 +854,21 @@ impl Sim {
         self.grid.set_props(pos, true, true, true);
         self.effect_at(EffectKind::GateFell, pos);
         self.cue(Cue::CityDestroyed);
-        // Every gate after this one costs a step more. The survivors are all
-        // priced the same, so they are all restamped together.
+        // Every gate after this one costs a step more, and every gate near
+        // enough to this one to be standing in its rubble gets a step back.
+        // Both are settled by repricing the survivors here.
         self.cities_destroyed += 1;
-        let price = self.city_armor();
+        self.wrecks.push(pos);
+        let mut relieved = 0;
         for gate in self.cities.clone() {
+            let Some(at) = self.actors.get(gate).map(|a| a.pos) else {
+                continue;
+            };
+            let price = self.gate_price(at);
             if let Some(actor) = self.actors.get_mut(gate) {
+                if price < actor.armor {
+                    relieved += 1;
+                }
                 actor.armor = price;
             }
         }
@@ -871,6 +880,12 @@ impl Sim {
         }
         self.messages
             .add("The humans trigger a cave-in, blocking off this exit to the surface!");
+        if relieved > 0 {
+            let plural = if relieved == 1 { "" } else { "s" };
+            self.messages.add(&format!(
+                "The rock shifts for a long time afterwards. {relieved} nearby gate{plural} will come down easier now."
+            ));
+        }
         let charges = remaining - self.rules.grace_cities - 1;
         if charges > 0 {
             let plural = if charges == 1 { "" } else { "s" };

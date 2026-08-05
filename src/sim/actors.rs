@@ -372,6 +372,12 @@ impl Kind {
             stats.max_hp = max_hp;
             stats
         }
+        // DELIBERATE CHANGE from C# (§6.1): every human's awareness is one cell
+        // wider than the original's, and a scout's is nearly twice. The numbers
+        // were balanced against sight that ignored walls; now that rock stops
+        // it (see `Sim::seen`) the same numbers would leave the humans groping
+        // about, and a scout — whose whole job is to be the one that finds you
+        // — would be no better at it than a militiaman.
         match self {
             Self::Nucleus => resting(
                 s(
@@ -639,7 +645,7 @@ impl Kind {
                 "A human with a stick and a grudge. Alone it is food; in numbers it is a problem.",
                 'm',
                 palette::MILITIA,
-                3,
+                4,
                 16,
                 0,
             ),
@@ -648,7 +654,7 @@ impl Kind {
                 "A human with a long gun. It paints a line across the cavern and fires down it two turns later.",
                 'h',
                 palette::ELECTRONICS,
-                3,
+                4,
                 16,
                 0,
             ),
@@ -657,7 +663,7 @@ impl Kind {
                 "A human with a short gun and sharp eyes. It sees you before the others do.",
                 's',
                 palette::ELECTRONICS,
-                4,
+                7,
                 16,
                 0,
             ),
@@ -667,7 +673,7 @@ impl Kind {
                     "A human in plate. Slow, and proof against anything not sharpened into bone.",
                     't',
                     palette::CALCIUM,
-                    3,
+                    4,
                     48,
                     0,
                 ),
@@ -679,7 +685,7 @@ impl Kind {
                     "A walking machine. Armoured like a tank and half again as quick.",
                     'c',
                     palette::CALCIUM,
-                    3,
+                    4,
                     32,
                     0,
                 ),
@@ -691,7 +697,7 @@ impl Kind {
                     "A supply wagon. It runs from you, and it is worth the chase.",
                     'v',
                     palette::MILITIA,
-                    3,
+                    4,
                     32,
                     0,
                 ),
@@ -1252,6 +1258,21 @@ pub const fn is_upgradable(kind: Kind) -> bool {
     !kind.upgrade_paths().is_empty()
 }
 
+/// What a fresh human of this kind is for, before a gate briefs it.
+///
+/// A gate overwrites [`Orders::home`] and hands out escort duty as it lets
+/// people out; everything else about a human's job comes from what it is.
+#[must_use]
+pub const fn default_duty(kind: Kind) -> Duty {
+    match kind {
+        Kind::Caravan => Duty::Convoy,
+        Kind::Hunter => Duty::Investigate,
+        Kind::Scout => Duty::Patrol,
+        Kind::Militia | Kind::Tank | Kind::Mech => Duty::Garrison,
+        _ => Duty::None,
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Mutable per-actor state.
 // ---------------------------------------------------------------------------
@@ -1291,6 +1312,82 @@ pub struct CityState {
     pub level: i32,
     /// Humans waiting to be let out, one per turn.
     pub queue: VecDeque<Kind>,
+    /// The caravan this gate has just sent out, if it still has one on the
+    /// road.
+    pub convoy: Option<ActorId>,
+    /// Soldiers still owed to that caravan. Every one released while this is
+    /// positive comes out as its escort.
+    pub escorts: i32,
+}
+
+/// What a human does with a turn nobody is in sight for.
+///
+/// DELIBERATE CHANGE from C# (§6.2): the original had one answer — take a
+/// random step, or stand still, with standing still as likely as any one
+/// direction — so a cavern full of humans with nothing to do looked exactly
+/// like a cavern full of humans with nothing to do. These are the answers
+/// instead, and every one of them is a reason to be somewhere: a caravan is
+/// going to the far gate, its escort goes wherever the caravan goes, a scout
+/// walks the deep, a hunter walks down whatever was last reported, and a
+/// garrison holds the ground outside its own gate.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum Duty {
+    /// Nothing in particular. Organelles, gates, and anybody nobody briefed.
+    #[default]
+    None,
+    /// Walk a beat between the gate this human came out of and the nearest
+    /// chamber.
+    Garrison,
+    /// Carry cargo to a distant gate and leave the map through it.
+    Convoy,
+    /// Keep station on a caravan.
+    Escort(ActorId),
+    /// Walk between the chambers the gates are furthest from.
+    Patrol,
+    /// Walk down whatever the humans last reported.
+    Investigate,
+}
+
+/// A human's standing orders.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub struct Orders {
+    /// What it does when it cannot see you.
+    pub duty: Duty,
+    /// The doorway it came out of, and one end of a garrison's beat.
+    pub home: Coord,
+    /// Where the duty is taking it right now.
+    pub goal: Option<Coord>,
+}
+
+/// One thing a human has committed to doing on its next turn.
+///
+/// Committing is the point. A human decides at the end of its turn, the
+/// decision is on screen for the whole of yours, and then it does that exact
+/// thing — so a blow aimed at a cell lands on that cell whatever is standing
+/// there by the time it arrives, and stepping out of the way works.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Intent {
+    /// What it means to do.
+    pub kind: IntentKind,
+    /// The cell it means to do it to.
+    pub at: Coord,
+}
+
+/// The kinds of thing a human can commit to.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum IntentKind {
+    /// Walk onto that cell.
+    Step,
+    /// Strike whatever of yours is standing there.
+    Strike,
+    /// Paint a line as far as that cell and start the countdown to a shot.
+    Aim,
+    /// Fire down the line already painted, as far as that cell.
+    Fire,
+    /// Stand still.
+    Hold,
+    /// Step into the gate there and be gone, cargo and all.
+    Depart,
 }
 
 /// Whatever mutable state a kind needs beyond the common stat fields.
@@ -1366,6 +1463,12 @@ pub struct Actor {
     pub slime: u8,
     /// Immovable by the drag: the gravity core sets this while it pulls.
     pub anchor: bool,
+    /// What this human has committed to doing on its next turn. `None` for
+    /// everything that does not telegraph, and for a human that has only just
+    /// stepped out of its gate and has yet to decide anything.
+    pub intent: Option<Intent>,
+    /// What it does with a turn nobody is in sight for.
+    pub orders: Orders,
     /// Per-kind state.
     pub extra: Extra,
 }
@@ -1378,9 +1481,16 @@ impl Actor {
         let extra = if is_dissolving(kind) {
             Extra::Dissolving { overfill: 0 }
         } else if is_hunter_family(kind) {
+            // DELIBERATE CHANGE from C# (§6.4): `FiringTime` was 2, so a shot
+            // cost aim, charge and fire — three turns, with the reticles up for
+            // the last two. A gunman now announces that it is *about to* line
+            // up a turn before it does, the way every other human announces its
+            // move, so dropping the charge turn keeps the tempo the original
+            // had while adding a turn of warning ahead of the reticles rather
+            // than behind them.
             Extra::Ranged(RangedState {
-                firing: 2,
-                firing_time: 2,
+                firing: 1,
+                firing_time: 1,
                 direction: Coord::new(0, 0),
                 range: kind.range(),
             })
@@ -1392,6 +1502,8 @@ impl Actor {
                 wave_number: 0,
                 level: 1,
                 queue: VecDeque::new(),
+                convoy: None,
+                escorts: 0,
             })
         } else if let Some(next_food) = kind.next_food_init() {
             Extra::Chloroplast {
@@ -1414,6 +1526,12 @@ impl Actor {
             armor: stats.armor,
             slime: stats.slime,
             anchor: false,
+            intent: None,
+            orders: Orders {
+                duty: default_duty(kind),
+                home: pos,
+                goal: None,
+            },
             extra,
         }
     }

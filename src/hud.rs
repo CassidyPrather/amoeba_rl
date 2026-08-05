@@ -29,7 +29,10 @@ const NAME_COLS: i32 = SIDEBAR_COLS - 4;
 const ENTRY_ROW: i32 = 8;
 
 /// Below this many columns the key hints have to be abbreviated.
-const WIDE_HINT_COLS: i32 = 60;
+///
+/// The panel is as wide as the map, and the maps are 38 columns on Normal and
+/// Easy and 48 on GJ, so this is the line between the two of them.
+const WIDE_HINT_COLS: i32 = 46;
 
 /// The message bar: the log, or a description of whatever has your attention.
 ///
@@ -159,10 +162,12 @@ pub fn sidebar(term: &Term, view: &RenderView, rows: i32, page: usize, pager: Op
         format!("Mass:  {}", status.mass),
         format!("Turn:  {:.0}", status.turn),
         format!("Gates left: {}", status.cities_remaining),
-        format!("Must break: {}", status.cities_required),
-        // The gate price goes up with every gate that falls, so unlike the
-        // rest of these it is not a number you can learn once.
-        format!("Next gate: {}", status.city_armor),
+        format!("Must break: {}", status.cities_to_break),
+        // Gates are not all priced the same once one has come down, so this
+        // is the cheapest of the ones still standing rather than a number that
+        // holds for all of them — the mass to reach before any gate at all is
+        // breakable. What a particular gate costs is on the gate.
+        format!("Best gate: {}", status.city_armor),
     ]
     .iter()
     .enumerate()
@@ -247,9 +252,12 @@ fn page_buttons(term: &Term, pager: &Pager) {
 /// through it.
 pub fn status_strip(term: &Term, view: &RenderView, cols: i32) {
     let status = &view.status;
+    // "Break 7 of 11" rather than a bare fraction: the numerator is how many
+    // must fall and the denominator how many are up, and a reader given
+    // "7/11" has no way to tell which way round that is.
     let line = format!(
-        "Mass {}  Turn {:.0}  Gates {}/{}",
-        status.mass, status.turn, status.cities_remaining, status.cities_required
+        "Mass {}  Turn {:.0}  Break {} of {}",
+        status.mass, status.turn, status.cities_to_break, status.cities_remaining
     );
     let cell = term.cell_size();
     draw_rectangle(
@@ -402,9 +410,12 @@ fn fill_cols(fraction: f32) -> i32 {
 /// The hints for whatever mode is open, abbreviated on a narrow panel.
 ///
 /// Every one of these has to fit the map it is drawn under, and the default
-/// difficulty's map is 48 columns wide — so the narrow tier, not the wide one,
-/// is what most players read. `S settings` earns its place in every keyboard
-/// one: it is the only way to find the panel that turns any of this off.
+/// difficulty's map is 38 columns wide — so the narrow tier, not the wide one,
+/// is what most players read, and it has thirty-six characters to say
+/// everything in. `S settings` earns ten of them in every keyboard tier: it is
+/// the only way to find the panel that turns any of this off. What gets cut
+/// first is whatever the player has already found out by pressing it — nobody
+/// needs to be told twice that the arrows move.
 ///
 /// The touch tier names no keys and no settings, for the same reason in both
 /// cases — the buttons are already on the screen, labelled. What it says
@@ -424,14 +435,12 @@ const fn hint(mode: UiMode, phase: Phase, cols: i32, touch: bool) -> &'static st
         return "R plays again   S settings";
     }
     match (mode, wide) {
-        (UiMode::Messages, true) => "arrows move  space wait  X examine  Z list  S settings",
-        (UiMode::Messages, false) => "move  wait  X examine  Z list  S settings",
-        (UiMode::Organelles, true) => {
-            "arrows select  Q and E page  X examine  Esc back  S settings"
-        }
-        (UiMode::Organelles, false) => "select  Q/E page  Esc back  S settings",
-        (UiMode::Examine, true) => "arrows move the cursor  X or Esc back  Z list  S settings",
-        (UiMode::Examine, false) => "move cursor  X or Esc back  S settings",
+        (UiMode::Messages, true) => "arrows move  wait  X look  Z list  S settings",
+        (UiMode::Messages, false) => "wait  X look  Z list  S settings",
+        (UiMode::Organelles, true) => "arrows select  Q/E page  Esc back  S settings",
+        (UiMode::Organelles, false) => "Q/E page  Esc back  S settings",
+        (UiMode::Examine, true) => "move cursor  X or Esc back  S settings",
+        (UiMode::Examine, false) => "X or Esc back  S settings",
     }
 }
 
@@ -643,8 +652,8 @@ mod tests {
     fn every_hint_fits_the_panel_it_is_drawn_under() {
         // Nothing here can be checked by eye in CI, so check the arithmetic:
         // the panel is as wide as the map, and the default difficulty's map is
-        // 48 columns — the wide tier only gets more room on GJ's 64.
-        for (cols, budget) in [(48, 46_usize), (64, 62)] {
+        // 38 columns — the wide tier only gets more room on GJ's 48.
+        for (cols, budget) in [(38, 36_usize), (48, 46)] {
             for mode in MODES {
                 for phase in [Phase::Playing, Phase::GameOver { won: true }] {
                     for touch in [false, true] {

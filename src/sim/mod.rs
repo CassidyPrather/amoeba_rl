@@ -49,6 +49,13 @@ pub use view::RenderView;
 /// which are as likely to be the nucleus dying as another footstep.
 const MAX_EFFECTS: usize = 4096;
 
+/// How far the ground stays unsound around a gate that has come down.
+///
+/// Taxicab, and wide enough to take in a gate or two without reaching the far
+/// side of the map: the relief is meant to reward clearing a neighbourhood, not
+/// to reward clearing anything at all.
+const COLLAPSE_RANGE: i32 = 12;
+
 /// How hard the humans push back, and how big the cavern is.
 ///
 /// The original picked this from the command line. There is no command line on
@@ -70,32 +77,32 @@ impl Difficulty {
     pub const fn rules(self) -> Rules {
         match self {
             Self::Normal => Rules {
-                map_width: 48,
-                map_height: 48,
+                map_width: 38,
+                map_height: 38,
                 spawn_rate: 50,
                 evolution_rate: 6,
                 max_budget: 5,
-                city_armor_step: 20,
+                city_armor_step: 10,
                 num_cities: 12,
                 grace_cities: 4,
             },
             Self::Easy => Rules {
-                map_width: 48,
-                map_height: 48,
+                map_width: 38,
+                map_height: 38,
                 spawn_rate: 75,
                 evolution_rate: 7,
                 max_budget: 5,
-                city_armor_step: 20,
+                city_armor_step: 10,
                 num_cities: 10,
                 grace_cities: 4,
             },
             Self::Gj => Rules {
-                map_width: 64,
-                map_height: 48,
+                map_width: 48,
+                map_height: 40,
                 spawn_rate: 50,
                 evolution_rate: 5,
                 max_budget: 6,
-                city_armor_step: 32,
+                city_armor_step: 14,
                 num_cities: 16,
                 grace_cities: 0,
             },
@@ -116,9 +123,14 @@ impl Difficulty {
 /// Everything a [`Difficulty`] decides.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Rules {
-    /// Map columns. The original's console could not show more than 64.
+    /// Map columns.
+    ///
+    /// DELIBERATE CHANGE from C# (§2), where every map was 64 by 48 because
+    /// that was as much as the console could show. A warren uses its cells —
+    /// see [`mapgen`] — so it needs fewer of them, and a smaller map is a
+    /// shorter walk between the things worth walking to.
     pub map_width: i32,
-    /// Map rows. The original's console could not show more than 48.
+    /// Map rows.
     pub map_height: i32,
     /// Turns between a gate's waves, after the first.
     pub spawn_rate: i32,
@@ -126,13 +138,20 @@ pub struct Rules {
     pub evolution_rate: i32,
     /// Ceiling on a wave's budget.
     pub max_budget: i32,
-    /// Mass the first gate costs to break, and what every gate after it adds.
+    /// Mass the first gate costs to break, and what every gate after it adds —
+    /// or gives back, when it comes down beside one.
     ///
     /// DELIBERATE CHANGE from C# (§1), where every gate cost a flat
     /// `CityArmor` — 100 on Normal and Easy, 160 on GJ. That was the whole
     /// early game spent growing to a threshold nothing else needed. The first
-    /// gate now costs a fifth of the old price and each one after it costs a
-    /// fifth more, so the last gate a Normal run has to break still costs 160.
+    /// gate now costs a small fraction of the old price and each one after it
+    /// costs that much more again; [`Sim::gate_price`] is what stops the climb
+    /// from becoming the same problem at the other end of the run.
+    ///
+    /// The step is also what ties the win condition to the size of the cavern.
+    /// A warren is denser than the open box the original generated, so it has
+    /// fewer floor cells in it, and a threshold that did not come down with
+    /// them would be asking the player to be a third of the map.
     pub city_armor_step: i32,
     /// Gates the map is generated with.
     pub num_cities: i32,
@@ -141,7 +160,11 @@ pub struct Rules {
 }
 
 impl Rules {
-    /// Gates you must actually destroy.
+    /// Gates a whole run has to destroy.
+    ///
+    /// A fact about the difficulty and not about the moment — for the number
+    /// still owed, which is what anything on screen wants, see
+    /// [`Sim::cities_to_break`].
     #[must_use]
     pub const fn cities_required(&self) -> i32 {
         self.num_cities - self.grace_cities
@@ -279,12 +302,27 @@ pub enum Cue {
     WaveSpawned,
     /// A gate is fewer than ten turns from its next wave.
     GateCountdown,
+    /// A caravan reached a gate and left the map with its cargo.
+    Depart,
     /// A gate came down.
     CityDestroyed,
     /// The run ended in escape.
     Win,
     /// The run ended in death.
     Lose,
+}
+
+/// Somewhere a human has heard the amoeba is.
+///
+/// A rumor is how a human that cannot see you still knows which way to walk.
+/// One is raised whenever somebody lays eyes on the mass or dies to it, and it
+/// stops being worth walking to after a while — see [`Sim::raise_rumor`].
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Rumor {
+    /// Where the amoeba was said to be.
+    pub pos: Coord,
+    /// The instant this stops being news.
+    pub until: u64,
 }
 
 /// One human a terror core has lifted off the schedule, and the speed it had
@@ -336,6 +374,18 @@ pub struct Sim {
     reticles: Vec<Reticle>,
     /// Humans a terror core is currently holding off the schedule.
     terrified: Vec<Terrified>,
+    /// Where the gates that have already fallen were standing. The rock around
+    /// each of these is unsound, and prices the gates near it accordingly.
+    wrecks: Vec<Coord>,
+    /// Where the humans think you are, newest last.
+    rumors: Vec<Rumor>,
+    /// The middle of every chamber the generator carved, in the order it
+    /// carved them. These are the corners the humans patrol between.
+    junctions: Vec<Coord>,
+    /// One entry per cell: steps of open floor to the nearest gate doorway, or
+    /// [`i32::MAX`] for rock and for anywhere a gate cannot reach. Fixed by
+    /// [`mapgen`] and read by everything that cares where the deep is.
+    depth: Vec<i32>,
     /// Bumped by every world mutation, so the drag-path cache can tell whether
     /// it is still describing the world it was computed from.
     version: u64,
@@ -379,6 +429,10 @@ impl Sim {
             cursor: None,
             reticles: Vec::new(),
             terrified: Vec::new(),
+            wrecks: Vec::new(),
+            rumors: Vec::new(),
+            junctions: Vec::new(),
+            depth: vec![i32::MAX; cells],
             version: 0,
             drag_cache: None,
             input_style: InputStyle::Keys,
@@ -511,6 +565,7 @@ impl Sim {
 
     /// One trip through the original's `AdvanceTurn` loop body.
     fn advance_turn_step(&mut self) {
+        self.forget_stale_rumors();
         let Some(id) = self.schedule.pop() else {
             return;
         };
@@ -561,9 +616,12 @@ impl Sim {
         }
         match kind {
             Kind::City => self.city_act(id),
-            Kind::Militia | Kind::Tank | Kind::Mech => self.militia_act(id),
-            Kind::Hunter | Kind::Scout => self.ranged_act(id),
-            Kind::Caravan => self.caravan_act(id),
+            Kind::Militia
+            | Kind::Tank
+            | Kind::Mech
+            | Kind::Hunter
+            | Kind::Scout
+            | Kind::Caravan => self.human_act(id),
             Kind::Maw | Kind::ReinforcedMaw => self.maw_act(id),
             Kind::Tentacle => self.tentacle_act(id),
             Kind::Chloroplast | Kind::Bioreactor | Kind::BiometalForge | Kind::PrimordialSoup => {
@@ -709,9 +767,15 @@ impl Sim {
         for line in lines {
             self.messages.add(line);
         }
-        let required = self.rules.cities_required();
+        // Live rather than the difficulty's total, for the same reason the
+        // sidebar's is: the help can be asked for at any point in a run. The
+        // wording avoids the word "escape" on purpose — a touchscreen's help
+        // may not contain the substring "esc", because a phone has no Escape
+        // key to send anybody looking for.
+        let left = self.cities_to_break();
+        let gates = if left == 1 { "gate" } else { "gates" };
         self.messages
-            .add(&format!("Destroy {required} cities to win"));
+            .add(&format!("{left} {gates} must fall before you are free"));
     }
 
     // -- world queries ------------------------------------------------------
@@ -765,11 +829,69 @@ impl Sim {
         &self.cities
     }
 
-    /// Mass needed to break the next gate. Every gate standing is worth this
-    /// much, and the price goes up by one step each time one falls.
+    /// Gates that still have to come down before the amoeba can escape.
+    ///
+    /// What is standing, less the ones this difficulty lets you walk away from.
+    /// It counts down beside [`Sim::cities`] and reaches zero exactly when the
+    /// run is won, which is what makes it safe to show next to one: the two are
+    /// in the same tense and the same units, and this is never the larger.
+    ///
+    /// [`Rules::cities_required`] is the other quantity — how many a whole run
+    /// must break — and showing *that* beside a live count was a bug. After
+    /// five gates a Normal run displayed eight still to break out of seven left
+    /// standing, which is not a hard thing to read so much as an untrue one.
     #[must_use]
-    pub const fn city_armor(&self) -> i32 {
-        self.rules.city_armor(self.cities_destroyed)
+    pub fn cities_to_break(&self) -> i32 {
+        let standing = i32::try_from(self.cities.len()).unwrap_or(i32::MAX);
+        (standing - self.rules.grace_cities).max(0)
+    }
+
+    /// Mass needed to break the cheapest gate still standing.
+    ///
+    /// Gates are no longer all worth the same, so this is a floor rather than
+    /// a fact about any one of them — the number to grow to before there is
+    /// anything you can break at all. What a *particular* gate costs is on the
+    /// gate, and the examine cursor will tell you.
+    #[must_use]
+    pub fn city_armor(&self) -> i32 {
+        self.cities
+            .iter()
+            .filter_map(|id| self.actors.get(*id))
+            .map(|gate| gate.armor)
+            .min()
+            .unwrap_or_else(|| self.rules.city_armor(self.cities_destroyed))
+    }
+
+    /// Mass needed to break the gate standing at `at`.
+    ///
+    /// DELIBERATE CHANGE from C#, and from this remaster's own first pass at
+    /// it. Pricing every gate one step dearer than the last fixed the original
+    /// problem — an early game spent growing to a threshold nothing else needed
+    /// — by moving it to the end, where the last few gates cost a hundred and
+    /// sixty mass apiece and a run turned into a march. So the rock now gives
+    /// some of it back: a gate that comes down leaves the ground around it
+    /// unsound, and every gate within [`COLLAPSE_RANGE`] of a wreck is a step
+    /// cheaper for it, down to a floor of the opening price.
+    ///
+    /// Working a neighbourhood therefore stays affordable while wandering the
+    /// map does not, which turns the endgame into a cascade with a route to
+    /// plan rather than a treadmill with a number on it.
+    #[must_use]
+    pub fn gate_price(&self, at: Coord) -> i32 {
+        let base = self.rules.city_armor(self.cities_destroyed);
+        let unsound = self
+            .wrecks
+            .iter()
+            .filter(|wreck| wreck.taxi(at) <= COLLAPSE_RANGE)
+            .count();
+        let relief = i32::try_from(unsound).unwrap_or(0) * self.rules.city_armor_step;
+        (base - relief).max(self.rules.city_armor_step)
+    }
+
+    /// Where the gates that have already fallen were standing.
+    #[must_use]
+    pub fn wrecks(&self) -> &[Coord] {
+        &self.wrecks
     }
 
     /// The nucleus under your control.
@@ -794,6 +916,28 @@ impl Sim {
     #[must_use]
     pub fn reticle_at(&self, c: Coord) -> bool {
         self.reticles.iter().any(|r| r.pos == c)
+    }
+
+    /// The middle of every chamber the generator carved.
+    #[must_use]
+    pub fn junctions(&self) -> &[Coord] {
+        &self.junctions
+    }
+
+    /// How far this cell is from the nearest gate, in steps of open floor.
+    ///
+    /// Solid rock, and anywhere no gate can reach, answers [`i32::MAX`]. This
+    /// is a property of the map and not of the moment: it is measured once,
+    /// before anything is standing anywhere.
+    #[must_use]
+    pub fn depth_at(&self, c: Coord) -> i32 {
+        self.cell_index(c).map_or(i32::MAX, |i| self.depth[i])
+    }
+
+    /// Where the humans currently think you are.
+    #[must_use]
+    pub fn rumors(&self) -> &[Rumor] {
+        &self.rumors
     }
 
     /// Report that something happened, once per advance however often it did.
@@ -869,7 +1013,7 @@ impl Sim {
     pub(crate) fn add_actor(&mut self, kind: Kind, pos: Coord) -> ActorId {
         let mut actor = Actor::new(kind, pos);
         if actors::is_city(kind) {
-            actor.armor = self.city_armor();
+            actor.armor = self.gate_price(pos);
         }
         let slime = actor.slime;
         let delay = actor.delay;
@@ -1111,6 +1255,7 @@ mod tests {
         sim.grid = Grid::new(20, 20);
         sim.actor_at = vec![None; 400];
         sim.item_at = vec![None; 400];
+        sim.depth = vec![0; 400];
         for y in 0..20 {
             for x in 0..20 {
                 let solid = x == 0 || y == 0 || x == 19 || y == 19;
@@ -1134,24 +1279,25 @@ mod tests {
     #[test]
     fn difficulty_tables_match_the_spec() {
         let normal = Difficulty::Normal.rules();
-        assert_eq!((normal.map_width, normal.map_height), (48, 48));
+        assert_eq!((normal.map_width, normal.map_height), (38, 38));
         assert_eq!(normal.cities_required(), 8);
         let easy = Difficulty::Easy.rules();
         assert_eq!(easy.spawn_rate, 75);
         assert_eq!(easy.cities_required(), 6);
         let gj = Difficulty::Gj.rules();
-        assert_eq!((gj.map_width, gj.map_height), (64, 48));
-        assert_eq!(gj.city_armor(0), 32);
+        assert_eq!((gj.map_width, gj.map_height), (48, 40));
+        assert_eq!(gj.city_armor(0), 14);
         assert_eq!(gj.cities_required(), 16);
     }
 
     #[test]
     fn every_gate_costs_one_step_more_than_the_last() {
         let normal = Difficulty::Normal.rules();
-        assert_eq!(normal.city_armor(0), 20, "the first gate is cheap");
-        assert_eq!(normal.city_armor(1), 40);
-        // The last gate a Normal run has to break costs what every gate used to.
-        assert_eq!(normal.city_armor(normal.cities_required() - 1), 160);
+        assert_eq!(normal.city_armor(0), 10, "the first gate is cheap");
+        assert_eq!(normal.city_armor(1), 20);
+        // The dearest gate a Normal run can be asked for, before any relief the
+        // rock gives back for the wrecks around it.
+        assert_eq!(normal.city_armor(normal.cities_required() - 1), 80);
     }
 
     #[test]
@@ -1160,13 +1306,83 @@ mod tests {
         let step = sim.rules.city_armor_step;
         assert!(sim.cities().iter().all(|id| sim.actors[*id].armor == step));
         let doomed = sim.cities()[0];
+        let wreck = sim.actors[doomed].pos;
         sim.destroy_city(doomed);
-        assert_eq!(sim.city_armor(), 2 * step);
-        assert!(
-            sim.cities()
-                .iter()
-                .all(|id| sim.actors[*id].armor == 2 * step),
-            "every gate still standing went up together"
+        for id in sim.cities() {
+            let at = sim.actors[*id].pos;
+            let unsound = at.taxi(wreck) <= COLLAPSE_RANGE;
+            assert_eq!(
+                sim.actors[*id].armor,
+                if unsound { step } else { 2 * step },
+                "the gate at {at:?} is {} from the wreck",
+                at.taxi(wreck)
+            );
+        }
+        let cheapest = sim
+            .cities()
+            .iter()
+            .map(|id| sim.actors[*id].armor)
+            .min()
+            .expect("gates are still standing");
+        assert_eq!(
+            sim.city_armor(),
+            cheapest,
+            "the status line quotes the best"
+        );
+    }
+
+    #[test]
+    fn the_gates_still_to_break_never_outnumber_the_ones_still_standing() {
+        // The bug this replaced: `Must break` was the difficulty's whole-run
+        // total sitting in the same slot as a live count, so a Normal run five
+        // gates in showed eight still to break out of seven left standing.
+        let mut sim = playing(28);
+        let mut broken = 0;
+        while sim.phase() == Phase::Playing {
+            let doomed = sim.cities()[0];
+            sim.destroy_city(doomed);
+            broken += 1;
+            let status = sim.view(0).status;
+            let standing = i32::try_from(status.cities_remaining).expect("a small count");
+            assert!(
+                status.cities_to_break <= standing,
+                "{broken} in: {} to break of {standing} standing",
+                status.cities_to_break
+            );
+            assert!(broken <= sim.rules.num_cities, "it never finished");
+        }
+        assert_eq!(broken, sim.rules.cities_required(), "the run's whole total");
+        assert_eq!(sim.phase(), Phase::GameOver { won: true });
+        assert_eq!(
+            sim.view(0).status.cities_to_break,
+            0,
+            "and it lands on zero"
+        );
+    }
+
+    #[test]
+    fn clearing_a_neighbourhood_is_what_keeps_the_price_down() {
+        // The late game's whole shape. Gates near a wreck stand in unsound
+        // rock and stay near the opening price; gates across the map pay the
+        // full climb, so the run ends in a cascade with a route to plan.
+        let mut sim = sandbox(70);
+        sim.rules.grace_cities = 0;
+        let step = sim.rules.city_armor_step;
+        let huddle: Vec<ActorId> = [Coord::new(1, 3), Coord::new(1, 6), Coord::new(1, 9)]
+            .into_iter()
+            .map(|at| sim.add_actor(Kind::City, at))
+            .collect();
+        let lonely = sim.add_actor(Kind::City, Coord::new(18, 18));
+        sim.destroy_city(huddle[0]);
+        sim.destroy_city(huddle[1]);
+        assert_eq!(
+            sim.actors[huddle[2]].armor, step,
+            "the rest of the huddle stayed at the opening price"
+        );
+        assert_eq!(
+            sim.actors[lonely].armor,
+            3 * step,
+            "and the one across the arena paid for both of them"
         );
     }
 
@@ -1659,12 +1875,23 @@ mod tests {
             check_invariants(&sim, &format!("unopposed seed {seed} end"));
             if sim.phase() == (Phase::GameOver { won: true }) {
                 won += 1;
-                // The last gate it broke was the dearest one, and it had to be
-                // standing in front of it with that much mass.
-                let last = sim.rules.city_armor(sim.cities_destroyed - 1);
+                // It had to be standing in front of the last gate with what
+                // that gate cost, which is the climb less whatever the rock
+                // gave back for the wrecks already around it.
+                let (last, earlier) = sim.wrecks().split_last().expect("a gate fell");
+                let unsound = earlier
+                    .iter()
+                    .filter(|wreck| wreck.taxi(*last) <= COLLAPSE_RANGE)
+                    .count();
+                let step = sim.rules.city_armor_step;
+                #[allow(clippy::cast_possible_truncation, clippy::cast_possible_wrap)]
+                let price = (sim.rules.city_armor(sim.cities_destroyed - 1)
+                    - unsound as i32 * step)
+                    .max(step);
                 assert!(
-                    sim.mass() >= last.unsigned_abs() as usize,
-                    "seed {seed}: it won without the mass to do it"
+                    sim.mass() >= price.unsigned_abs() as usize,
+                    "seed {seed}: it won with {} mass against a gate worth {price}",
+                    sim.mass()
                 );
                 assert!(
                     sim.cities().len() <= sim.rules.grace_cities.unsigned_abs() as usize,
@@ -1778,7 +2005,7 @@ mod tests {
         for frame in 0..24 {
             sim.advance(Some(Command::Wait));
             let view = sim.view(frame);
-            assert_eq!(view.cells.len(), 48 * 48);
+            assert_eq!(view.cells.len(), 38 * 38);
         }
     }
 }

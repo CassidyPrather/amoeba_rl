@@ -56,7 +56,7 @@ const TEXTURE: u8 = 0;
 
 /// Every cue, in the order [`slot`] indexes them and [`Audio::load`] bakes
 /// them.
-const CUES: [Cue; 19] = [
+const CUES: [Cue; 20] = [
     Cue::Step,
     Cue::Bump,
     Cue::Swap,
@@ -71,6 +71,7 @@ const CUES: [Cue; 19] = [
     Cue::Aim,
     Cue::Shot,
     Cue::Terrify,
+    Cue::Depart,
     Cue::WaveSpawned,
     Cue::GateCountdown,
     Cue::CityDestroyed,
@@ -98,11 +99,12 @@ const fn slot(cue: Cue) -> usize {
         Cue::Aim => 11,
         Cue::Shot => 12,
         Cue::Terrify => 13,
-        Cue::WaveSpawned => 14,
-        Cue::GateCountdown => 15,
-        Cue::CityDestroyed => 16,
-        Cue::Win => 17,
-        Cue::Lose => 18,
+        Cue::Depart => 14,
+        Cue::WaveSpawned => 15,
+        Cue::GateCountdown => 16,
+        Cue::CityDestroyed => 17,
+        Cue::Win => 18,
+        Cue::Lose => 19,
     }
 }
 
@@ -166,6 +168,7 @@ fn design(cue: Cue) -> Design {
         Cue::Aim => Design::single(synth::aim(), 0.22, 0.14, MINOR),
         Cue::Shot => Design::single(synth::shot(), 0.45, 0.09, MAJOR),
         Cue::Terrify => Design::single(synth::terrify(), 0.38, 0.30, MINOR),
+        Cue::Depart => Design::single(synth::depart(), 0.35, 0.40, MINOR),
         Cue::WaveSpawned => Design::single(synth::wave_spawned(), 0.45, 0.60, MAJOR),
         Cue::GateCountdown => Design::single(synth::gate_countdown(), 0.10, 0.55, TEXTURE),
         Cue::CityDestroyed => Design::single(synth::city_destroyed(), 0.90, 1.00, MAJOR),
