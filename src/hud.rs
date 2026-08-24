@@ -31,7 +31,7 @@ const ENTRY_ROW: i32 = 8;
 /// Below this many columns the key hints have to be abbreviated.
 ///
 /// The panel is as wide as the map, and the maps are 38 columns on Normal and
-/// Easy and 48 on GJ, so this is the line between the two of them.
+/// Easy and 64 on GJ, so this is the line between the two of them.
 const WIDE_HINT_COLS: i32 = 46;
 
 /// The message bar: the log, or a description of whatever has your attention.
@@ -652,8 +652,8 @@ mod tests {
     fn every_hint_fits_the_panel_it_is_drawn_under() {
         // Nothing here can be checked by eye in CI, so check the arithmetic:
         // the panel is as wide as the map, and the default difficulty's map is
-        // 38 columns — the wide tier only gets more room on GJ's 48.
-        for (cols, budget) in [(38, 36_usize), (48, 46)] {
+        // 38 columns — the wide tier only gets more room on GJ's 64.
+        for (cols, budget) in [(38, 36_usize), (64, 62)] {
             for mode in MODES {
                 for phase in [Phase::Playing, Phase::GameOver { won: true }] {
                     for touch in [false, true] {

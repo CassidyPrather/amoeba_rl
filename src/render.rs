@@ -127,7 +127,7 @@ impl Layout {
     /// Fit the game to a window.
     ///
     /// `map_w` and `map_h` are the sim's map size, which the difficulty picks:
-    /// 48×48 normally and 64×48 on GJ. Laying out from those rather than from
+    /// 38×38 normally and 64×48 on GJ. Laying out from those rather than from
     /// the original's fixed 64 means the smaller maps do not pay for columns
     /// they never draw.
     ///
