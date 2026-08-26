@@ -910,7 +910,7 @@ fn settings_menu(font: &Tileset, ui: &Frontend, touch: bool) {
     font.draw_text_centred(
         help,
         panel.center().x,
-        note.mul_add(-0.5, (rows_end + geometry.close.y) * 0.5)
+        note.mul_add(-0.5, f32::midpoint(rows_end, geometry.close.y))
             .floor(),
         note,
         rgb(palette::FLOOR_FOV),
