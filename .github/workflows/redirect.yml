@@ -1,0 +1,29 @@
+name: Redirect to game-prototypes
+
+# The game moved to CassidyPrather/game-prototypes. This keeps its old
+# address, wirenook.net/amoeba_rl/, pointing at the new one: Pages serves
+# redirect/ in place of the game. Pages keeps serving after the repository
+# is archived, so this only has to run once.
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: redirect
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
